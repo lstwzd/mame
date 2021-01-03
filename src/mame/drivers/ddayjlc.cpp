@@ -67,6 +67,7 @@ $842f = lives
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class ddayjlc_state : public driver_device
@@ -92,19 +93,19 @@ public:
 
 private:
 
-	DECLARE_WRITE8_MEMBER(prot_w);
-	DECLARE_WRITE8_MEMBER(char_bank_w);
-	DECLARE_WRITE8_MEMBER(bgvram_w);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_WRITE8_MEMBER(sound_nmi_w);
-	DECLARE_WRITE8_MEMBER(main_nmi_w);
-	DECLARE_WRITE8_MEMBER(bg0_w);
-	DECLARE_WRITE8_MEMBER(bg1_w);
-	DECLARE_WRITE8_MEMBER(bg2_w);
-	DECLARE_WRITE8_MEMBER(sound_w);
-	DECLARE_WRITE8_MEMBER(flip_screen_w);
-	DECLARE_WRITE8_MEMBER(i8257_CH0_w);
-	DECLARE_WRITE8_MEMBER(i8257_LMSR_w);
+	void prot_w(offs_t offset, uint8_t data);
+	void char_bank_w(uint8_t data);
+	void bgvram_w(offs_t offset, uint8_t data);
+	void vram_w(offs_t offset, uint8_t data);
+	void sound_nmi_w(uint8_t data);
+	void main_nmi_w(uint8_t data);
+	void bg0_w(uint8_t data);
+	void bg1_w(uint8_t data);
+	void bg2_w(uint8_t data);
+	void sound_w(uint8_t data);
+	void flip_screen_w(uint8_t data);
+	void i8257_CH0_w(offs_t offset, uint8_t data);
+	void i8257_LMSR_w(address_space &space, uint8_t data);
 	TILE_GET_INFO_MEMBER(get_tile_info_bg);
 	TILE_GET_INFO_MEMBER(get_tile_info_fg);
 	void ddayjlc_palette(palette_device &palette) const;
@@ -162,20 +163,20 @@ TILE_GET_INFO_MEMBER(ddayjlc_state::get_tile_info_bg)
 	color |= (attr & 0x40) >> 3;
 
 	tileinfo.category = BIT(attr,7);
-	SET_TILE_INFO_MEMBER(2, code, color, 0);
+	tileinfo.set(2, code, color, 0);
 }
 
 TILE_GET_INFO_MEMBER(ddayjlc_state::get_tile_info_fg)
 {
 	int code = m_videoram[tile_index] + (m_char_bank << 8);
 
-	SET_TILE_INFO_MEMBER(1, code, 0, 0);
+	tileinfo.set(1, code, 0, 0);
 }
 
 void ddayjlc_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(ddayjlc_state::get_tile_info_bg),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
-	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(ddayjlc_state::get_tile_info_fg),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(ddayjlc_state::get_tile_info_bg)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(ddayjlc_state::get_tile_info_fg)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 
 	m_bg_tilemap->set_transparent_pen(0);
 	m_fg_tilemap->set_transparent_pen(0);
@@ -285,12 +286,12 @@ CUSTOM_INPUT_MEMBER(ddayjlc_state::prot_r)
 	return prot_data[m_prot_addr];
 }
 
-WRITE8_MEMBER(ddayjlc_state::prot_w)
+void ddayjlc_state::prot_w(offs_t offset, uint8_t data)
 {
 	m_prot_addr = (m_prot_addr & (~(1 << offset))) | ((data & 1) << offset);
 }
 
-WRITE8_MEMBER(ddayjlc_state::char_bank_w)
+void ddayjlc_state::char_bank_w(uint8_t data)
 {
 	m_char_bank = BIT(data,0);
 	m_fg_tilemap->mark_all_dirty();
@@ -298,7 +299,7 @@ WRITE8_MEMBER(ddayjlc_state::char_bank_w)
 		logerror("Warning: char_bank_w with %02x\n",data);
 }
 
-WRITE8_MEMBER(ddayjlc_state::bgvram_w)
+void ddayjlc_state::bgvram_w(offs_t offset, uint8_t data)
 {
 	if (!offset)
 		m_bg_tilemap->set_scrollx(0, data + 8);
@@ -307,38 +308,38 @@ WRITE8_MEMBER(ddayjlc_state::bgvram_w)
 	m_bg_tilemap->mark_tile_dirty(offset & 0x3ff);
 }
 
-WRITE8_MEMBER(ddayjlc_state::vram_w)
+void ddayjlc_state::vram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_fg_tilemap->mark_tile_dirty(offset & 0x3ff);
 }
 
 
-WRITE8_MEMBER(ddayjlc_state::sound_nmi_w)
+void ddayjlc_state::sound_nmi_w(uint8_t data)
 {
 	m_sound_nmi_enable = BIT(data, 0);
 	if (!m_sound_nmi_enable)
 		m_audiocpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 }
 
-WRITE8_MEMBER(ddayjlc_state::main_nmi_w)
+void ddayjlc_state::main_nmi_w(uint8_t data)
 {
 	m_main_nmi_enable = BIT(data, 0);
 	if (!m_main_nmi_enable)
 		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 }
 
-WRITE8_MEMBER(ddayjlc_state::bg0_w)
+void ddayjlc_state::bg0_w(uint8_t data)
 {
 	m_bgadr = (m_bgadr & 0xfe) | (data & 1);
 }
 
-WRITE8_MEMBER(ddayjlc_state::bg1_w)
+void ddayjlc_state::bg1_w(uint8_t data)
 {
 	m_bgadr = (m_bgadr & 0xfd) | ((data & 1) << 1);
 }
 
-WRITE8_MEMBER(ddayjlc_state::bg2_w)
+void ddayjlc_state::bg2_w(uint8_t data)
 {
 	m_bgadr = (m_bgadr & 0xfb) | ((data & 1) << 2);
 	if (m_bgadr > 2)
@@ -347,24 +348,24 @@ WRITE8_MEMBER(ddayjlc_state::bg2_w)
 	membank("bank1")->set_entry(m_bgadr);
 }
 
-WRITE8_MEMBER(ddayjlc_state::sound_w)
+void ddayjlc_state::sound_w(uint8_t data)
 {
-	m_soundlatch->write(space, offset, data);
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff);
+	m_soundlatch->write(data);
+	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
 }
 
-WRITE8_MEMBER(ddayjlc_state::flip_screen_w)
+void ddayjlc_state::flip_screen_w(uint8_t data)
 {
 	flip_screen_set(data & 1);
 }
 
-WRITE8_MEMBER(ddayjlc_state::i8257_CH0_w)
+void ddayjlc_state::i8257_CH0_w(offs_t offset, uint8_t data)
 {
 	m_e00x_d[offset][m_e00x_l[offset]] = data;
 	m_e00x_l[offset] ^= 1;
 }
 
-WRITE8_MEMBER(ddayjlc_state::i8257_LMSR_w)
+void ddayjlc_state::i8257_LMSR_w(address_space &space, uint8_t data)
 {
 	if (!data)
 	{
@@ -453,7 +454,7 @@ static INPUT_PORTS_START( ddayjlc )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN1 )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN2 )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SERVICE1 )
-	PORT_BIT( 0x60, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, ddayjlc_state,prot_r, nullptr)
+	PORT_BIT( 0x60, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(ddayjlc_state, prot_r)
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 
 	PORT_START("DSW1")
@@ -599,28 +600,28 @@ void ddayjlc_state::ddayjlc_palette(palette_device &palette) const
 	palette.set_pen_color(0x203, rgb_t(0xff, 0xff, 0xff));
 }
 
-MACHINE_CONFIG_START(ddayjlc_state::ddayjlc)
-
+void ddayjlc_state::ddayjlc(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,12000000/3)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	Z80(config, m_maincpu, 12000000/3);
+	m_maincpu->set_addrmap(AS_PROGRAM, &ddayjlc_state::main_map);
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, 12000000/4)
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	Z80(config, m_audiocpu, 12000000/4);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &ddayjlc_state::sound_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	config.set_maximum_quantum(attotime::from_hz(6000));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(ddayjlc_state, screen_update_ddayjlc)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, ddayjlc_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(ddayjlc_state::screen_update_ddayjlc));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(ddayjlc_state::vblank_irq));
 
-	MCFG_DEVICE_ADD(m_gfxdecode, GFXDECODE, m_palette, gfx_ddayjlc)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_ddayjlc);
 	PALETTE(config, m_palette, FUNC(ddayjlc_state::ddayjlc_palette), 0x200+4);
 
 	SPEAKER(config, "mono").front_center();
@@ -632,7 +633,7 @@ MACHINE_CONFIG_START(ddayjlc_state::ddayjlc)
 	ay1.add_route(ALL_OUTPUTS, "mono", 1.0);
 
 	AY8910(config, "ay2", 12000000/6).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( ddayjlc )

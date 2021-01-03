@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:David Haywood, Robbbert
+// copyright-holders:David Haywood, Angelo Salese
 /************************************************************************************************
   Poker Monarch
 
@@ -54,9 +54,9 @@ private:
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<palette_device> m_palette;
 
-	DECLARE_WRITE8_MEMBER(poker72_paletteram_w);
-	DECLARE_WRITE8_MEMBER(output_w);
-	DECLARE_WRITE8_MEMBER(tile_bank_w);
+	void poker72_paletteram_w(offs_t offset, uint8_t data);
+	void output_w(uint8_t data);
+	void tile_bank_w(uint8_t data);
 	void poker72_palette(palette_device &palette) const;
 	uint32_t screen_update_poker72(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void poker72_map(address_map &map);
@@ -93,7 +93,7 @@ uint32_t poker72_state::screen_update_poker72(screen_device &screen, bitmap_ind1
 	return 0;
 }
 
-WRITE8_MEMBER(poker72_state::poker72_paletteram_w)
+void poker72_state::poker72_paletteram_w(offs_t offset, uint8_t data)
 {
 	m_pal[offset] = data;
 
@@ -104,7 +104,7 @@ WRITE8_MEMBER(poker72_state::poker72_paletteram_w)
 	m_palette->set_pen_color( offset & 0x3ff, pal6bit(r), pal6bit(g), pal6bit(b));
 }
 
-WRITE8_MEMBER(poker72_state::output_w)
+void poker72_state::output_w(uint8_t data)
 {
 	printf("%02x\n",data);
 
@@ -117,7 +117,7 @@ WRITE8_MEMBER(poker72_state::output_w)
 		membank("bank1")->set_entry(0);
 }
 
-WRITE8_MEMBER(poker72_state::tile_bank_w)
+void poker72_state::tile_bank_w(uint8_t data)
 {
 	m_tile_bank = (data & 4) >> 2;
 }
@@ -371,20 +371,21 @@ void poker72_state::machine_reset()
 	membank("bank1")->set_entry(0);
 }
 
-MACHINE_CONFIG_START(poker72_state::poker72)
+void poker72_state::poker72(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,8000000)         /* ? MHz */
-	MCFG_DEVICE_PROGRAM_MAP(poker72_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", poker72_state,  irq0_line_hold)
+	Z80(config, m_maincpu, 8000000);         /* ? MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &poker72_state::poker72_map);
+	m_maincpu->set_vblank_int("screen", FUNC(poker72_state::irq0_line_hold));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0, 64*8-1, 0, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(poker72_state, screen_update_poker72)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0, 64*8-1, 0, 32*8-1);
+	screen.set_screen_update(FUNC(poker72_state::screen_update_poker72));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_poker72);
 	PALETTE(config, m_palette, FUNC(poker72_state::poker72_palette), 0xe00);
@@ -395,7 +396,7 @@ MACHINE_CONFIG_START(poker72_state::poker72)
 	ay.port_a_read_callback().set_ioport("SW2");
 	ay.port_b_read_callback().set_ioport("SW3");
 	ay.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
 

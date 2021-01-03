@@ -205,18 +205,18 @@ TIMER_DEVICE_CALLBACK_MEMBER(xain_state::scanline)
 		m_vblank = 0;
 }
 
-WRITE8_MEMBER(xain_state::cpuA_bankswitch_w)
+void xain_state::cpuA_bankswitch_w(uint8_t data)
 {
 	m_pri = data & 0x7;
 	m_rom_banks[0]->set_entry((data >> 3) & 1);
 }
 
-WRITE8_MEMBER(xain_state::cpuB_bankswitch_w)
+void xain_state::cpuB_bankswitch_w(uint8_t data)
 {
 	m_rom_banks[1]->set_entry(data & 1);
 }
 
-WRITE8_MEMBER(xain_state::main_irq_w)
+void xain_state::main_irq_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -235,17 +235,17 @@ WRITE8_MEMBER(xain_state::main_irq_w)
 	}
 }
 
-WRITE8_MEMBER(xain_state::irqA_assert_w)
+void xain_state::irqA_assert_w(uint8_t data)
 {
 	m_maincpu->set_input_line(M6809_IRQ_LINE, ASSERT_LINE);
 }
 
-WRITE8_MEMBER(xain_state::irqB_clear_w)
+void xain_state::irqB_clear_w(uint8_t data)
 {
 	m_subcpu->set_input_line(M6809_IRQ_LINE, CLEAR_LINE);
 }
 
-CUSTOM_INPUT_MEMBER(xain_state::vblank_r)
+READ_LINE_MEMBER(xain_state::vblank_r)
 {
 	return m_vblank;
 }
@@ -265,7 +265,7 @@ CUSTOM_INPUT_MEMBER(xain_state::mcu_status_r)
 			((m_mcu && (CLEAR_LINE != m_mcu->host_semaphore_r())) ? 0x00 : 0x02);
 }
 
-READ8_MEMBER(xain_state::mcu_comm_reset_r)
+uint8_t xain_state::mcu_comm_reset_r()
 {
 	if (m_mcu.found() && !machine().side_effects_disabled())
 	{
@@ -282,19 +282,19 @@ READ8_MEMBER(xain_state::mcu_comm_reset_r)
 
 ***************************************************************************/
 
-template <unsigned N> WRITE8_MEMBER(xain_state::bgram_w)
+template <unsigned N> void xain_state::bgram_w(offs_t offset, uint8_t data)
 {
 	m_bgram[N][offset] = data;
 	m_bg_tilemaps[N]->mark_tile_dirty(offset & 0x3ff);
 }
 
-template <unsigned N> WRITE8_MEMBER(xain_state::scrollx_w)
+template <unsigned N> void xain_state::scrollx_w(offs_t offset, uint8_t data)
 {
 	m_scrollx[N][offset] = data;
 	m_bg_tilemaps[N]->set_scrollx(0, m_scrollx[N][0] | (m_scrollx[N][1] << 8));
 }
 
-template <unsigned N> WRITE8_MEMBER(xain_state::scrolly_w)
+template <unsigned N> void xain_state::scrolly_w(offs_t offset, uint8_t data)
 {
 	m_scrolly[N][offset] = data;
 	m_bg_tilemaps[N]->set_scrolly(0, m_scrolly[N][0] | (m_scrolly[N][1] << 8));
@@ -425,8 +425,8 @@ static INPUT_PORTS_START( xsleena )
 	PORT_START("VBLANK")
 	PORT_BIT( 0x03, IP_ACTIVE_LOW,  IPT_UNUSED )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW,  IPT_COIN3 )
-	PORT_BIT( 0x18, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_CUSTOM_MEMBER(DEVICE_SELF, xain_state, mcu_status_r, nullptr)
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, xain_state, vblank_r, nullptr)   /* VBLANK */
+	PORT_BIT( 0x18, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_CUSTOM_MEMBER(xain_state, mcu_status_r)
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(xain_state, vblank_r)   // VBLANK
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW,  IPT_UNUSED )
 INPUT_PORTS_END
 
@@ -471,28 +471,29 @@ void xain_state::machine_start()
 	save_item(NAME(m_vblank));
 }
 
-MACHINE_CONFIG_START(xain_state::xsleena)
-
+void xain_state::xsleena(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD(m_maincpu, MC6809E, CPU_CLOCK) // 68B09E
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", xain_state, scanline, "screen", 0, 1)
+	MC6809E(config, m_maincpu, CPU_CLOCK); // 68B09E
+	m_maincpu->set_addrmap(AS_PROGRAM, &xain_state::main_map);
 
-	MCFG_DEVICE_ADD(m_subcpu, MC6809E, CPU_CLOCK) // 68B09E
-	MCFG_DEVICE_PROGRAM_MAP(cpu_map_B)
+	TIMER(config, "scantimer").configure_scanline(FUNC(xain_state::scanline), "screen", 0, 1);
 
-	MCFG_DEVICE_ADD(m_audiocpu, MC6809, PIXEL_CLOCK) // 68A09
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	MC6809E(config, m_subcpu, CPU_CLOCK); // 68B09E
+	m_subcpu->set_addrmap(AS_PROGRAM, &xain_state::cpu_map_B);
+
+	MC6809(config, m_audiocpu, PIXEL_CLOCK); // 68A09
+	m_audiocpu->set_addrmap(AS_PROGRAM, &xain_state::sound_map);
 
 	TAITO68705_MCU(config, m_mcu, MCU_CLOCK);
 
-	MCFG_QUANTUM_PERFECT_CPU("maincpu")
+	config.set_perfect_quantum(m_maincpu);
 
 	// video hardware
-	MCFG_SCREEN_ADD(m_screen, RASTER)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 384, 0, 256, 272, 8, 248)   // based on ddragon driver
-	MCFG_SCREEN_UPDATE_DRIVER(xain_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(PIXEL_CLOCK, 384, 0, 256, 272, 8, 248);   // based on ddragon driver
+	m_screen->set_screen_update(FUNC(xain_state::screen_update));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_xain);
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_444, 512);
@@ -514,17 +515,17 @@ MACHINE_CONFIG_START(xain_state::xsleena)
 	ym2.add_route(1, "mono", 0.50);
 	ym2.add_route(2, "mono", 0.50);
 	ym2.add_route(3, "mono", 0.40);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(xain_state::xsleenab)
+void xain_state::xsleenab(machine_config &config)
+{
 	xsleena(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(bootleg_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &xain_state::bootleg_map);
 
-	MCFG_DEVICE_REMOVE("mcu")
-MACHINE_CONFIG_END
+	config.device_remove("mcu");
+}
 
 
 /***************************************************************************

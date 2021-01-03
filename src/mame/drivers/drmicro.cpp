@@ -34,7 +34,7 @@ INTERRUPT_GEN_MEMBER(drmicro_state::drmicro_interrupt)
 		device.execute().pulse_input_line(INPUT_LINE_NMI, attotime::zero);
 }
 
-WRITE8_MEMBER(drmicro_state::nmi_enable_w)
+void drmicro_state::nmi_enable_w(uint8_t data)
 {
 	m_nmi_enable = data & 1;
 	m_flipscreen = (data & 2) ? 1 : 0;
@@ -55,7 +55,7 @@ WRITE_LINE_MEMBER(drmicro_state::pcm_w)
 		if (~m_pcm_adr & 1)
 			data >>= 4;
 
-		m_msm->write_data(data & 0x0f);
+		m_msm->data_w(data & 0x0f);
 		m_msm->reset_w(0);
 
 		m_pcm_adr = (m_pcm_adr + 1) & 0x7fff;
@@ -64,7 +64,7 @@ WRITE_LINE_MEMBER(drmicro_state::pcm_w)
 		m_msm->reset_w(1);
 }
 
-WRITE8_MEMBER(drmicro_state::pcm_set_w)
+void drmicro_state::pcm_set_w(uint8_t data)
 {
 	m_pcm_adr = ((data & 0x3f) << 9);
 	pcm_w(1);
@@ -87,9 +87,9 @@ void drmicro_state::drmicro_map(address_map &map)
 void drmicro_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x00, 0x00).portr("P1").w("sn1", FUNC(sn76496_device::command_w));
-	map(0x01, 0x01).portr("P2").w("sn2", FUNC(sn76496_device::command_w));
-	map(0x02, 0x02).w("sn3", FUNC(sn76496_device::command_w));
+	map(0x00, 0x00).portr("P1").w("sn1", FUNC(sn76496_device::write));
+	map(0x01, 0x01).portr("P2").w("sn2", FUNC(sn76496_device::write));
+	map(0x02, 0x02).w("sn3", FUNC(sn76496_device::write));
 	map(0x03, 0x03).portr("DSW1").w(FUNC(drmicro_state::pcm_set_w));
 	map(0x04, 0x04).portr("DSW2").w(FUNC(drmicro_state::nmi_enable_w));
 	map(0x05, 0x05).noprw(); // unused? / watchdog?
@@ -248,7 +248,7 @@ void drmicro_state::drmicro(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &drmicro_state::io_map);
 	m_maincpu->set_vblank_int("screen", FUNC(drmicro_state::drmicro_interrupt));
 
-	config.m_minimum_quantum = attotime::from_hz(60);
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	/* video hardware */
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
@@ -270,7 +270,7 @@ void drmicro_state::drmicro(machine_config &config)
 	SN76496(config, "sn3", MCLK/4).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	MSM5205(config, m_msm, 384000);
-	m_msm->vck_legacy_callback().set(FUNC(drmicro_state::pcm_w));	/* IRQ handler */
+	m_msm->vck_legacy_callback().set(FUNC(drmicro_state::pcm_w));   /* IRQ handler */
 	m_msm->set_prescaler_selector(msm5205_device::S64_4B);  /* 6 KHz */
 	m_msm->add_route(ALL_OUTPUTS, "mono", 0.75);
 }

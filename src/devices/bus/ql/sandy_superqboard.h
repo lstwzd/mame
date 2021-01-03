@@ -46,8 +46,8 @@ protected:
 	virtual void device_add_mconfig(machine_config &config) override;
 
 	// device_ql_expansion_card_interface overrides
-	virtual uint8_t read(address_space &space, offs_t offset, uint8_t data) override;
-	virtual void write(address_space &space, offs_t offset, uint8_t data) override;
+	virtual uint8_t read(offs_t offset, uint8_t data) override;
+	virtual void write(offs_t offset, uint8_t data) override;
 
 private:
 	WRITE_LINE_MEMBER( busy_w );
@@ -74,7 +74,7 @@ private:
 	required_device<centronics_device> m_centronics;
 	required_device<output_latch_device> m_latch;
 	required_memory_region m_rom;
-	optional_shared_ptr<uint8_t> m_ram;
+	memory_share_creator<uint8_t> m_ram;
 	optional_ioport m_buttons;
 
 	int m_ram_size;

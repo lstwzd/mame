@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "dirom.h"
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -12,13 +13,15 @@
 
 // ======================> gaelco_gae1_device
 
+#include "dirom.h"
+
 class gaelco_gae1_device : public device_t,
-							public device_sound_interface
+							public device_sound_interface,
+							public device_rom_interface<27> // Unknown address bits
 {
 public:
 	gaelco_gae1_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
-	void set_snd_data_tag(const char *tag) { m_snd_data.set_tag(tag); }
 	void set_bank_offsets(int offs1, int offs2, int offs3, int offs4)
 	{
 		m_banks[0] = offs1;
@@ -27,18 +30,24 @@ public:
 		m_banks[3] = offs4;
 	}
 
-	DECLARE_WRITE16_MEMBER( gaelcosnd_w );
-	DECLARE_READ16_MEMBER( gaelcosnd_r );
+	void gaelcosnd_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t gaelcosnd_r(offs_t offset);
 
 protected:
 	gaelco_gae1_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
 	virtual void device_start() override;
+	virtual void device_reset() override;
 	virtual void device_stop() override;
+	virtual void device_post_load() override;
+	virtual void device_clock_changed() override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
+
+	// device_rom_interface overrides
+	virtual void rom_bank_updated() override;
 
 private:
 	static constexpr int NUM_CHANNELS   = 0x07;
@@ -52,7 +61,6 @@ private:
 	};
 
 	sound_stream *m_stream;                     /* our stream */
-	required_region_ptr<uint8_t> m_snd_data;      /* PCM data */
 	int m_banks[4];                             /* start of each ROM bank */
 	sound_channel m_channel[NUM_CHANNELS];      /* 7 stereo channels */
 

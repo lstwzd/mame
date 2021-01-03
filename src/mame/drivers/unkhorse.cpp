@@ -35,7 +35,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_speaker(*this, "speaker"),
-		m_inp_matrix(*this, "IN.%u", 0),
+		m_inputs(*this, "IN.%u", 0),
 		m_vram(*this, "vram")
 	{ }
 
@@ -44,16 +44,16 @@ public:
 private:
 	required_device<cpu_device> m_maincpu;
 	required_device<speaker_sound_device> m_speaker;
-	required_ioport_array<4> m_inp_matrix;
+	required_ioport_array<4> m_inputs;
 	required_shared_ptr<uint8_t> m_vram;
 
 	std::unique_ptr<uint8_t[]> m_colorram;
 	uint8_t m_output;
 
-	DECLARE_READ8_MEMBER(colorram_r) { return m_colorram[(offset >> 2 & 0x1e0) | (offset & 0x1f)] | 0x0f; }
-	DECLARE_WRITE8_MEMBER(colorram_w) { m_colorram[(offset >> 2 & 0x1e0) | (offset & 0x1f)] = data & 0xf0; }
-	DECLARE_READ8_MEMBER(input_r);
-	DECLARE_WRITE8_MEMBER(output_w);
+	uint8_t colorram_r(offs_t offset) { return m_colorram[(offset >> 2 & 0x1e0) | (offset & 0x1f)] | 0x0f; }
+	void colorram_w(offs_t offset, uint8_t data) { m_colorram[(offset >> 2 & 0x1e0) | (offset & 0x1f)] = data & 0xf0; }
+	uint8_t input_r();
+	void output_w(uint8_t data);
 
 	virtual void machine_start() override;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -86,7 +86,7 @@ uint32_t horse_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 			uint8_t color = m_colorram[(y << 1 & 0x1e0) | x] >> 4;
 
 			for (int i = 0; i < 8; i++)
-				bitmap.pix16(y, x << 3 | i) = (data >> i & 1) ? color : 0;
+				bitmap.pix(y, x << 3 | i) = (data >> i & 1) ? color : 0;
 		}
 	}
 
@@ -115,12 +115,12 @@ void horse_state::horse_io_map(address_map &map)
 }
 
 
-READ8_MEMBER(horse_state::input_r)
+uint8_t horse_state::input_r()
 {
-	return m_inp_matrix[m_output >> 6 & 3]->read();
+	return m_inputs[m_output >> 6 & 3]->read();
 }
 
-WRITE8_MEMBER(horse_state::output_w)
+void horse_state::output_w(uint8_t data)
 {
 	m_output = data;
 
@@ -192,12 +192,12 @@ INPUT_PORTS_END
 
 ***************************************************************************/
 
-MACHINE_CONFIG_START(horse_state::horse)
-
+void horse_state::horse(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I8085A, XTAL(12'000'000) / 2)
-	MCFG_DEVICE_PROGRAM_MAP(horse_map)
-	MCFG_DEVICE_IO_MAP(horse_io_map)
+	I8085A(config, m_maincpu, XTAL(12'000'000) / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &horse_state::horse_map);
+	m_maincpu->set_addrmap(AS_IO, &horse_state::horse_io_map);
 
 	i8155_device &i8155(I8155(config, "i8155", XTAL(12'000'000) / 4)); // port A input, B output, C output but unused
 	i8155.in_pa_callback().set(FUNC(horse_state::input_r));
@@ -205,21 +205,20 @@ MACHINE_CONFIG_START(horse_state::horse)
 	i8155.out_to_callback().set("speaker", FUNC(speaker_sound_device::level_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(horse_state, screen_update)
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", I8085_RST75_LINE))
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 1*8, 31*8-1);
+	screen.set_screen_update(FUNC(horse_state::screen_update));
+	screen.screen_vblank().set_inputline(m_maincpu, I8085_RST75_LINE);
+	screen.set_palette("palette");
 	PALETTE(config, "palette", palette_device::BGR_3BIT);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.25);
+}
 
 
 

@@ -45,7 +45,8 @@ void sis85c496_host_device::internal_io_map(address_map &map)
 	map(0x00e0, 0x00ef).noprw();
 }
 
-MACHINE_CONFIG_START(sis85c496_host_device::device_add_mconfig)
+void sis85c496_host_device::device_add_mconfig(machine_config &config)
+{
 	PIT8254(config, m_pit8254, 0);
 	m_pit8254->set_clk<0>(4772720/4); // heartbeat IRQ
 	m_pit8254->out_handler<0>().set(FUNC(sis85c496_host_device::at_pit8254_out0_changed));
@@ -100,13 +101,12 @@ MACHINE_CONFIG_START(sis85c496_host_device::device_add_mconfig)
 	m_keybc->hot_res().set(FUNC(sis85c496_host_device::cpu_reset_w));
 	m_keybc->gate_a20().set(FUNC(sis85c496_host_device::cpu_a20_w));
 	m_keybc->kbd_irq().set("pic8259_master", FUNC(pic8259_device::ir1_w));
-	m_keybc->kbd_clk().set("pc_kbdc", FUNC(pc_kbdc_device::clock_write_from_mb));
-	m_keybc->kbd_data().set("pc_kbdc", FUNC(pc_kbdc_device::data_write_from_mb));
+	m_keybc->kbd_clk().set(m_pc_kbdc, FUNC(pc_kbdc_device::clock_write_from_mb));
+	m_keybc->kbd_data().set(m_pc_kbdc, FUNC(pc_kbdc_device::data_write_from_mb));
 
-	MCFG_DEVICE_ADD("pc_kbdc", PC_KBDC, 0)
-	MCFG_PC_KBDC_OUT_CLOCK_CB(WRITELINE("keybc", at_keyboard_controller_device, kbd_clk_w))
-	MCFG_PC_KBDC_OUT_DATA_CB(WRITELINE("keybc", at_keyboard_controller_device, kbd_data_w))
-	MCFG_PC_KBDC_SLOT_ADD("pc_kbdc", "kbd", pc_at_keyboards, STR_KBD_MICROSOFT_NATURAL)
+	PC_KBDC(config, m_pc_kbdc, pc_at_keyboards, STR_KBD_MICROSOFT_NATURAL);
+	m_pc_kbdc->out_clock_cb().set("keybc", FUNC(at_keyboard_controller_device::kbd_clk_w));
+	m_pc_kbdc->out_data_cb().set("keybc", FUNC(at_keyboard_controller_device::kbd_data_w));
 
 	DS12885(config, m_ds12885);
 	m_ds12885->irq().set(m_pic8259_slave, FUNC(pic8259_device::ir0_w));
@@ -115,7 +115,7 @@ MACHINE_CONFIG_START(sis85c496_host_device::device_add_mconfig)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
 sis85c496_host_device::sis85c496_host_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -129,7 +129,7 @@ sis85c496_host_device::sis85c496_host_device(const machine_config &mconfig, cons
 	m_keybc(*this, "keybc"),
 	m_speaker(*this, "speaker"),
 	m_ds12885(*this, "rtc"),
-	m_pc_kbdc(*this, "pc_kbdc"),
+	m_pc_kbdc(*this, "kbd"),
 	m_at_spkrdata(0), m_pit_out2(0), m_dma_channel(0), m_cur_eop(false), m_dma_high_byte(0), m_at_speaker(0), m_refresh(false), m_channel_check(0), m_nmi_enabled(0)
 {
 }
@@ -326,7 +326,7 @@ void sis85c496_host_device::map_extra(uint64_t memory_window_start, uint64_t mem
 }
 
 // Southbridge
-READ8_MEMBER( sis85c496_host_device::get_slave_ack )
+uint8_t sis85c496_host_device::get_slave_ack(offs_t offset)
 {
 	if (offset==2) // IRQ = 2
 		return m_pic8259_slave->acknowledge();
@@ -360,7 +360,7 @@ WRITE_LINE_MEMBER( sis85c496_host_device::at_pit8254_out2_changed )
 	m_speaker->level_w(m_at_spkrdata & m_pit_out2);
 }
 
-READ8_MEMBER( sis85c496_host_device::at_page8_r )
+uint8_t sis85c496_host_device::at_page8_r(offs_t offset)
 {
 	uint8_t data = m_at_pages[offset % 0x10];
 
@@ -383,7 +383,7 @@ READ8_MEMBER( sis85c496_host_device::at_page8_r )
 }
 
 
-WRITE8_MEMBER( sis85c496_host_device::at_page8_w )
+void sis85c496_host_device::at_page8_w(offs_t offset, uint8_t data)
 {
 	m_at_pages[offset % 0x10] = data;
 
@@ -416,7 +416,7 @@ WRITE_LINE_MEMBER( sis85c496_host_device::pc_dma_hrq_changed )
 	m_dma8237_2->hack_w( state );
 }
 
-READ8_MEMBER(sis85c496_host_device::pc_dma_read_byte)
+uint8_t sis85c496_host_device::pc_dma_read_byte(offs_t offset)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	if(m_dma_channel == -1)
@@ -429,7 +429,7 @@ READ8_MEMBER(sis85c496_host_device::pc_dma_read_byte)
 }
 
 
-WRITE8_MEMBER(sis85c496_host_device::pc_dma_write_byte)
+void sis85c496_host_device::pc_dma_write_byte(offs_t offset, uint8_t data)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	if(m_dma_channel == -1)
@@ -440,7 +440,7 @@ WRITE8_MEMBER(sis85c496_host_device::pc_dma_write_byte)
 }
 
 
-READ8_MEMBER(sis85c496_host_device::pc_dma_read_word)
+uint8_t sis85c496_host_device::pc_dma_read_word(offs_t offset)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	if(m_dma_channel == -1)
@@ -455,7 +455,7 @@ READ8_MEMBER(sis85c496_host_device::pc_dma_read_word)
 }
 
 
-WRITE8_MEMBER(sis85c496_host_device::pc_dma_write_word)
+void sis85c496_host_device::pc_dma_write_word(offs_t offset, uint8_t data)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	if(m_dma_channel == -1)
@@ -466,22 +466,22 @@ WRITE8_MEMBER(sis85c496_host_device::pc_dma_write_word)
 }
 
 
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_0_dack_r ) { return 0; } //m_isabus->dack_r(0); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_1_dack_r ) { return 0; } //m_isabus->dack_r(1); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_2_dack_r ) { return 0; } //m_isabus->dack_r(2); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_3_dack_r ) { return 0; } //m_isabus->dack_r(3); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_5_dack_r ) { return 0; } //m_isabus->dack_r(5); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_6_dack_r ) { return 0; } //m_isabus->dack_r(6); }
-READ8_MEMBER( sis85c496_host_device::pc_dma8237_7_dack_r ) { return 0; } //m_isabus->dack_r(7); }
+uint8_t sis85c496_host_device::pc_dma8237_0_dack_r() { return 0; } //m_isabus->dack_r(0); }
+uint8_t sis85c496_host_device::pc_dma8237_1_dack_r() { return 0; } //m_isabus->dack_r(1); }
+uint8_t sis85c496_host_device::pc_dma8237_2_dack_r() { return 0; } //m_isabus->dack_r(2); }
+uint8_t sis85c496_host_device::pc_dma8237_3_dack_r() { return 0; } //m_isabus->dack_r(3); }
+uint8_t sis85c496_host_device::pc_dma8237_5_dack_r() { return 0; } //m_isabus->dack_r(5); }
+uint8_t sis85c496_host_device::pc_dma8237_6_dack_r() { return 0; } //m_isabus->dack_r(6); }
+uint8_t sis85c496_host_device::pc_dma8237_7_dack_r() { return 0; } //m_isabus->dack_r(7); }
 
 
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_0_dack_w ){ } //m_isabus->dack_w(0, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_1_dack_w ){ } //m_isabus->dack_w(1, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_2_dack_w ){ } //m_isabus->dack_w(2, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_3_dack_w ){ } //m_isabus->dack_w(3, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_5_dack_w ){ } //m_isabus->dack_w(5, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_6_dack_w ){ } //m_isabus->dack_w(6, data); }
-WRITE8_MEMBER( sis85c496_host_device::pc_dma8237_7_dack_w ){ } //m_isabus->dack_w(7, data); }
+void sis85c496_host_device::pc_dma8237_0_dack_w(uint8_t data) { } //m_isabus->dack_w(0, data); }
+void sis85c496_host_device::pc_dma8237_1_dack_w(uint8_t data) { } //m_isabus->dack_w(1, data); }
+void sis85c496_host_device::pc_dma8237_2_dack_w(uint8_t data) { } //m_isabus->dack_w(2, data); }
+void sis85c496_host_device::pc_dma8237_3_dack_w(uint8_t data) { } //m_isabus->dack_w(3, data); }
+void sis85c496_host_device::pc_dma8237_5_dack_w(uint8_t data) { } //m_isabus->dack_w(5, data); }
+void sis85c496_host_device::pc_dma8237_6_dack_w(uint8_t data) { } //m_isabus->dack_w(6, data); }
+void sis85c496_host_device::pc_dma8237_7_dack_w(uint8_t data) { } //m_isabus->dack_w(7, data); }
 
 WRITE_LINE_MEMBER( sis85c496_host_device::at_dma8237_out_eop )
 {
@@ -492,6 +492,8 @@ WRITE_LINE_MEMBER( sis85c496_host_device::at_dma8237_out_eop )
 
 void sis85c496_host_device::pc_select_dma_channel(int channel, bool state)
 {
+	//m_isabus->dack_line_w(channel, state);
+
 	if(!state) {
 		m_dma_channel = channel;
 		//if(m_cur_eop)
@@ -514,7 +516,7 @@ WRITE_LINE_MEMBER( sis85c496_host_device::pc_dack5_w ) { pc_select_dma_channel(5
 WRITE_LINE_MEMBER( sis85c496_host_device::pc_dack6_w ) { pc_select_dma_channel(6, state); }
 WRITE_LINE_MEMBER( sis85c496_host_device::pc_dack7_w ) { pc_select_dma_channel(7, state); }
 
-READ8_MEMBER( sis85c496_host_device::at_portb_r )
+uint8_t sis85c496_host_device::at_portb_r()
 {
 	uint8_t data = m_at_speaker;
 	data &= ~0xd0; /* AT BIOS don't likes this being set */
@@ -530,7 +532,7 @@ READ8_MEMBER( sis85c496_host_device::at_portb_r )
 	return data;
 }
 
-WRITE8_MEMBER( sis85c496_host_device::at_portb_w )
+void sis85c496_host_device::at_portb_w(uint8_t data)
 {
 	m_at_speaker = data;
 	m_pit8254->write_gate2(BIT(data, 0));
@@ -539,46 +541,46 @@ WRITE8_MEMBER( sis85c496_host_device::at_portb_w )
 	//m_isabus->set_nmi_state((m_nmi_enabled==0) && (m_channel_check==0));
 }
 
-READ8_MEMBER( sis85c496_host_device::at_dma8237_2_r )
+uint8_t sis85c496_host_device::at_dma8237_2_r(offs_t offset)
 {
-	return m_dma8237_2->read( space, offset / 2);
+	return m_dma8237_2->read( offset / 2);
 }
 
-WRITE8_MEMBER( sis85c496_host_device::at_dma8237_2_w )
+void sis85c496_host_device::at_dma8237_2_w(offs_t offset, uint8_t data)
 {
-	m_dma8237_2->write( space, offset / 2, data);
+	m_dma8237_2->write( offset / 2, data);
 }
 
-READ8_MEMBER( sis85c496_host_device::at_keybc_r )
+uint8_t sis85c496_host_device::at_keybc_r(offs_t offset)
 {
 	switch (offset)
 	{
-	case 0: return m_keybc->data_r(space, 0);
-	case 1: return at_portb_r(space, 0);
+	case 0: return m_keybc->data_r();
+	case 1: return at_portb_r();
 	}
 
 	return 0xff;
 }
 
-WRITE8_MEMBER( sis85c496_host_device::at_keybc_w )
+void sis85c496_host_device::at_keybc_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
-	case 0: m_keybc->data_w(space, 0, data); break;
-	case 1: at_portb_w(space, 0, data); break;
+	case 0: m_keybc->data_w(data); break;
+	case 1: at_portb_w(data); break;
 	}
 }
 
 
-WRITE8_MEMBER( sis85c496_host_device::write_rtc )
+void sis85c496_host_device::write_rtc(offs_t offset, uint8_t data)
 {
 	if (offset==0) {
 		m_nmi_enabled = BIT(data,7);
 		//m_isabus->set_nmi_state((m_nmi_enabled==0) && (m_channel_check==0));
-		m_ds12885->write(space,0,data);
+		m_ds12885->write(0,data);
 	}
 	else {
-		m_ds12885->write(space,offset,data);
+		m_ds12885->write(offset,data);
 	}
 }
 

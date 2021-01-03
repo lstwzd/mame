@@ -92,8 +92,7 @@ void itgambl3_state::video_start()
 /* (dirty) debug code for looking 8bpps blitter-based gfxs */
 uint32_t itgambl3_state::screen_update_itgambl3(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	int x,y,count;
-	const uint8_t *blit_ram = memregion("gfx1")->base();
+	uint8_t const *const blit_ram = memregion("gfx1")->base();
 
 	if(machine().input().code_pressed(KEYCODE_Z))
 		m_test_x++;
@@ -123,18 +122,16 @@ uint32_t itgambl3_state::screen_update_itgambl3(screen_device &screen, bitmap_rg
 
 	bitmap.fill(m_palette->black_pen(), cliprect);
 
-	count = (m_start_offs);
+	int count = m_start_offs;
 
-	for(y=0;y<m_test_y;y++)
+	for(int y=0;y<m_test_y;y++)
 	{
-		for(x=0;x<m_test_x;x++)
+		for(int x=0;x<m_test_x;x++)
 		{
-			uint32_t color;
-
-			color = (blit_ram[count] & 0xff)>>0;
+			uint32_t color = (blit_ram[count] & 0xff)>>0;
 
 			if(cliprect.contains(x, y))
-				bitmap.pix32(y, x) = m_palette->pen(color);
+				bitmap.pix(y, x) = m_palette->pen(color);
 
 			count++;
 		}
@@ -266,28 +263,27 @@ void itgambl3_state::itgambl3_palette(palette_device &palette) const
 *     Machine Drivers     *
 **************************/
 
-MACHINE_CONFIG_START(itgambl3_state::itgambl3)
-
+void itgambl3_state::itgambl3(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", H83044, MAIN_CLOCK) // wrong CPU, but we have not a M16C core ATM
-	MCFG_DEVICE_PROGRAM_MAP(itgambl3_map)
+	H83044(config, m_maincpu, MAIN_CLOCK); // wrong CPU, but we have not a M16C core ATM
+	m_maincpu->set_addrmap(AS_PROGRAM, &itgambl3_state::itgambl3_map);
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE_DRIVER(itgambl3_state, screen_update_itgambl3)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(512, 256);
+	screen.set_visarea(0, 512-1, 0, 256-1);
+	screen.set_screen_update(FUNC(itgambl3_state::screen_update_itgambl3));
 
 	GFXDECODE(config, "gfxdecode", m_palette, gfx_itgambl3);
 	PALETTE(config, m_palette, FUNC(itgambl3_state::itgambl3_palette), 0x200);
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("oki", OKIM6295, MAIN_CLOCK/16, okim6295_device::PIN7_HIGH) // 1MHz
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, "oki", MAIN_CLOCK/16, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0); // 1MHz
+}
 
 
 /*************************

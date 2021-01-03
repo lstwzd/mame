@@ -57,7 +57,7 @@ protected:
 	virtual void machine_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(beep_w);
+	void beep_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(latch_full_w);
 	DECLARE_READ_LINE_MEMBER(mcu_t0_r);
 	DECLARE_READ_LINE_MEMBER(mcu_t1_r);
@@ -96,7 +96,7 @@ private:
 	emu_timer *m_hsync_off_timer;
 };
 
-WRITE8_MEMBER(m79152pc_state::beep_w)
+void m79152pc_state::beep_w(offs_t offset, uint8_t data)
 {
 	m_beep->set_state(BIT(offset, 2));
 }
@@ -134,7 +134,7 @@ void m79152pc_state::lc_reset_w(u8 data)
 void m79152pc_state::mem_map(address_map &map)
 {
 	map.unmap_value_high();
-	map(0x0000, 0x3fff).rom().region("maincpu", 0);;
+	map(0x0000, 0x3fff).rom().region("maincpu", 0);
 	map(0x4000, 0x47ff).ram();
 	map(0x8000, 0x8fff).ram().share("videoram");
 	map(0x9000, 0x9fff).ram().share("attributes");
@@ -142,7 +142,7 @@ void m79152pc_state::mem_map(address_map &map)
 
 void m79152pc_state::io_map(address_map &map)
 {
-	//ADDRESS_MAP_UNMAP_HIGH
+	//map.unmap_value_high();
 	map.global_mask(0xff);
 	map(0x40, 0x43).rw(m_uart, FUNC(z80sio_device::cd_ba_r), FUNC(z80sio_device::cd_ba_w));
 	map(0x44, 0x47).rw("ctc", FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
@@ -185,10 +185,10 @@ TIMER_CALLBACK_MEMBER(m79152pc_state::hsync_off)
 
 void m79152pc_state::screen_draw_line(bitmap_ind16 &bitmap, unsigned y)
 {
-	u16 ma = u16(m_line_base) << 4;
-	u8 ra = m_line_count & 0xf;
+	const u16 ma = u16(m_line_base) << 4;
+	const u8 ra = m_line_count & 0xf;
 
-	u16 *p = &bitmap.pix16(y++);
+	u16 *p = &bitmap.pix(y++);
 
 	for (u16 x = ma; x < ma + 80; x++)
 	{
@@ -264,7 +264,8 @@ static const z80_daisy_config daisy_chain[] =
 	{ nullptr }
 };
 
-MACHINE_CONFIG_START(m79152pc_state::m79152pc)
+void m79152pc_state::m79152pc(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, 4'000'000); // UA880D
 	m_maincpu->set_addrmap(AS_PROGRAM, &m79152pc_state::mem_map);
@@ -287,7 +288,7 @@ MACHINE_CONFIG_START(m79152pc_state::m79152pc)
 	m_screen->set_screen_update(FUNC(m79152pc_state::screen_update));
 	m_screen->set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_m79152pc)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_m79152pc);
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	pit8253_device &pit(PIT8253(config, "pit", 0)); // КР580ВИ53
@@ -342,7 +343,7 @@ MACHINE_CONFIG_START(m79152pc_state::m79152pc)
 	SPEAKER(config, "mono").front_center();
 	BEEP(config, m_beep, 1000);
 	m_beep->add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( m79152pc )

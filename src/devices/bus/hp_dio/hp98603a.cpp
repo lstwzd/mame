@@ -13,8 +13,7 @@ DEFINE_DEVICE_TYPE_NS(HPDIO_98603A, bus::hp_dio, dio16_98603a_device, "dio98603a
 
 #define HP98603A_ROM_REGION    "98603a_rom"
 
-namespace bus {
-	namespace hp_dio {
+namespace bus::hp_dio {
 
 ROM_START(hp98603a)
 	ROM_REGION(0x80000, HP98603A_ROM_REGION, 0)
@@ -39,8 +38,9 @@ ROM_START(hp98603a)
 	ROM_LOAD16_BYTE("98603_80016.bin", 0x70000, 32768, CRC(d887acab) SHA1(a9cbbaa5f053f374d6cbda614b727df35a61ace1))
 ROM_END
 
-MACHINE_CONFIG_START(dio16_98603a_device::device_add_mconfig)
-MACHINE_CONFIG_END
+void dio16_98603a_device::device_add_mconfig(machine_config &config)
+{
+}
 
 const tiny_rom_entry *dio16_98603a_device::device_rom_region() const
 {
@@ -66,18 +66,17 @@ void dio16_98603a_device::device_reset()
 {
 	m_rom = device().machine().root_device().memregion(this->subtag(HP98603A_ROM_REGION).c_str())->base();
 	dio().install_memory(0x80000, 0xfffff,
-			read16_delegate(FUNC(dio16_98603a_device::rom_r), this),
-			write16_delegate(FUNC(dio16_98603a_device::rom_w), this));
+			read16sm_delegate(*this, FUNC(dio16_98603a_device::rom_r)),
+			write16sm_delegate(*this, FUNC(dio16_98603a_device::rom_w)));
 }
 
-READ16_MEMBER(dio16_98603a_device::rom_r)
+uint16_t dio16_98603a_device::rom_r(offs_t offset)
 {
 	return m_rom[offset*2] | (m_rom[offset*2+1] << 8);
 }
 
-WRITE16_MEMBER(dio16_98603a_device::rom_w)
+void dio16_98603a_device::rom_w(offs_t offset, uint16_t data)
 {
 }
 
 } // namespace bus::hp_dio
-} // namespace bus

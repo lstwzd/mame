@@ -16,7 +16,7 @@
    Game driver for "ESCAPE KIDS (TM)"  (KONAMI, 1991)
  --------------------------------------------------------------------------------
 
-            This driver was made on the basis of 'src/drivers/vendetta.c' file.
+            This driver was made on the basis of 'src/drivers/vendetta.cpp' file.
                                          Driver by OHSAKI Masayuki (2002/08/13)
 
  ********************************************************************************
@@ -43,7 +43,6 @@
 
  ***** UnEmulated *****
       ------------
-  1) 0x3fc0-0x3fcf (052109 RAM area) access (053252 ???)
   2) 0x7c00 (Banked ROM area) access to data WRITE (???)
   3) 0x3fda (053248 RAM area) access to data WRITE (Watchdog ???)
 
@@ -106,7 +105,7 @@
 
 ***************************************************************************/
 
-WRITE8_MEMBER(vendetta_state::eeprom_w)
+void vendetta_state::eeprom_w(uint8_t data)
 {
 	/* bit 0 - VOC0 - Video banking related */
 	/* bit 1 - VOC1 - Video banking related */
@@ -126,30 +125,30 @@ WRITE8_MEMBER(vendetta_state::eeprom_w)
 
 	m_irq_enabled = (data >> 6) & 1;
 
-	m_videobank0->set_bank(BIT(data, 0));
-	m_videobank1->set_bank(BIT(data, 0));
+	m_videoview0.select(BIT(data, 0));
+	m_videoview1.select(BIT(data, 0));
 }
 
 /********************************************/
 
-READ8_MEMBER(vendetta_state::K052109_r)
+uint8_t vendetta_state::K052109_r(offs_t offset)
 {
-	return m_k052109->read(space, offset + 0x2000);
+	return m_k052109->read(offset + 0x2000);
 }
 
-WRITE8_MEMBER(vendetta_state::K052109_w)
+void vendetta_state::K052109_w(offs_t offset, uint8_t data)
 {
 	// *************************************************************************************
 	// *  Escape Kids uses 052109's mirrored Tilemap ROM bank selector, but only during    *
 	// *  Tilemap mask ROM Test       (0x1d80<->0x3d80, 0x1e00<->0x3e00, 0x1f00<->0x3f00)  *
 	// *************************************************************************************
 	if ((offset == 0x1d80) || (offset == 0x1e00) || (offset == 0x1f00))
-		m_k052109->write(space, offset, data);
-	m_k052109->write(space, offset + 0x2000, data);
+		m_k052109->write(offset, data);
+	m_k052109->write(offset + 0x2000, data);
 }
 
 
-WRITE8_MEMBER(vendetta_state::_5fe0_w)
+void vendetta_state::_5fe0_w(uint8_t data)
 {
 	/* bit 0,1 coin counters */
 	machine().bookkeeping().coin_counter_w(0, data & 0x01);
@@ -174,25 +173,25 @@ void vendetta_state::device_timer(emu_timer &timer, device_timer_id id, int para
 		m_audiocpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 		break;
 	default:
-		assert_always(false, "Unknown id in vendetta_state::device_timer");
+		throw emu_fatalerror("Unknown id in vendetta_state::device_timer");
 	}
 }
 
-WRITE8_MEMBER(vendetta_state::z80_arm_nmi_w)
+void vendetta_state::z80_arm_nmi_w(uint8_t data)
 {
 	m_audiocpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 
 	timer_set(attotime::from_usec(25), TIMER_Z80_NMI);
 }
 
-WRITE8_MEMBER(vendetta_state::z80_irq_w)
+void vendetta_state::z80_irq_w(uint8_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff);
+	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
 }
 
-READ8_MEMBER(vendetta_state::z80_irq_r)
+uint8_t vendetta_state::z80_irq_r()
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff);
+	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
 	return 0x00;
 }
 
@@ -206,7 +205,9 @@ void vendetta_state::main_map(address_map &map)
 	/* what is the desired effect of overlapping these memory regions anyway? */
 	map(0x4000, 0x7fff).rw(m_k052109, FUNC(k052109_device::read), FUNC(k052109_device::write));
 
-	map(0x4000, 0x4fff).m(m_videobank0, FUNC(address_map_bank_device::amap8));
+	map(0x4000, 0x4fff).view(m_videoview0);
+	m_videoview0[0](0x4000, 0x4fff).rw(m_k052109, FUNC(k052109_device::read), FUNC(k052109_device::write));
+	m_videoview0[1](0x4000, 0x4fff).rw(m_k053246, FUNC(k053247_device::k053247_r), FUNC(k053247_device::k053247_w));
 	map(0x5f80, 0x5f9f).rw(m_k054000, FUNC(k054000_device::read), FUNC(k054000_device::write));
 	map(0x5fa0, 0x5faf).w(m_k053251, FUNC(k053251_device::write));
 	map(0x5fb0, 0x5fb7).w(m_k053246, FUNC(k053247_device::k053246_w));
@@ -222,8 +223,9 @@ void vendetta_state::main_map(address_map &map)
 	map(0x5fe6, 0x5fe7).rw("k053260", FUNC(k053260_device::main_read), FUNC(k053260_device::main_write));
 	map(0x5fe8, 0x5fe9).r(m_k053246, FUNC(k053247_device::k053246_r));
 	map(0x5fea, 0x5fea).r("watchdog", FUNC(watchdog_timer_device::reset_r));
-	map(0x6000, 0x6fff).m(m_videobank1, FUNC(address_map_bank_device::amap8));
-
+	map(0x6000, 0x6fff).view(m_videoview1);
+	m_videoview1[0](0x6000, 0x6fff).rw(FUNC(vendetta_state::K052109_r), FUNC(vendetta_state::K052109_w));
+	m_videoview1[1](0x6000, 0x6fff).ram().w(m_palette, FUNC(palette_device::write8)).share("palette");
 	map(0x8000, 0xffff).rom().region("maincpu", 0x38000);
 }
 
@@ -233,7 +235,9 @@ void vendetta_state::esckids_map(address_map &map)
 	/* what is the desired effect of overlapping these memory regions anyway? */
 	map(0x2000, 0x5fff).rw(m_k052109, FUNC(k052109_device::read), FUNC(k052109_device::write));            // 052109 (Tilemap)
 
-	map(0x2000, 0x2fff).m(m_videobank0, FUNC(address_map_bank_device::amap8));    // 052109 (Tilemap) 0x0000-0x0fff - 052109 (Tilemap)
+	map(0x2000, 0x2fff).view(m_videoview0);    // 052109 (Tilemap) 0x0000-0x0fff - 052109 (Tilemap)
+	m_videoview0[0](0x2000, 0x2fff).rw(m_k052109, FUNC(k052109_device::read), FUNC(k052109_device::write));
+	m_videoview0[1](0x2000, 0x2fff).rw(m_k053246, FUNC(k053247_device::k053247_r), FUNC(k053247_device::k053247_w));
 	map(0x3f80, 0x3f80).portr("P1");
 	map(0x3f81, 0x3f81).portr("P2");
 	map(0x3f82, 0x3f82).portr("P3");             // ???  (But not used)
@@ -242,28 +246,18 @@ void vendetta_state::esckids_map(address_map &map)
 	map(0x3f93, 0x3f93).portr("SERVICE");
 	map(0x3fa0, 0x3fa7).w(m_k053246, FUNC(k053247_device::k053246_w));           // 053246 (Sprite)
 	map(0x3fb0, 0x3fbf).w(m_k053251, FUNC(k053251_device::write));           // 053251 (Priority Encoder)
-	map(0x3fc0, 0x3fcf).rw(m_k053252, FUNC(k053252_device::read), FUNC(k053252_device::write));              // Not Emulated (053252 ???)
+	map(0x3fc0, 0x3fcf).rw(m_k053252, FUNC(k053252_device::read), FUNC(k053252_device::write));              // 053252
 	map(0x3fd0, 0x3fd0).w(FUNC(vendetta_state::_5fe0_w));      // Coin Counter, 052109 RMRD, 053246 OBJCHA
 	map(0x3fd2, 0x3fd2).w(FUNC(vendetta_state::eeprom_w));    // EEPROM, Video banking
 	map(0x3fd4, 0x3fd4).rw(FUNC(vendetta_state::z80_irq_r), FUNC(vendetta_state::z80_irq_w));            // Sound
 	map(0x3fd6, 0x3fd7).rw("k053260", FUNC(k053260_device::main_read), FUNC(k053260_device::main_write)); // Sound
 	map(0x3fd8, 0x3fd9).r(m_k053246, FUNC(k053247_device::k053246_r));                // 053246 (Sprite)
 	map(0x3fda, 0x3fda).nopw();                // Not Emulated (Watchdog ???)
-	map(0x4000, 0x4fff).m(m_videobank1, FUNC(address_map_bank_device::amap8));    // 0x2000-0x3fff, Tilemap mask ROM bank selector (mask ROM Test)
+	map(0x4000, 0x4fff).view(m_videoview1);    // Tilemap mask ROM bank selector (mask ROM Test)
+	m_videoview1[0](0x4000, 0x4fff).rw(FUNC(vendetta_state::K052109_r), FUNC(vendetta_state::K052109_w));
+	m_videoview1[1](0x4000, 0x4fff).ram().w(m_palette, FUNC(palette_device::write8)).share("palette");
 	map(0x6000, 0x7fff).bankr("bank1");                    // 053248 '975r01' 1M ROM (Banked)
 	map(0x8000, 0xffff).rom().region("maincpu", 0x18000);  // 053248 '975r01' 1M ROM (0x18000-0x1ffff)
-}
-
-void vendetta_state::videobank0_map(address_map &map)
-{
-	map(0x0000, 0x0fff).rw(m_k052109, FUNC(k052109_device::read), FUNC(k052109_device::write));
-	map(0x1000, 0x1fff).rw(m_k053246, FUNC(k053247_device::k053247_r), FUNC(k053247_device::k053247_w));
-}
-
-void vendetta_state::videobank1_map(address_map &map)
-{
-	map(0x0000, 0x0fff).rw(FUNC(vendetta_state::K052109_r), FUNC(vendetta_state::K052109_w));
-	map(0x1000, 0x1fff).ram().w(m_palette, FUNC(palette_device::write8)).share("palette");
 }
 
 void vendetta_state::sound_map(address_map &map)
@@ -418,7 +412,7 @@ void vendetta_state::machine_reset()
 	m_irq_enabled = 0;
 }
 
-WRITE8_MEMBER( vendetta_state::banking_callback )
+void vendetta_state::banking_callback(uint8_t data)
 {
 	if (data >= 0x1c)
 		logerror("%s Unknown bank selected %02x\n", machine().describe_context(), data);
@@ -433,9 +427,6 @@ void vendetta_state::vendetta(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &vendetta_state::main_map);
 	m_maincpu->set_vblank_int("screen", FUNC(vendetta_state::irq));
 	m_maincpu->line().set(FUNC(vendetta_state::banking_callback));
-
-	ADDRESS_MAP_BANK(config, "videobank0").set_map(&vendetta_state::videobank0_map).set_options(ENDIANNESS_BIG, 8, 13, 0x1000);
-	ADDRESS_MAP_BANK(config, "videobank1").set_map(&vendetta_state::videobank1_map).set_options(ENDIANNESS_BIG, 8, 13, 0x1000);
 
 	Z80(config, m_audiocpu, XTAL(3'579'545)); /* verified with PCB */
 	m_audiocpu->set_addrmap(AS_PROGRAM, &vendetta_state::sound_map); /* interrupts are triggered by the main CPU */
@@ -458,11 +449,11 @@ void vendetta_state::vendetta(machine_config &config)
 
 	K052109(config, m_k052109, 0);
 	m_k052109->set_palette(m_palette);
-	m_k052109->set_tile_callback(FUNC(vendetta_state::vendetta_tile_callback), this);
+	m_k052109->set_tile_callback(FUNC(vendetta_state::vendetta_tile_callback));
 
 	K053246(config, m_k053246, 0);
-	m_k053246->set_sprite_callback(FUNC(vendetta_state::sprite_callback), this);
-	m_k053246->set_config("gfx2", NORMAL_PLANE_ORDER, 53, 6);
+	m_k053246->set_sprite_callback(FUNC(vendetta_state::sprite_callback));
+	m_k053246->set_config(NORMAL_PLANE_ORDER, 53, 6);
 	m_k053246->set_palette(m_palette);
 
 	K053251(config, m_k053251, 0);
@@ -495,9 +486,9 @@ void vendetta_state::esckids(machine_config &config)
 
 	K052109(config, m_k052109, 0);
 	m_k052109->set_palette(m_palette);
-	m_k052109->set_tile_callback(FUNC(vendetta_state::esckids_tile_callback), this);
+	m_k052109->set_tile_callback(FUNC(vendetta_state::esckids_tile_callback));
 
-	m_k053246->set_config("gfx2", NORMAL_PLANE_ORDER, 101, 6);
+	m_k053246->set_config(NORMAL_PLANE_ORDER, 101, 6);
 
 	K053252(config, "k053252", 6000000).set_offsets(12*8, 1*8);
 }
@@ -521,7 +512,7 @@ ROM_START( vendetta )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -545,7 +536,7 @@ ROM_START( vendettar )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -569,7 +560,7 @@ ROM_START( vendettaz )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -593,7 +584,7 @@ ROM_START( vendettaun )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -617,7 +608,7 @@ ROM_START( vendetta2pw )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -641,7 +632,7 @@ ROM_START( vendetta2peba )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -665,7 +656,7 @@ ROM_START( vendetta2pun )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -689,7 +680,7 @@ ROM_START( vendetta2pu )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -713,7 +704,7 @@ ROM_START( vendetta2pd )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -737,7 +728,7 @@ ROM_START( vendettan )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -761,7 +752,7 @@ ROM_START( vendetta2pp )
 	ROM_LOAD32_WORD( "081a09", 0x000000, 0x080000, CRC(b4c777a9) SHA1(cc2b1dff4404ecd72b604e25d00fffdf7f0f8b52) )
 	ROM_LOAD32_WORD( "081a08", 0x000002, 0x080000, CRC(272ac8d9) SHA1(2da12fe4c13921bf0d4ebffec326f8d207ec4fad) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 ) /* graphics ( don't dispose as the program can read them ) */
+	ROM_REGION( 0x400000, "k053246", 0 ) /* graphics ( don't dispose as the program can read them ) */
 	ROM_LOAD64_WORD( "081a04", 0x000000, 0x100000, CRC(464b9aa4) SHA1(28066ff0a07c3e56e7192918a882778c1b316b37) ) /* sprites */
 	ROM_LOAD64_WORD( "081a05", 0x000002, 0x100000, CRC(4e173759) SHA1(ce803f2aca7d7dedad00ab30e112443848747bd2) ) /* sprites */
 	ROM_LOAD64_WORD( "081a06", 0x000004, 0x100000, CRC(e9fe6d80) SHA1(2b7fc9d7fe43cd85dc8b975fe639c273cb0d9256) ) /* sprites */
@@ -786,7 +777,7 @@ ROM_START( esckids )
 	ROM_LOAD32_WORD( "975c09", 0x000000, 0x080000, CRC(bc52210e) SHA1(301a3892d250495c2e849d67fea5f01fb0196bed) )
 	ROM_LOAD32_WORD( "975c08", 0x000002, 0x080000, CRC(fcff9256) SHA1(b60d29f4d04f074120d4bb7f2a71b9e9bf252d33) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 )       // Sprite mask ROM (8M x 4)
+	ROM_REGION( 0x400000, "k053246", 0 )       // Sprite mask ROM (8M x 4)
 	ROM_LOAD64_WORD( "975c04", 0x000000, 0x100000, CRC(15688a6f) SHA1(a445237a11e5f98f0f9b2573a7ef0583366a137e) )
 	ROM_LOAD64_WORD( "975c05", 0x000002, 0x100000, CRC(1ff33bb7) SHA1(eb17da33ba2769ea02f91fece27de2e61705e75a) )
 	ROM_LOAD64_WORD( "975c06", 0x000004, 0x100000, CRC(36d410f9) SHA1(2b1fd93c11839480aa05a8bf27feef7591704f3d) )
@@ -811,7 +802,7 @@ ROM_START( esckidsj )
 	ROM_LOAD32_WORD( "975c09", 0x000000, 0x080000, CRC(bc52210e) SHA1(301a3892d250495c2e849d67fea5f01fb0196bed) )
 	ROM_LOAD32_WORD( "975c08", 0x000002, 0x080000, CRC(fcff9256) SHA1(b60d29f4d04f074120d4bb7f2a71b9e9bf252d33) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 )       // Sprite mask ROM (8M x 4)
+	ROM_REGION( 0x400000, "k053246", 0 )       // Sprite mask ROM (8M x 4)
 	ROM_LOAD64_WORD( "975c04", 0x000000, 0x100000, CRC(15688a6f) SHA1(a445237a11e5f98f0f9b2573a7ef0583366a137e) )
 	ROM_LOAD64_WORD( "975c05", 0x000002, 0x100000, CRC(1ff33bb7) SHA1(eb17da33ba2769ea02f91fece27de2e61705e75a) )
 	ROM_LOAD64_WORD( "975c06", 0x000004, 0x100000, CRC(36d410f9) SHA1(2b1fd93c11839480aa05a8bf27feef7591704f3d) )

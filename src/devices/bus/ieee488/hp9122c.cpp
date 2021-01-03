@@ -255,17 +255,17 @@ void hp9122c_device::update_intsel()
 	m_cpufirq = firq;
 }
 
-READ8_MEMBER(hp9122c_device::i8291a_dio_r)
+uint8_t hp9122c_device::i8291a_dio_r()
 {
-	return m_bus->read_dio();
+	return m_bus->dio_r();
 }
 
-WRITE8_MEMBER(hp9122c_device::i8291a_dio_w)
+void hp9122c_device::i8291a_dio_w(uint8_t data)
 {
 	m_bus->dio_w(this, data);
 }
 
-READ8_MEMBER(hp9122c_device::status_r)
+uint8_t hp9122c_device::status_r()
 {
 	uint8_t ret = REG_STATUS_DUAL|REG_STATUS_DISKCHG;
 	auto addr = m_hpib_addr->read();
@@ -290,7 +290,7 @@ READ8_MEMBER(hp9122c_device::status_r)
 	return ret;
 }
 
-WRITE8_MEMBER(hp9122c_device::cmd_w)
+void hp9122c_device::cmd_w(uint8_t data)
 {
 	floppy_image_device *floppy0 = m_floppy[0]->get_device();
 	floppy_image_device *floppy1 = m_floppy[1]->get_device();
@@ -338,7 +338,7 @@ void hp9122c_device::index_pulse_cb(floppy_image_device *floppy, int state)
 
 }
 
-WRITE8_MEMBER(hp9122c_device::clridx_w)
+void hp9122c_device::clridx_w(uint8_t data)
 {
 	m_index_int = false;
 	update_intsel();
@@ -376,13 +376,13 @@ void hp9122c_device::cpu_map(address_map &map)
 	map(0xc000, 0xffff).rom().region("cpu", 0);
 }
 
-MACHINE_CONFIG_START(hp9122c_device::device_add_mconfig)
-	MCFG_DEVICE_ADD("cpu" , MC6809 , XTAL(8'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(cpu_map)
+void hp9122c_device::device_add_mconfig(machine_config &config)
+{
+	MC6809(config, m_cpu, XTAL(8'000'000));
+	m_cpu->set_addrmap(AS_PROGRAM, &hp9122c_device::cpu_map);
 
-	// without this flag, 'DMA' transfer via SYNC instruction
-	// will not work
-	MCFG_QUANTUM_PERFECT_CPU("cpu")
+	// without this flag, 'DMA' transfer via SYNC instruction will not work
+	//config.set_perfect_quantum(m_cpu); FIXME: not safe in a slot device - add barriers
 
 	MB8876(config, m_fdc, 8_MHz_XTAL / 4);
 	m_fdc->intrq_wr_callback().set(FUNC(hp9122c_device::fdc_intrq_w));
@@ -399,11 +399,7 @@ MACHINE_CONFIG_START(hp9122c_device::device_add_mconfig)
 	m_i8291a->int_write().set(FUNC(hp9122c_device::i8291a_int_w));
 	m_i8291a->dreq_write().set(FUNC(hp9122c_device::i8291a_dreq_w));
 
-	MCFG_FLOPPY_DRIVE_ADD("floppy0" , hp9122c_floppies , "35hd" , hp9122c_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_SLOT_FIXED(true)
-	MCFG_FLOPPY_DRIVE_ADD("floppy1" , hp9122c_floppies , "35hd" , hp9122c_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_SLOT_FIXED(true)
+	FLOPPY_CONNECTOR(config, "floppy0" , hp9122c_floppies , "35hd" , hp9122c_floppy_formats, true).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "floppy1" , hp9122c_floppies , "35hd" , hp9122c_floppy_formats, true).enable_sound(true);
 	config.set_default_layout(layout_hp9122c);
-MACHINE_CONFIG_END
+}

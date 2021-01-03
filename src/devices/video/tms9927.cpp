@@ -54,6 +54,7 @@ tms9927_device::tms9927_device(const machine_config &mconfig, device_type type, 
 	, m_selfload(*this, finder_base::DUMMY_TAG)
 	, m_reset(false)
 	, m_valid_config(false)
+	, m_custom_visarea(0, 0, 0, 0)
 {
 	std::fill(std::begin(m_reg), std::end(m_reg), 0x00);
 }
@@ -81,7 +82,7 @@ crt5057_device::crt5057_device(const machine_config &mconfig, const char *tag, d
 void tms9927_device::device_start()
 {
 	assert(clock() > 0);
-	if (!(m_hpixels_per_column > 0)) fatalerror("TMS9927: number of pixels per column must be explicitly set using MCFG_TMS9927_CHAR_WIDTH()!\n");
+	if (!(m_hpixels_per_column > 0)) fatalerror("TMS9927: number of pixels per column must be explicitly set using set_char_width()!\n");
 
 	// resolve callbacks
 	m_write_vsyn.resolve_safe();
@@ -185,7 +186,7 @@ void tms9927_device::device_post_load()
 }
 
 
-void tms9927_device::generic_access(address_space &space, offs_t offset)
+void tms9927_device::generic_access(offs_t offset)
 {
 	switch (offset)
 	{
@@ -194,9 +195,9 @@ void tms9927_device::generic_access(address_space &space, offs_t offset)
 			if (m_selfload.found())
 			{
 				for (int cur = 0; cur < 7; cur++)
-					write(space, cur, m_selfload[cur]);
+					write(cur, m_selfload[cur]);
 				for (int cur = 0; cur < 1; cur++)
-					write(space, cur + 0xc, m_selfload[cur + 7]);
+					write(cur + 0xc, m_selfload[cur + 7]);
 			}
 			else
 				popmessage("tms9927: self-load initiated with no PROM!");
@@ -230,7 +231,7 @@ void tms9927_device::generic_access(address_space &space, offs_t offset)
 	}
 }
 
-WRITE8_MEMBER( tms9927_device::write )
+void tms9927_device::write(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -262,13 +263,13 @@ WRITE8_MEMBER( tms9927_device::write )
 			break;
 
 		default:
-			generic_access(space, offset);
+			generic_access(offset);
 			break;
 	}
 }
 
 
-READ8_MEMBER( tms9927_device::read )
+uint8_t tms9927_device::read(offs_t offset)
 {
 	switch (offset)
 	{
@@ -278,14 +279,14 @@ READ8_MEMBER( tms9927_device::read )
 
 		default:
 			if (!machine().side_effects_disabled())
-				generic_access(space, offset);
+				generic_access(offset);
 			break;
 	}
 	return 0xff;
 }
 
 
-READ_LINE_MEMBER(tms9927_device::bl_r)
+int tms9927_device::bl_r()
 {
 	return (m_reset || screen().vblank() || screen().hblank()) ? 1 : 0;
 }
@@ -348,6 +349,9 @@ void tms9927_device::recompute_parameters(bool postload)
 	/* create a visible area */
 	rectangle visarea(0, m_overscan_left + m_visible_hpix + m_overscan_right - 1,
 				0, m_overscan_top + m_visible_vpix + m_overscan_bottom - 1);
+
+	if (m_custom_visarea.width() > 1 && m_custom_visarea.height() > 1)
+		visarea = m_custom_visarea;
 
 	attotime refresh = clocks_to_attotime(HCOUNT * m_total_vpix);
 

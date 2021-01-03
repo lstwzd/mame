@@ -90,11 +90,11 @@
 #include "emu.h"
 #include "includes/capbowl.h"
 
+#include "machine/rescap.h"
 #include "machine/ticket.h"
 #include "cpu/m6809/m6809.h"
 #include "sound/2203intf.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 #define MASTER_CLOCK        XTAL(8'000'000)
@@ -130,7 +130,7 @@ void capbowl_state::device_timer(emu_timer &timer, device_timer_id id, int param
 		update(ptr, param);
 		break;
 	default:
-		assert_always(false, "Unknown id in capbowl_state::device_timer");
+		throw emu_fatalerror("Unknown id in capbowl_state::device_timer");
 	}
 }
 
@@ -152,7 +152,7 @@ TIMER_CALLBACK_MEMBER(capbowl_state::update)
  *
  *************************************/
 
-WRITE8_MEMBER(capbowl_state::capbowl_rom_select_w)
+void capbowl_state::capbowl_rom_select_w(uint8_t data)
 {
 	// 2009-11 FP: shall we add a check to be sure that bank < 6?
 	membank("bank1")->set_entry(((data & 0x0c) >> 1) + (data & 0x01));
@@ -166,25 +166,25 @@ WRITE8_MEMBER(capbowl_state::capbowl_rom_select_w)
  *
  *************************************/
 
-READ8_MEMBER(capbowl_state::track_0_r)
+uint8_t capbowl_state::track_0_r()
 {
 	return (ioport("IN0")->read() & 0xf0) | ((ioport("TRACKY")->read() - m_last_trackball_val[0]) & 0x0f);
 }
 
 
-READ8_MEMBER(capbowl_state::track_1_r)
+uint8_t capbowl_state::track_1_r()
 {
 	return (ioport("IN1")->read() & 0xf0) | ((ioport("TRACKX")->read() - m_last_trackball_val[1]) & 0x0f);
 }
 
 
-WRITE8_MEMBER(capbowl_state::track_reset_w)
+void capbowl_state::track_reset_w(uint8_t data)
 {
 	/* reset the trackball counters */
 	m_last_trackball_val[0] = ioport("TRACKY")->read();
 	m_last_trackball_val[1] = ioport("TRACKX")->read();
 
-	m_watchdog->reset_w(space, offset, data);
+	m_watchdog->watchdog_reset();
 }
 
 
@@ -195,10 +195,10 @@ WRITE8_MEMBER(capbowl_state::track_reset_w)
  *
  *************************************/
 
-WRITE8_MEMBER(capbowl_state::sndcmd_w)
+void capbowl_state::sndcmd_w(uint8_t data)
 {
 	m_audiocpu->set_input_line(M6809_IRQ_LINE, HOLD_LINE);
-	m_soundlatch->write(space, offset, data);
+	m_soundlatch->write(data);
 }
 
 
@@ -316,33 +316,35 @@ void capbowl_state::machine_reset()
 }
 
 
-MACHINE_CONFIG_START(capbowl_state::capbowl)
-
+void capbowl_state::capbowl(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809E, MASTER_CLOCK / 4) // MC68B09EP
-	MCFG_DEVICE_PROGRAM_MAP(capbowl_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", capbowl_state,  interrupt)
+	MC6809E(config, m_maincpu, MASTER_CLOCK / 4); // MC68B09EP
+	m_maincpu->set_addrmap(AS_PROGRAM, &capbowl_state::capbowl_map);
+	m_maincpu->set_vblank_int("screen", FUNC(capbowl_state::interrupt));
 
-	WATCHDOG_TIMER(config, m_watchdog).set_time(PERIOD_OF_555_ASTABLE(100000.0, 100000.0, 0.1e-6) * 15.5); // ~0.3s
+	// watchdog: 555 timer 16 cycles, edge triggered, ~0.3s
+	attotime const period = PERIOD_OF_555_ASTABLE(100000.0, 100000.0, 0.1e-6);
+	WATCHDOG_TIMER(config, m_watchdog).set_time(period * 16 - period / 2);
 
-	MCFG_DEVICE_ADD("audiocpu", MC6809E, MASTER_CLOCK / 4) // MC68B09EP
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	MC6809E(config, m_audiocpu, MASTER_CLOCK / 4); // MC68B09EP
+	m_audiocpu->set_addrmap(AS_PROGRAM, &capbowl_state::sound_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_RANDOM);
 
-	MCFG_TICKET_DISPENSER_ADD("ticket", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW)
+	TICKET_DISPENSER(config, "ticket", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_SIZE(360, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 359, 0, 244)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_UPDATE_DRIVER(capbowl_state, screen_update)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_size(360, 256);
+	m_screen->set_visarea(0, 359, 0, 244);
+	m_screen->set_refresh_hz(57);
+	m_screen->set_screen_update(FUNC(capbowl_state::screen_update));
 
-	MCFG_DEVICE_ADD("tms34061", TMS34061, 0)
-	MCFG_TMS34061_ROWSHIFT(8)  /* VRAM address is (row << rowshift) | col */
-	MCFG_TMS34061_VRAM_SIZE(0x10000) /* size of video RAM */
-	MCFG_TMS34061_INTERRUPT_CB(INPUTLINE("maincpu", M6809_FIRQ_LINE))      /* interrupt gen callback */
+	TMS34061(config, m_tms34061, 0);
+	m_tms34061->set_rowshift(8);  /* VRAM address is (row << rowshift) | col */
+	m_tms34061->set_vram_size(0x10000);
+	m_tms34061->int_callback().set_inputline("maincpu", M6809_FIRQ_LINE);
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
@@ -359,23 +361,20 @@ MACHINE_CONFIG_START(capbowl_state::capbowl)
 	ymsnd.add_route(3, "speaker", 0.75);
 
 	DAC0832(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.5);
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(capbowl_state::bowlrama)
+void capbowl_state::bowlrama(machine_config &config)
+{
 	capbowl(config);
 
 	/* basic machine hardware */
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(bowlrama_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &capbowl_state::bowlrama_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0, 359, 0, 239)
-MACHINE_CONFIG_END
+	m_screen->set_visarea(0, 359, 0, 239);
+}
 
 
 
@@ -387,25 +386,25 @@ MACHINE_CONFIG_END
 
 ROM_START( capbowl )
 	ROM_REGION( 0x28000, "maincpu", 0 )
-	ROM_LOAD( "u6",  0x08000, 0x8000, CRC(14924c96) SHA1(d436c5115873c9c2bc7657acff1cf7d99c0c5d6d) )
-	ROM_LOAD( "gr0", 0x10000, 0x8000, CRC(ef53ca7a) SHA1(219dc342595bfd23c1336f3e167e40ff0c5e7994) )
-	ROM_LOAD( "gr1", 0x18000, 0x8000, CRC(27ede6ce) SHA1(14aa31cbcf089419b5b2ea8d57e82fc51895fc2e) )
-	ROM_LOAD( "gr2", 0x20000, 0x8000, CRC(e49238f4) SHA1(ac76f1a761d6b0765437fb7367442667da7bb373) )
+	ROM_LOAD( "program_rev3_u6.u6", 0x08000, 0x8000, CRC(14924c96) SHA1(d436c5115873c9c2bc7657acff1cf7d99c0c5d6d) ) /* verified on 2 PCBs, also known to be labeled as "CT.1 PROGRAM U-6" or "BOWLING CT/1 U6" */
+	ROM_LOAD( "grom0-gr0",          0x10000, 0x8000, CRC(ef53ca7a) SHA1(219dc342595bfd23c1336f3e167e40ff0c5e7994) ) /* all labels "(c)1988 IT.INC" */
+	ROM_LOAD( "grom1-gr1",          0x18000, 0x8000, CRC(27ede6ce) SHA1(14aa31cbcf089419b5b2ea8d57e82fc51895fc2e) )
+	ROM_LOAD( "grom2-gr2",          0x20000, 0x8000, CRC(e49238f4) SHA1(ac76f1a761d6b0765437fb7367442667da7bb373) )
 
 	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "sound.u30", 0x8000, 0x8000, CRC(8c9c3b8a) SHA1(f3cdf42ef19012817e6b7966845f9ede39f61b07) )
+	ROM_LOAD( "sound_v2.1_u30.u30", 0x8000, 0x8000, CRC(8c9c3b8a) SHA1(f3cdf42ef19012817e6b7966845f9ede39f61b07) ) /* labeled as "SOUND V2.1 U30" */
 ROM_END
 
 
 ROM_START( capbowl2 )
 	ROM_REGION( 0x28000, "maincpu", 0 )
 	ROM_LOAD( "program_rev_3_u6.u6", 0x08000, 0x8000, CRC(9162934a) SHA1(7542dd68a2aa55ad4f03b23ae2313ed6a34ae145) )
-	ROM_LOAD( "gr0",                 0x10000, 0x8000, CRC(ef53ca7a) SHA1(219dc342595bfd23c1336f3e167e40ff0c5e7994) )
-	ROM_LOAD( "gr1",                 0x18000, 0x8000, CRC(27ede6ce) SHA1(14aa31cbcf089419b5b2ea8d57e82fc51895fc2e) )
-	ROM_LOAD( "gr2",                 0x20000, 0x8000, CRC(e49238f4) SHA1(ac76f1a761d6b0765437fb7367442667da7bb373) )
+	ROM_LOAD( "grom0-gr0",           0x10000, 0x8000, CRC(ef53ca7a) SHA1(219dc342595bfd23c1336f3e167e40ff0c5e7994) )
+	ROM_LOAD( "grom1-gr1",           0x18000, 0x8000, CRC(27ede6ce) SHA1(14aa31cbcf089419b5b2ea8d57e82fc51895fc2e) )
+	ROM_LOAD( "grom2-gr2",           0x20000, 0x8000, CRC(e49238f4) SHA1(ac76f1a761d6b0765437fb7367442667da7bb373) )
 
 	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "sound.u30", 0x8000, 0x8000, CRC(8c9c3b8a) SHA1(f3cdf42ef19012817e6b7966845f9ede39f61b07) )
+	ROM_LOAD( "sound_v2.1_u30.u30", 0x8000, 0x8000, CRC(8c9c3b8a) SHA1(f3cdf42ef19012817e6b7966845f9ede39f61b07) ) /* labeled as "SOUND V2.1 U30" */
 ROM_END
 
 
@@ -417,7 +416,7 @@ ROM_START( capbowl3 )
 	ROM_LOAD( "grom2-gr2.gr2", 0x20000, 0x8000, CRC(f3d2468d) SHA1(0348ee5d0000b753ad90a525048d05bfb552bee1) ) /* I.T. label */
 
 	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "sound_r2_u30.u30", 0x8000, 0x8000, CRC(43ac1658) SHA1(1fab23d649d0c565ef1a7f45b30806f9d1bb4afd) ) /* labeled as "SOUND (R-2) U30" */
+	ROM_LOAD( "sound_r-2_u30.u30", 0x8000, 0x8000, CRC(43ac1658) SHA1(1fab23d649d0c565ef1a7f45b30806f9d1bb4afd) ) /* labeled as "SOUND (R-2) U30" */
 ROM_END
 
 
@@ -435,10 +434,10 @@ ROM_END
 
 ROM_START( clbowl )
 	ROM_REGION( 0x28000, "maincpu", 0 )
-	ROM_LOAD( "cb8_prg.u6",              0x08000, 0x8000, CRC(91e06bc4) SHA1(efa54328417f971cc482a4529d05331a3baffc1a) ) /* Capcom label */
-	ROM_LOAD( "coors_bowling_grom0.gr0", 0x10000, 0x8000, CRC(899c8f15) SHA1(dbb4a9c015b5e64c62140f0c99b87da2793ae5c1) ) /* I.T. label */
-	ROM_LOAD( "coors_bowling_grom1.gr1", 0x18000, 0x8000, CRC(0ac0dc4c) SHA1(61afa3af1f84818b940b5c6f6a8cfb58ca557551) ) /* I.T. label */
-	ROM_LOAD( "coors_bowling_grom2.gr2", 0x20000, 0x8000, CRC(251f5da5) SHA1(063001cfb68e3ec35baa24eed186214e26d55b82) ) /* I.T. label */
+	ROM_LOAD( "coors_bowling_program.u6", 0x08000, 0x8000, CRC(91e06bc4) SHA1(efa54328417f971cc482a4529d05331a3baffc1a) ) /* I.T. label, also known to be labeled as "CB8 PRG" on a genuine Capcom label */
+	ROM_LOAD( "coors_bowling_grom0.gr0",  0x10000, 0x8000, CRC(899c8f15) SHA1(dbb4a9c015b5e64c62140f0c99b87da2793ae5c1) ) /* I.T. label */
+	ROM_LOAD( "coors_bowling_grom1.gr1",  0x18000, 0x8000, CRC(0ac0dc4c) SHA1(61afa3af1f84818b940b5c6f6a8cfb58ca557551) ) /* I.T. label */
+	ROM_LOAD( "coors_bowling_grom2.gr2",  0x20000, 0x8000, CRC(251f5da5) SHA1(063001cfb68e3ec35baa24eed186214e26d55b82) ) /* I.T. label */
 
 	ROM_REGION( 0x10000, "audiocpu", 0 )
 	ROM_LOAD( "coors_bowling_sound.u30", 0x8000, 0x8000, CRC(1eba501e) SHA1(684bdc18cf5e01a86d8018a3e228ec34e5dec57d) )

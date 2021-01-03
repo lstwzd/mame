@@ -34,7 +34,7 @@ WRITE_LINE_MEMBER( pcat_base_state::pc_dma_hrq_changed )
 }
 
 
-READ8_MEMBER(pcat_base_state::pc_dma_read_byte)
+uint8_t pcat_base_state::pc_dma_read_byte(offs_t offset)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 
@@ -45,7 +45,7 @@ READ8_MEMBER(pcat_base_state::pc_dma_read_byte)
 }
 
 
-WRITE8_MEMBER(pcat_base_state::pc_dma_write_byte)
+void pcat_base_state::pc_dma_write_byte(offs_t offset, uint8_t data)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	offs_t page_offset = (((offs_t) m_dma_offset[0][m_dma_channel]) << 16)
@@ -54,7 +54,7 @@ WRITE8_MEMBER(pcat_base_state::pc_dma_write_byte)
 	prog_space.write_byte(page_offset + offset, data);
 }
 
-READ8_MEMBER(pcat_base_state::dma_page_select_r)
+uint8_t pcat_base_state::dma_page_select_r(offs_t offset)
 {
 	uint8_t data = m_at_pages[offset % 0x10];
 
@@ -77,7 +77,7 @@ READ8_MEMBER(pcat_base_state::dma_page_select_r)
 }
 
 
-WRITE8_MEMBER(pcat_base_state::dma_page_select_w)
+void pcat_base_state::dma_page_select_w(offs_t offset, uint8_t data)
 {
 	m_at_pages[offset % 0x10] = data;
 
@@ -112,7 +112,7 @@ WRITE_LINE_MEMBER( pcat_base_state::pc_dack3_w ) { set_dma_channel(3, state); }
 8259 IRQ controller
 ******************/
 
-READ8_MEMBER( pcat_base_state::get_slave_ack )
+uint8_t pcat_base_state::get_slave_ack(offs_t offset)
 {
 	if (offset==2) { // IRQ = 2
 		return m_pic8259_2->acknowledge();
@@ -141,51 +141,51 @@ void pcat_base_state::pcat32_io_common(address_map &map)
 }
 
 
-MACHINE_CONFIG_START(pcat_base_state::pcvideo_vga)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480)
-	MCFG_SCREEN_UPDATE_DEVICE("vga", vga_device, screen_update)
+void pcat_base_state::pcvideo_vga(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480);
+	screen.set_screen_update("vga", FUNC(vga_device::screen_update));
 
-	MCFG_DEVICE_ADD("vga", VGA, 0)
-	MCFG_VIDEO_SET_SCREEN("screen")
-MACHINE_CONFIG_END
+	VGA(config, "vga", 0).set_screen("screen");
+}
 
-MACHINE_CONFIG_START(pcat_base_state::pcvideo_trident_vga)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480)
-	MCFG_SCREEN_UPDATE_DEVICE("vga", trident_vga_device, screen_update)
+void pcat_base_state::pcvideo_trident_vga(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480);
+	screen.set_screen_update("vga", FUNC(trident_vga_device::screen_update));
 
-	MCFG_DEVICE_ADD("vga", TRIDENT_VGA, 0)
-	MCFG_VIDEO_SET_SCREEN("screen")
-MACHINE_CONFIG_END
+	TRIDENT_VGA(config, "vga", 0).set_screen("screen");
+}
 
-MACHINE_CONFIG_START(pcat_base_state::pcvideo_s3_vga)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480)
-	MCFG_SCREEN_UPDATE_DEVICE("vga", s3_vga_device, screen_update)
+void pcat_base_state::pcvideo_s3_vga(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480);
+	screen.set_screen_update("vga", FUNC(s3_vga_device::screen_update));
 
-	MCFG_DEVICE_ADD("vga", S3_VGA, 0)
-	MCFG_VIDEO_SET_SCREEN("screen")
-MACHINE_CONFIG_END
+	S3_VGA(config, "vga", 0).set_screen("screen");
+}
 
 
-MACHINE_CONFIG_START(pcat_base_state::pcvideo_cirrus_gd5428)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480)
-	MCFG_SCREEN_UPDATE_DEVICE("vga", cirrus_gd5428_device, screen_update)
+void pcat_base_state::pcvideo_cirrus_gd5428(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480);
+	screen.set_screen_update("vga", FUNC(cirrus_gd5428_device::screen_update));
 
-	MCFG_DEVICE_ADD("vga", CIRRUS_GD5428, 0)
-	MCFG_VIDEO_SET_SCREEN("screen")
-MACHINE_CONFIG_END
+	CIRRUS_GD5428(config, "vga", 0).set_screen("screen");
+}
 
-MACHINE_CONFIG_START(pcat_base_state::pcvideo_cirrus_gd5430)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480)
-	MCFG_SCREEN_UPDATE_DEVICE("vga", cirrus_gd5430_device, screen_update)
+void pcat_base_state::pcvideo_cirrus_gd5430(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(25.1748_MHz_XTAL, 900, 0, 640, 526, 0, 480);
+	screen.set_screen_update("vga", FUNC(cirrus_gd5430_device::screen_update));
 
-	MCFG_DEVICE_ADD("vga", CIRRUS_GD5430, 0)
-	MCFG_VIDEO_SET_SCREEN("screen")
-MACHINE_CONFIG_END
+	CIRRUS_GD5430(config, "vga", 0).set_screen("screen");
+}
 
 void pcat_base_state::pcat_common(machine_config &config)
 {
@@ -221,7 +221,7 @@ void pcat_base_state::pcat_common(machine_config &config)
 	m_mc146818->set_century_index(0x32);
 
 	KBDC8042(config, m_kbdc, 0);
-	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_AT386);
+	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_STANDARD);
 	m_kbdc->system_reset_callback().set_inputline(m_maincpu, INPUT_LINE_RESET);
 	m_kbdc->gate_a20_callback().set_inputline(m_maincpu, INPUT_LINE_A20);
 	m_kbdc->input_buffer_full_callback().set(m_pic8259_1, FUNC(pic8259_device::ir1_w));

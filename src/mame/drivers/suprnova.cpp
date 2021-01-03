@@ -154,7 +154,6 @@ NEP-16
 #include "machine/nvram.h"
 #include "sound/ymz280b.h"
 
-#include "screen.h"
 #include "speaker.h"
 
 
@@ -230,7 +229,7 @@ void skns_state::hit_recalc()
 */
 }
 
-WRITE32_MEMBER(skns_state::hit_w)
+void skns_state::hit_w(offs_t offset, uint32_t data)
 //void hit_w(uint32_t adr, uint32_t data, int type)
 {
 	hit_t &hit = m_hit;
@@ -295,7 +294,7 @@ WRITE32_MEMBER(skns_state::hit_w)
 	hit_recalc();
 }
 
-WRITE32_MEMBER(skns_state::hit2_w)
+void skns_state::hit2_w(uint32_t data)
 {
 	hit_t &hit = m_hit;
 
@@ -328,7 +327,7 @@ WRITE32_MEMBER(skns_state::hit2_w)
 }
 
 
-READ32_MEMBER(skns_state::hit_r)
+uint32_t skns_state::hit_r(offs_t offset)
 //uint32_t hit_r(uint32_t adr, int type)
 {
 	hit_t &hit = m_hit;
@@ -498,10 +497,10 @@ TIMER_DEVICE_CALLBACK_MEMBER(skns_state::irq)
 
 **********************************************************************************/
 
+template <int P>
 CUSTOM_INPUT_MEMBER(skns_state::paddle_r)
 {
-	const char *tag = (const char *)param;
-	return ioport(tag)->read();
+	return m_paddle[P]->read();
 }
 
 static INPUT_PORTS_START( skns )        /* 3 buttons, 2 players */
@@ -556,24 +555,24 @@ static INPUT_PORTS_START( skns )        /* 3 buttons, 2 players */
 	PORT_DIPNAME( 0x00000080, 0x00000080, "Freeze" )
 	PORT_DIPSETTING(          0x00000000, "Freezes the game")
 	PORT_DIPSETTING(          0x00000080, "Right value")
-	PORT_BIT( 0x0000ff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, skns_state,paddle_r, "Paddle C")
-	PORT_BIT( 0x00ff0000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, skns_state,paddle_r, "Paddle B")
-	PORT_BIT( 0xff000000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, skns_state,paddle_r, "Paddle A")
+	PORT_BIT( 0x0000ff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(skns_state, paddle_r<2>) // Paddle C
+	PORT_BIT( 0x00ff0000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(skns_state, paddle_r<1>) // Paddle B
+	PORT_BIT( 0xff000000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(skns_state, paddle_r<0>) // Paddle A
 
 	PORT_START("40000c")
-	PORT_BIT( 0x000000ff, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, skns_state,paddle_r, "Paddle D")
+	PORT_BIT( 0x000000ff, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(skns_state, paddle_r<3>) // Paddle D
 	PORT_BIT( 0xffffff00, IP_ACTIVE_LOW, IPT_UNUSED )
 
-	PORT_START("Paddle A")
+	PORT_START("Paddle.A")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
-	PORT_START("Paddle B")
+	PORT_START("Paddle.B")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
-	PORT_START("Paddle C")
+	PORT_START("Paddle.C")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
-	PORT_START("Paddle D")
+	PORT_START("Paddle.D")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 INPUT_PORTS_END
 
@@ -624,26 +623,26 @@ static INPUT_PORTS_START( puzzloop )    /* 2 buttons, 2 players, paddle */
 	PORT_BIT( 0x00400000, IP_ACTIVE_LOW, IPT_UNUSED )   /* No Button 3 */
 	PORT_BIT( 0x40000000, IP_ACTIVE_LOW, IPT_UNUSED )   /* No Button 3 */
 
-	PORT_MODIFY("Paddle A")  /* Paddle A */
+	PORT_MODIFY("Paddle.A")  /* Paddle A */
 	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(100) PORT_KEYDELTA(15) PORT_REVERSE PORT_PLAYER(1)
 
-	PORT_MODIFY("Paddle B")  /* Paddle B */
+	PORT_MODIFY("Paddle.B")  /* Paddle B */
 	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(100) PORT_KEYDELTA(15) PORT_REVERSE PORT_PLAYER(2)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( vblokbrk )    /* 3 buttons, 2 players, paddle */
 	PORT_INCLUDE( skns )
 
-	PORT_MODIFY("Paddle A")  /* Paddle A */
+	PORT_MODIFY("Paddle.A")  /* Paddle A */
 	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(100) PORT_KEYDELTA(15) PORT_REVERSE PORT_PLAYER(1)
 
-	PORT_MODIFY("Paddle B")  /* Paddle B */
+	PORT_MODIFY("Paddle.B")  /* Paddle B */
 	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(100) PORT_KEYDELTA(15) PORT_REVERSE PORT_PLAYER(2)
 INPUT_PORTS_END
 
 
 
-WRITE32_MEMBER(skns_state::io_w)
+void skns_state::io_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	switch(offset) {
 	case 2:
@@ -706,7 +705,7 @@ WRITE32_MEMBER(skns_state::io_w)
 
 /* end old driver code */
 
-WRITE32_MEMBER(skns_state::v3t_w)
+void skns_state::v3t_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&m_v3t_ram[offset]);
 
@@ -751,80 +750,60 @@ void skns_state::skns_map(address_map &map)
 
 /***** GFX DECODE *****/
 
-static const gfx_layout skns_tilemap_layout =
-{
-	16,16,
-	RGN_FRAC(1,1),
-	8,
-	{ 0, 1, 2, 3, 4, 5, 6, 7 },
-	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8,
-		8*8, 9*8, 10*8, 11*8, 12*8, 13*8, 14*8, 15*8 },
-	{ 0*128, 1*128, 2*128, 3*128, 4*128, 5*128, 6*128, 7*128,
-		8*128, 9*128, 10*128, 11*128, 12*128, 13*128, 14*128, 15*128 },
-	16*16*8
-};
-
-static const gfx_layout skns_4bpptilemap_layout =
-{
-	16,16,
-	RGN_FRAC(1,1),
-	4,
-	{ 0, 1, 2, 3  },
-	{ 1*4, 0*4, 3*4, 2*4, 5*4, 4*4, 7*4, 6*4,
-		9*4, 8*4, 11*4, 10*4, 13*4, 12*4, 15*4, 14*4 },
-	{ 0*64, 1*64, 2*64, 3*64, 4*64, 5*64, 6*64, 7*64,
-		8*64, 9*64, 10*64, 11*64, 12*64, 13*64, 14*64, 15*64 },
-	16*16*4
-};
-
 static GFXDECODE_START( skns_bg )
 	/* "spritegen" is sprites, RLE encoded */
-	GFXDECODE_ENTRY( "gfx2", 0, skns_tilemap_layout, 0x000, 128 )
-	GFXDECODE_ENTRY( "gfx3", 0, skns_tilemap_layout, 0x000, 128 )
-	GFXDECODE_ENTRY( "gfx2", 0, skns_4bpptilemap_layout, 0x000, 128 )
-	GFXDECODE_ENTRY( "gfx3", 0, skns_4bpptilemap_layout, 0x000, 128 )
+	GFXDECODE_ENTRY( "gfx2", 0, gfx_16x16x8_raw, 0x000, 128 )
+	GFXDECODE_ENTRY( "gfx3", 0, gfx_16x16x8_raw, 0x000, 128 )
+	GFXDECODE_ENTRY( "gfx2", 0, gfx_16x16x4_packed_lsb, 0x000, 128 )
+	GFXDECODE_ENTRY( "gfx3", 0, gfx_16x16x4_packed_lsb, 0x000, 128 )
 GFXDECODE_END
 
 /***** MACHINE DRIVER *****/
 
-MACHINE_CONFIG_START(skns_state::skns)
-	MCFG_DEVICE_ADD("maincpu", SH2,28638000)
-	MCFG_DEVICE_PROGRAM_MAP(skns_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", skns_state, irq, "screen", 0, 1)
+// XTALs : 28.636MHz, 33.3333MHz, 21.504MHz
+void skns_state::skns(machine_config &config)
+{
+	SH2(config, m_maincpu, XTAL(28'636'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &skns_state::skns_map);
 
-	MCFG_DEVICE_ADD("rtc", MSM6242, XTAL(32'768))
+	TIMER(config, "scantimer").configure_scanline(FUNC(skns_state::irq), "screen", 0, 1);
+
+	MSM6242(config, "rtc", XTAL(32'768));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_1);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("int15_timer", skns_state, interrupt_callback, attotime::from_msec(2))
-	MCFG_TIMER_PARAM(15)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("int11_timer", skns_state, interrupt_callback, attotime::from_msec(8))
-	MCFG_TIMER_PARAM(11)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("int9_timer", skns_state, interrupt_callback, attotime::from_hz(28638000/1824))
-	MCFG_TIMER_PARAM(9)
+	timer_device &int15_timer(TIMER(config, "int15_timer"));
+	int15_timer.configure_periodic(FUNC(skns_state::interrupt_callback), attotime::from_msec(2));
+	int15_timer.config_param(15);
+	timer_device &int11_timer(TIMER(config, "int11_timer"));
+	int11_timer.configure_periodic(FUNC(skns_state::interrupt_callback), attotime::from_msec(8));
+	int11_timer.config_param(11);
+	timer_device &int9_timer(TIMER(config, "int9_timer"));
+	int9_timer.configure_periodic(FUNC(skns_state::interrupt_callback), attotime::from_hz(XTAL(28'636'000)/1824));
+	int9_timer.config_param(9);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_REFRESH_RATE(59.5971) // measured by Guru
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(340,262)
-	MCFG_SCREEN_VISIBLE_AREA(0,319,0,239)
-	MCFG_SCREEN_UPDATE_DRIVER(skns_state, screen_update)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	m_screen->set_refresh_hz(59.5971); // measured by Guru
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	m_screen->set_size(340,262);
+	m_screen->set_visarea(0,319,0,239);
+	m_screen->set_screen_update(FUNC(skns_state::screen_update));
+	m_screen->screen_vblank().set(FUNC(skns_state::screen_vblank));
 
-	MCFG_PALETTE_ADD("palette", 32768)
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", skns_bg)
+	PALETTE(config, m_palette).set_entries(32768);
+	GFXDECODE(config, m_gfxdecode, m_palette, skns_bg);
 
-	MCFG_DEVICE_ADD("spritegen", SKNS_SPRITE, 0)
-
+	SKNS_SPRITE(config, m_spritegen, 0);
 
 	/* sound hardware */
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("ymz", YMZ280B, 33333333 / 2)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	ymz280b_device &ymz(YMZ280B(config, "ymz", XTAL(33'333'333) / 2));
+	ymz.add_route(0, "lspeaker", 1.0);
+	ymz.add_route(1, "rspeaker", 1.0);
+}
 
 MACHINE_RESET_MEMBER(skns_state,sknsa)
 {
@@ -857,34 +836,39 @@ MACHINE_RESET_MEMBER(skns_state,sknsk)
 }
 
 
-MACHINE_CONFIG_START(skns_state::sknsa)
+void skns_state::sknsa(machine_config &config)
+{
 	skns(config);
 	MCFG_MACHINE_RESET_OVERRIDE(skns_state,sknsa)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(skns_state::sknsj)
+void skns_state::sknsj(machine_config &config)
+{
 	skns(config);
 	MCFG_MACHINE_RESET_OVERRIDE(skns_state,sknsj)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(skns_state::sknsu)
+void skns_state::sknsu(machine_config &config)
+{
 	skns(config);
 	MCFG_MACHINE_RESET_OVERRIDE(skns_state,sknsu)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(skns_state::sknse)
+void skns_state::sknse(machine_config &config)
+{
 	skns(config);
 	MCFG_MACHINE_RESET_OVERRIDE(skns_state,sknse)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(skns_state::sknsk)
+void skns_state::sknsk(machine_config &config)
+{
 	skns(config);
 	MCFG_MACHINE_RESET_OVERRIDE(skns_state,sknsk)
-MACHINE_CONFIG_END
+}
 
 /***** IDLE SKIPPING *****/
 
-READ32_MEMBER(skns_state::gutsn_speedup_r)
+uint32_t skns_state::gutsn_speedup_r()
 {
 /*
     0402206A: MOV.L   @($8C,PC),R5
@@ -902,31 +886,31 @@ READ32_MEMBER(skns_state::gutsn_speedup_r)
 	return m_main_ram[0x0c780/4];
 }
 
-READ32_MEMBER(skns_state::cyvern_speedup_r)
+uint32_t skns_state::cyvern_speedup_r()
 {
 	if (m_maincpu->pc()==0x402ebd2) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x4d3c8/4];
 }
 
-READ32_MEMBER(skns_state::puzzloopj_speedup_r)
+uint32_t skns_state::puzzloopj_speedup_r()
 {
 	if (m_maincpu->pc()==0x401dca0) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x86714/4];
 }
 
-READ32_MEMBER(skns_state::puzzloopa_speedup_r)
+uint32_t skns_state::puzzloopa_speedup_r()
 {
 	if (m_maincpu->pc()==0x401d9d4) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x85bcc/4];
 }
 
-READ32_MEMBER(skns_state::puzzloopu_speedup_r)
+uint32_t skns_state::puzzloopu_speedup_r()
 {
 	if (m_maincpu->pc()==0x401dab0) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x85cec/4];
 }
 
-READ32_MEMBER(skns_state::puzzloope_speedup_r)
+uint32_t skns_state::puzzloope_speedup_r()
 {
 /*
     0401DA12: MOV.L   @($80,PC),R1
@@ -939,55 +923,55 @@ READ32_MEMBER(skns_state::puzzloope_speedup_r)
 	return m_main_ram[0x81d38/4];
 }
 
-READ32_MEMBER(skns_state::senknow_speedup_r)
+uint32_t skns_state::senknow_speedup_r()
 {
 	if (m_maincpu->pc()==0x4017dce) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x0000dc/4];
 }
 
-READ32_MEMBER(skns_state::teljan_speedup_r)
+uint32_t skns_state::teljan_speedup_r()
 {
 	if (m_maincpu->pc()==0x401ba32) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x002fb4/4];
 }
 
-READ32_MEMBER(skns_state::jjparads_speedup_r)
+uint32_t skns_state::jjparads_speedup_r()
 {
 	if (m_maincpu->pc()==0x4015e84) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x000994/4];
 }
 
-READ32_MEMBER(skns_state::jjparad2_speedup_r)
+uint32_t skns_state::jjparad2_speedup_r()
 {
 	if (m_maincpu->pc()==0x401620a) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x000984/4];
 }
 
-READ32_MEMBER(skns_state::ryouran_speedup_r)
+uint32_t skns_state::ryouran_speedup_r()
 {
 	if (m_maincpu->pc()==0x40182ce) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x000a14/4];
 }
 
-READ32_MEMBER(skns_state::galpans2_speedup_r)
+uint32_t skns_state::galpans2_speedup_r()
 {
 	if (m_maincpu->pc()==0x4049ae2) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x0fb6bc/4];
 }
 
-READ32_MEMBER(skns_state::panicstr_speedup_r)
+uint32_t skns_state::panicstr_speedup_r()
 {
 	if (m_maincpu->pc()==0x404e68a) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0x0f19e4/4];
 }
 
-READ32_MEMBER(skns_state::sengekis_speedup_r)// 60006ee  600308e
+uint32_t skns_state::sengekis_speedup_r()// 60006ee  600308e
 {
 	if (m_maincpu->pc()==0x60006ec) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0xb74bc/4];
 }
 
-READ32_MEMBER(skns_state::sengekij_speedup_r)// 60006ee  600308e
+uint32_t skns_state::sengekij_speedup_r()// 60006ee  600308e
 {
 	if (m_maincpu->pc()==0x60006ec) m_maincpu->spin_until_interrupt();
 	return m_main_ram[0xb7380/4];
@@ -1009,21 +993,21 @@ void skns_state::set_drc_pcflush(uint32_t addr)
 
 void skns_state::init_galpani4()   { m_spritegen->skns_sprite_kludge(-5,-1); init_drc();  }
 void skns_state::init_galpanis()   { m_spritegen->skns_sprite_kludge(-5,-1); init_drc();  }
-void skns_state::init_cyvern()     { m_spritegen->skns_sprite_kludge(+0,+2); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x604d3c8, 0x604d3cb, read32_delegate(FUNC(skns_state::cyvern_speedup_r),this) );  set_drc_pcflush(0x402ebd2);  }
-void skns_state::init_galpans2()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60fb6bc, 0x60fb6bf, read32_delegate(FUNC(skns_state::galpans2_speedup_r),this) ); set_drc_pcflush(0x4049ae2); }
-void skns_state::init_gutsn()      { m_spritegen->skns_sprite_kludge(+0,+0); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x600c780, 0x600c783, read32_delegate(FUNC(skns_state::gutsn_speedup_r),this) ); set_drc_pcflush(0x402206e); }
-void skns_state::init_panicstr()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60f19e4, 0x60f19e7, read32_delegate(FUNC(skns_state::panicstr_speedup_r),this) ); set_drc_pcflush(0x404e68a);  }
-void skns_state::init_senknow()    { m_spritegen->skns_sprite_kludge(+1,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60000dc, 0x60000df, read32_delegate(FUNC(skns_state::senknow_speedup_r),this) ); set_drc_pcflush(0x4017dce);  }
-void skns_state::init_puzzloope()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6081d38, 0x6081d3b, read32_delegate(FUNC(skns_state::puzzloope_speedup_r),this) ); set_drc_pcflush(0x401da14); }
-void skns_state::init_puzzloopj()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6086714, 0x6086717, read32_delegate(FUNC(skns_state::puzzloopj_speedup_r),this) ); set_drc_pcflush(0x401dca0); }
-void skns_state::init_puzzloopa()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6085bcc, 0x6085bcf, read32_delegate(FUNC(skns_state::puzzloopa_speedup_r),this) ); set_drc_pcflush(0x401d9d4); }
-void skns_state::init_puzzloopu()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6085cec, 0x6085cef, read32_delegate(FUNC(skns_state::puzzloopu_speedup_r),this) ); set_drc_pcflush(0x401dab0); }
-void skns_state::init_jjparads()   { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000994, 0x6000997, read32_delegate(FUNC(skns_state::jjparads_speedup_r),this) ); set_drc_pcflush(0x4015e84); }
-void skns_state::init_jjparad2()   { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000984, 0x6000987, read32_delegate(FUNC(skns_state::jjparad2_speedup_r),this) ); set_drc_pcflush(0x401620a); }
-void skns_state::init_ryouran()    { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000a14, 0x6000a17, read32_delegate(FUNC(skns_state::ryouran_speedup_r),this) );  set_drc_pcflush(0x40182ce); }
-void skns_state::init_teljan()     { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6002fb4, 0x6002fb7, read32_delegate(FUNC(skns_state::teljan_speedup_r),this) ); set_drc_pcflush(0x401ba32); }
-void skns_state::init_sengekis()   { m_spritegen->skns_sprite_kludge(-192,-272); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60b74bc, 0x60b74bf, read32_delegate(FUNC(skns_state::sengekis_speedup_r),this) ); set_drc_pcflush(0x60006ec); }
-void skns_state::init_sengekij()   { m_spritegen->skns_sprite_kludge(-192,-272); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60b7380, 0x60b7383, read32_delegate(FUNC(skns_state::sengekij_speedup_r),this) ); set_drc_pcflush(0x60006ec); }
+void skns_state::init_cyvern()     { m_spritegen->skns_sprite_kludge(+0,+2); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x604d3c8, 0x604d3cb, read32smo_delegate(*this, FUNC(skns_state::cyvern_speedup_r)) );  set_drc_pcflush(0x402ebd2);  }
+void skns_state::init_galpans2()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60fb6bc, 0x60fb6bf, read32smo_delegate(*this, FUNC(skns_state::galpans2_speedup_r)) ); set_drc_pcflush(0x4049ae2); }
+void skns_state::init_gutsn()      { m_spritegen->skns_sprite_kludge(+0,+0); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x600c780, 0x600c783, read32smo_delegate(*this, FUNC(skns_state::gutsn_speedup_r)) ); set_drc_pcflush(0x402206e); }
+void skns_state::init_panicstr()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60f19e4, 0x60f19e7, read32smo_delegate(*this, FUNC(skns_state::panicstr_speedup_r)) ); set_drc_pcflush(0x404e68a);  }
+void skns_state::init_senknow()    { m_spritegen->skns_sprite_kludge(+1,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60000dc, 0x60000df, read32smo_delegate(*this, FUNC(skns_state::senknow_speedup_r)) ); set_drc_pcflush(0x4017dce);  }
+void skns_state::init_puzzloope()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6081d38, 0x6081d3b, read32smo_delegate(*this, FUNC(skns_state::puzzloope_speedup_r)) ); set_drc_pcflush(0x401da14); }
+void skns_state::init_puzzloopj()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6086714, 0x6086717, read32smo_delegate(*this, FUNC(skns_state::puzzloopj_speedup_r)) ); set_drc_pcflush(0x401dca0); }
+void skns_state::init_puzzloopa()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6085bcc, 0x6085bcf, read32smo_delegate(*this, FUNC(skns_state::puzzloopa_speedup_r)) ); set_drc_pcflush(0x401d9d4); }
+void skns_state::init_puzzloopu()  { m_spritegen->skns_sprite_kludge(-9,-1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6085cec, 0x6085cef, read32smo_delegate(*this, FUNC(skns_state::puzzloopu_speedup_r)) ); set_drc_pcflush(0x401dab0); }
+void skns_state::init_jjparads()   { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000994, 0x6000997, read32smo_delegate(*this, FUNC(skns_state::jjparads_speedup_r)) ); set_drc_pcflush(0x4015e84); }
+void skns_state::init_jjparad2()   { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000984, 0x6000987, read32smo_delegate(*this, FUNC(skns_state::jjparad2_speedup_r)) ); set_drc_pcflush(0x401620a); }
+void skns_state::init_ryouran()    { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6000a14, 0x6000a17, read32smo_delegate(*this, FUNC(skns_state::ryouran_speedup_r)) );  set_drc_pcflush(0x40182ce); }
+void skns_state::init_teljan()     { m_spritegen->skns_sprite_kludge(+5,+1); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x6002fb4, 0x6002fb7, read32smo_delegate(*this, FUNC(skns_state::teljan_speedup_r)) ); set_drc_pcflush(0x401ba32); }
+void skns_state::init_sengekis()   { m_spritegen->skns_sprite_kludge(-192,-272); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60b74bc, 0x60b74bf, read32smo_delegate(*this, FUNC(skns_state::sengekis_speedup_r)) ); set_drc_pcflush(0x60006ec); }
+void skns_state::init_sengekij()   { m_spritegen->skns_sprite_kludge(-192,-272); init_drc();m_maincpu->space(AS_PROGRAM).install_read_handler(0x60b7380, 0x60b7383, read32smo_delegate(*this, FUNC(skns_state::sengekij_speedup_r)) ); set_drc_pcflush(0x60006ec); }
 void skns_state::init_sarukani()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc(); set_drc_pcflush(0x4013b42); } // Speedup is in io_w()
 void skns_state::init_galpans3()   { m_spritegen->skns_sprite_kludge(-1,-1); init_drc();  }
 
@@ -1247,20 +1231,20 @@ ROM_START( galpanis )
 	ROM_LOAD16_BYTE( "gps-001-e1.u8",  0x000001, 0x100000, CRC(ded57bd0) SHA1(4c0122f0521829d4d83b6b1c403f7e6470f14951) )
 
 	ROM_REGION( 0x1000000, "spritegen", 0 )
-	ROM_LOAD( "gps10000.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
-	ROM_LOAD( "gps10100.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
-	ROM_LOAD( "gps10200.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
+	ROM_LOAD( "gps-100-00.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
+	ROM_LOAD( "gps-101-00.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
+	ROM_LOAD( "gps-102-00.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
 
 	ROM_REGION( 0x800000, "gfx2", 0 )
-	ROM_LOAD( "gps20000.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
-	ROM_LOAD( "gps20100.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
+	ROM_LOAD( "gps-200-00.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
+	ROM_LOAD( "gps-201-00.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
 
 	ROM_REGION( 0x800000, "gfx3", ROMREGION_ERASE00 ) /* Tiles Plane B */
 	/* First 0x040000 bytes (0x03ff Tiles) are RAM Based Tiles */
 	/* 0x040000 - 0x3fffff empty? */
 
 	ROM_REGION( 0x400000, "ymz", 0 ) /* Samples */
-	ROM_LOAD( "gps30000.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
+	ROM_LOAD( "gps-300-00.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
 ROM_END
 
 ROM_START( galpanise )
@@ -1271,20 +1255,20 @@ ROM_START( galpanise )
 	ROM_LOAD16_BYTE( "u8",  0x000001, 0x100000, CRC(098eff7c) SHA1(3cac22cbb11905a46afaa62c0470624b3b554fc0) ) /* mask ROM with no labels */
 
 	ROM_REGION( 0x1000000, "spritegen", 0 )
-	ROM_LOAD( "gps10000.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
-	ROM_LOAD( "gps10100.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
-	ROM_LOAD( "gps10200.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
+	ROM_LOAD( "gps-100-00.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
+	ROM_LOAD( "gps-101-00.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
+	ROM_LOAD( "gps-102-00.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
 
 	ROM_REGION( 0x800000, "gfx2", 0 )
-	ROM_LOAD( "gps20000.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
-	ROM_LOAD( "gps20100.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
+	ROM_LOAD( "gps-200-00.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
+	ROM_LOAD( "gps-201-00.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
 
 	ROM_REGION( 0x800000, "gfx3", ROMREGION_ERASE00 ) /* Tiles Plane B */
 	/* First 0x040000 bytes (0x03ff Tiles) are RAM Based Tiles */
 	/* 0x040000 - 0x3fffff empty? */
 
 	ROM_REGION( 0x400000, "ymz", 0 ) /* Samples */
-	ROM_LOAD( "gps30000.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
+	ROM_LOAD( "gps-300-00.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
 ROM_END
 
 ROM_START( galpanisj )
@@ -1295,20 +1279,44 @@ ROM_START( galpanisj )
 	ROM_LOAD16_BYTE( "gps-001-j1.u8",  0x000001, 0x100000, CRC(e764177a) SHA1(3a1333eb1022ed1a275b9c3d44b5f4ab81618fb6) )
 
 	ROM_REGION( 0x1000000, "spritegen", 0 )
-	ROM_LOAD( "gps10000.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
-	ROM_LOAD( "gps10100.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
-	ROM_LOAD( "gps10200.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
+	ROM_LOAD( "gps-100-00.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
+	ROM_LOAD( "gps-101-00.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
+	ROM_LOAD( "gps-102-00.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
 
 	ROM_REGION( 0x800000, "gfx2", 0 )
-	ROM_LOAD( "gps20000.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
-	ROM_LOAD( "gps20100.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
+	ROM_LOAD( "gps-200-00.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
+	ROM_LOAD( "gps-201-00.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
 
 	ROM_REGION( 0x800000, "gfx3", ROMREGION_ERASE00 ) /* Tiles Plane B */
 	/* First 0x040000 bytes (0x03ff Tiles) are RAM Based Tiles */
 	/* 0x040000 - 0x3fffff empty? */
 
 	ROM_REGION( 0x400000, "ymz", 0 ) /* Samples */
-	ROM_LOAD( "gps30000.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
+	ROM_LOAD( "gps-300-00.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
+ROM_END
+
+ROM_START( galpanisa )
+	SKNS_ASIA
+
+	ROM_REGION32_BE( 0x200000, "user1", 0 ) /* SH-2 Code mapped at 0x04000000 */
+	ROM_LOAD16_BYTE( "gps-000-a0_9abc.u10", 0x000000, 0x100000, CRC(4e24b799) SHA1(614f4eb6a7b0ab03ea6ada28a670ed0759b3f4f9) ) /* hand written labels with checksum */
+	ROM_LOAD16_BYTE( "gps-001-a0_bd64.u8",  0x000001, 0x100000, CRC(aa4db8af) SHA1(10cc15fa065b6a2dcaf8c7d701c5ae7c18e4e863) ) /* hand written labels with checksum */
+
+	ROM_REGION( 0x1000000, "spritegen", 0 )
+	ROM_LOAD( "gps-100-00.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
+	ROM_LOAD( "gps-101-00.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
+	ROM_LOAD( "gps-102-00.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
+
+	ROM_REGION( 0x800000, "gfx2", 0 )
+	ROM_LOAD( "gps-200-00.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
+	ROM_LOAD( "gps-201-00.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
+
+	ROM_REGION( 0x800000, "gfx3", ROMREGION_ERASE00 ) /* Tiles Plane B */
+	/* First 0x040000 bytes (0x03ff Tiles) are RAM Based Tiles */
+	/* 0x040000 - 0x3fffff empty? */
+
+	ROM_REGION( 0x400000, "ymz", 0 ) /* Samples */
+	ROM_LOAD( "gps-300-00.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
 ROM_END
 
 ROM_START( galpanisk )
@@ -1319,20 +1327,20 @@ ROM_START( galpanisk )
 	ROM_LOAD16_BYTE( "gps-001-k1.u8",  0x000001, 0x100000, CRC(354e601d) SHA1(4d176f2337a3b0b63548b2e542f9fa87d0a1ef7b) )
 
 	ROM_REGION( 0x1000000, "spritegen", 0 )
-	ROM_LOAD( "gps10000.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
-	ROM_LOAD( "gps10100.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
-	ROM_LOAD( "gps10200.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
+	ROM_LOAD( "gps-100-00.u24", 0x000000, 0x400000, CRC(a1a7acf2) SHA1(52c86ae907f0c0236808c19f652955b09e90ec5a) )
+	ROM_LOAD( "gps-101-00.u20", 0x400000, 0x400000, CRC(49f764b6) SHA1(9f4289858c3dac625ef623cc381a47b45aa5d8e2) )
+	ROM_LOAD( "gps-102-00.u17", 0x800000, 0x400000, CRC(51980272) SHA1(6c0706d913b33995579aaf0688c4bf26d6d35a78) )
 
 	ROM_REGION( 0x800000, "gfx2", 0 )
-	ROM_LOAD( "gps20000.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
-	ROM_LOAD( "gps20100.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
+	ROM_LOAD( "gps-200-00.u16", 0x000000, 0x400000, CRC(c146a09e) SHA1(5af5a7b9d9a55ec7aba3fd85a3a0211b92b1b84f) )
+	ROM_LOAD( "gps-201-00.u13", 0x400000, 0x400000, CRC(9dfa2dc6) SHA1(a058c42fd76c23c0e5c8c11f5617fd29e056be7d) )
 
 	ROM_REGION( 0x800000, "gfx3", ROMREGION_ERASE00 ) /* Tiles Plane B */
 	/* First 0x040000 bytes (0x03ff Tiles) are RAM Based Tiles */
 	/* 0x040000 - 0x3fffff empty? */
 
 	ROM_REGION( 0x400000, "ymz", 0 ) /* Samples */
-	ROM_LOAD( "gps30000.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
+	ROM_LOAD( "gps-300-00.u4", 0x000000, 0x400000, CRC(9e4da8e3) SHA1(6506d9300a442883357003a05fd2c78d364c35bb) )
 ROM_END
 
 ROM_START( galpans2 ) //only the 2 program ROMs were dumped, but mask ROMs are supposed to match.
@@ -1931,6 +1939,7 @@ GAME( 1996, jjparads,  skns,     sknsj, skns_1p,  skns_state, init_jjparads,  RO
 GAME( 1997, galpanis,  skns,     sknse, galpanis, skns_state, init_galpanis,  ROT0,  "Kaneko", "Gals Panic S - Extra Edition (Europe, set 1)", MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, galpanise, galpanis, sknse, galpanis, skns_state, init_galpanis,  ROT0,  "Kaneko", "Gals Panic S - Extra Edition (Europe, set 2)", MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, galpanisj, galpanis, sknsj, galpanis, skns_state, init_galpanis,  ROT0,  "Kaneko", "Gals Panic S - Extra Edition (Japan)", MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1997, galpanisa, galpanis, sknsa, galpanis, skns_state, init_galpanis,  ROT0,  "Kaneko", "Gals Panic S - Extra Edition (Asia)", MACHINE_IMPERFECT_GRAPHICS )
 GAME( 1997, galpanisk, galpanis, sknsk, galpanis, skns_state, init_galpanis,  ROT0,  "Kaneko", "Gals Panic S - Extra Edition (Korea)", MACHINE_IMPERFECT_GRAPHICS )
 
 GAME( 1997, jjparad2,  skns,     sknsj, skns_1p,  skns_state, init_jjparad2,  ROT0,  "Electro Design", "Jan Jan Paradise 2", MACHINE_IMPERFECT_GRAPHICS )

@@ -25,7 +25,7 @@ RAM: 640K
 Bus: 3x ISA
 Video: On board: MDA/CGA/Hercules/Plantronics
 Mass storage: 1x Floppy 5.25" 360K and (PC10) another 360K or (PC20) 3.5" harddisk
-On board ports: Floppy, XT-IDE Harddisk, Mouse, serial, parallel, RTC, Speaker
+On board ports: Floppy, XTA(8-bit IDE) Harddisk, Mouse, serial, parallel, RTC, Speaker
 Options: 8087 FPU
 ***************************************************************************/
 
@@ -55,13 +55,14 @@ public:
 
 	void machine_reset() override;
 
-	DECLARE_WRITE8_MEMBER(pioiii_w);
-	DECLARE_READ8_MEMBER(pioiii_r);
-	DECLARE_WRITE8_MEMBER(pio_w);
-	DECLARE_READ8_MEMBER(pio_r);
+	void pioiii_w(offs_t offset, u8 data);
+	u8 pioiii_r(offs_t offset);
+	void pio_w(offs_t offset, u8 data);
+	u8 pio_r(offs_t offset);
 
 	void compc(machine_config &config);
 	void pc10iii(machine_config &config);
+	void compc1(machine_config &config);
 	void compc_io(address_map &map);
 	void compc_map(address_map &map);
 	void compciii_io(address_map &map);
@@ -75,7 +76,7 @@ void compc_state::machine_reset()
 	m_dips = 0;
 }
 
-WRITE8_MEMBER(compc_state::pio_w)
+void compc_state::pio_w(offs_t offset, u8 data)
 {
 	switch (offset)
 	{
@@ -91,13 +92,13 @@ WRITE8_MEMBER(compc_state::pio_w)
 }
 
 
-READ8_MEMBER(compc_state::pio_r)
+u8 compc_state::pio_r(offs_t offset)
 {
 	int data = 0;
 	switch (offset)
 	{
 		case 0:
-			data = m_keyboard->read(space, 0);
+			data = m_keyboard->read();
 			break;
 		case 1:
 			data = m_portb;
@@ -120,7 +121,7 @@ READ8_MEMBER(compc_state::pio_r)
 	return data;
 }
 
-WRITE8_MEMBER(compc_state::pioiii_w)
+void compc_state::pioiii_w(offs_t offset, u8 data)
 {
 	switch (offset)
 	{
@@ -139,13 +140,13 @@ WRITE8_MEMBER(compc_state::pioiii_w)
 }
 
 
-READ8_MEMBER(compc_state::pioiii_r)
+u8 compc_state::pioiii_r(offs_t offset)
 {
 	int data = 0;
 	switch (offset)
 	{
 		case 0:
-			data = m_keyboard->read(space, 0);
+			data = m_keyboard->read();
 			break;
 		case 1:
 			data = m_portb;
@@ -169,8 +170,6 @@ static INPUT_PORTS_START(compciii)
 	PORT_DIPSETTING(    0x10, "Color 40x25" )
 	PORT_DIPSETTING(    0x20, "Color 80x25" )
 	PORT_DIPSETTING(    0x30, "Monochrome" )
-
-	PORT_INCLUDE(pc_keyboard)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(compc)
@@ -196,8 +195,6 @@ static INPUT_PORTS_START(compc)
 	PORT_DIPNAME( 0x01, 0x01, "Boot from floppy")
 	PORT_DIPSETTING(    0x01, DEF_STR(Yes) )
 	PORT_DIPSETTING(    0x00, DEF_STR(No) )
-
-	PORT_INCLUDE(pc_keyboard)
 INPUT_PORTS_END
 
 void compc_state::compc_map(address_map &map)
@@ -220,14 +217,17 @@ void compc_state::compciii_io(address_map &map)
 	map(0x0060, 0x0063).rw(FUNC(compc_state::pioiii_r), FUNC(compc_state::pioiii_w));
 }
 
-MACHINE_CONFIG_START(compc_state::compc)
-	MCFG_DEVICE_ADD("maincpu", I8088, 4772720*2)
-	MCFG_DEVICE_PROGRAM_MAP(compc_map)
-	MCFG_DEVICE_IO_MAP(compc_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE("mb:pic8259", pic8259_device, inta_cb)
+void compc_state::compc(machine_config &config)
+{
+	I8088(config, m_maincpu, 4772720*2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &compc_state::compc_map);
+	m_maincpu->set_addrmap(AS_IO, &compc_state::compc_io);
+	m_maincpu->set_irq_acknowledge_callback("mb:pic8259", FUNC(pic8259_device::inta_cb));
 
-	MCFG_PCNOPPI_MOTHERBOARD_ADD("mb", "maincpu")
-	MCFG_DEVICE_REMOVE("mb:pit8253")
+	PCNOPPI_MOTHERBOARD(config, m_mb, 0).set_cputag(m_maincpu);
+	m_mb->int_callback().set_inputline(m_maincpu, 0);
+	m_mb->nmi_callback().set_inputline(m_maincpu, INPUT_LINE_NMI);
+	config.device_remove("mb:pit8253");
 	fe2010_pit_device &pit(FE2010_PIT(config, "mb:pit8253", 0));
 	pit.set_clk<0>(XTAL(14'318'181)/12.0); /* heartbeat IRQ */
 	pit.out_handler<0>().set("mb:pic8259", FUNC(pic8259_device::ir0_w));
@@ -237,33 +237,36 @@ MACHINE_CONFIG_START(compc_state::compc)
 	pit.out_handler<2>().set(m_mb, FUNC(ibm5160_mb_device::pc_pit8253_out2_changed));
 
 	// FIXME: determine ISA bus clock
-	MCFG_DEVICE_ADD("isa1", ISA8_SLOT, 0, "mb:isa", pc_isa8_cards, "mda", false)
-	MCFG_DEVICE_ADD("isa2", ISA8_SLOT, 0, "mb:isa", pc_isa8_cards, "lpt", false)
-	MCFG_DEVICE_ADD("isa3", ISA8_SLOT, 0, "mb:isa", pc_isa8_cards, "com", false)
-	MCFG_DEVICE_ADD("isa4", ISA8_SLOT, 0, "mb:isa", pc_isa8_cards, "fdc_xt", false)
+	ISA8_SLOT(config, "isa1", 0, "mb:isa", pc_isa8_cards, "mda", false);
+	ISA8_SLOT(config, "isa2", 0, "mb:isa", pc_isa8_cards, "lpt", false);
+	ISA8_SLOT(config, "isa3", 0, "mb:isa", pc_isa8_cards, "com", false);
+	ISA8_SLOT(config, "isa4", 0, "mb:isa", pc_isa8_cards, "fdc_xt", false);
 
-	MCFG_PC_KEYB_ADD("pc_keyboard", WRITELINE("mb:pic8259", pic8259_device, ir1_w))
+	PC_KEYB(config, m_keyboard);
+	m_keyboard->keypress().set("mb:pic8259", FUNC(pic8259_device::ir1_w));
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("256K").set_extra_options("512K, 640K");
 
 	/* software lists */
-	MCFG_SOFTWARE_LIST_ADD("disk_list", "ibm5150")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "disk_list").set_original("ibm5150");
+}
 
-MACHINE_CONFIG_START(compc_state::pc10iii)
+void compc_state::pc10iii(machine_config &config)
+{
 	compc(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_IO_MAP(compciii_io)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_IO, &compc_state::compciii_io);
+}
 
 ROM_START(compc10)
 	ROM_REGION(0x10000, "bios", 0)
 	ROM_DEFAULT_BIOS("v205")
-	ROM_SYSTEM_BIOS(0, "v203", "v2.03")
-	ROMX_LOAD("380258-03", 0xc000, 0x4000, CRC(fbe53865) SHA1(a6d6433c055d1c328f71403a2ed2fd5908c23d40), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "v205", "v2.05")
-	ROMX_LOAD("380258-04", 0xc000, 0x4000, CRC(e61084da) SHA1(dfb360a6ec6cb1250d8a6243f12a0d702e8479cb), ROM_BIOS(1))
+	ROM_SYSTEM_BIOS(0, "v201", "v2.01")
+	ROMX_LOAD("bios2.01-380258-01.bin", 0xc000, 0x4000, CRC(921de6aa) SHA1(eb6c3fe4200cb40da20131b264521ba9f82021b2), ROM_BIOS(0))
+	ROM_SYSTEM_BIOS(1, "v203", "v2.03")
+	ROMX_LOAD("380258-03", 0xc000, 0x4000, CRC(fbe53865) SHA1(a6d6433c055d1c328f71403a2ed2fd5908c23d40), ROM_BIOS(1))
+	ROM_SYSTEM_BIOS(2, "v205", "v2.05")
+	ROMX_LOAD("380258-04", 0xc000, 0x4000, CRC(e61084da) SHA1(dfb360a6ec6cb1250d8a6243f12a0d702e8479cb), ROM_BIOS(2))
 ROM_END
 
 // Note: Commodore PC20-III, PC10-III and COLT share the same BIOS
@@ -302,6 +305,34 @@ ROM_START(pc10iii)
 	ROMX_LOAD("318086-02.u607", 0x0000, 0x8000, CRC(b406651c) SHA1(856f58353391a74a06ebb8ec9f8333d7d69e5fd6), ROM_BIOS(8))
 ROM_END
 
+
+/*********************************************************** Commodore PC-1 ***
+
+Links: http://www.amiga-stuff.com/hardware/pc-i.html , http://www.zimmers.net/cbmpics/cpci.html
+Form Factor: Desktop
+CPU: 8088 @ 4.77 MHz
+RAM: 512K / 640K
+Bus: Proprietary expansion slot, carrying almost all ISA signals
+Video: On board, MDA/Hercules/CGA
+Mass storage: 1x 5.25" 360K
+On board ports: Floppy, floppy expansion (for Amiga A1010/1011 (720 KB, 3.5") or A1020 (360 KB, 5.25" drives), speaker (but no speaker fitted), mouse,
+Options: 8087 FPU
+Expansion: Expansion box: 2x ISA
+
+******************************************************************************/
+
+ROM_START( compc1 )
+	ROM_DEFAULT_BIOS("bios12")
+	ROM_REGION(0x10000, "bios", 0)
+	ROM_SYSTEM_BIOS(0, "bios11", "PC-1 BIOS Rev. 1.1")
+	ROMX_LOAD("pc1_bios.bin", 0xc000, 0x4000, CRC(e37367c8) SHA1(9aac9c38b4ebdb9a740e393199c2eff75a0bde03), ROM_BIOS(1))
+	ROM_SYSTEM_BIOS(1, "bios12", "PC-1 BIOS Rev. 1.2")
+	ROMX_LOAD("cbm-pci-bios-v1.2-380270-02.bin", 0xc000, 0x4000, CRC(7f744f87) SHA1(07f94a7e8ca4ddd1c738b304d24358711b4cd2ca), ROM_BIOS(1))
+	ROM_REGION(0x8000, "gfx1", 0)
+	ROM_LOAD("pc1_char.bin", 0x0000, 0x4000, CRC(ee6c27f0) SHA1(e769cc3a49a1d708bd74eb4ac85bb6ea67220d38))
+ROM_END
+
 //    YEAR  NAME     PARENT   COMPAT  MACHINE  INPUT     CLASS        INIT        COMPANY                        FULLNAME               FLAGS
 COMP( 1984, compc10, ibm5150, 0,      compc,   compc,    compc_state, empty_init, "Commodore Business Machines", "Commodore PC 10",     MACHINE_NOT_WORKING )
 COMP( 1987, pc10iii, ibm5150, 0,      pc10iii, compciii, compc_state, empty_init, "Commodore Business Machines", "Commodore PC-10 III", MACHINE_NOT_WORKING )
+COMP( 198?, compc1,  ibm5150, 0,      pc10iii, compciii, compc_state, empty_init, "Commodore Business Machines", "PC-1",                MACHINE_NOT_WORKING )

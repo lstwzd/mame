@@ -345,18 +345,18 @@ protected:
 	virtual void video_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(blitter_y_w);
-	DECLARE_WRITE8_MEMBER(blitter_unk_w);
-	DECLARE_WRITE8_MEMBER(blitter_x_w);
-	DECLARE_WRITE8_MEMBER(blitter_aux_w);
-	DECLARE_READ8_MEMBER(blitter_status_r);
-	DECLARE_WRITE8_MEMBER(blitter_trig_wdht_w);
-	DECLARE_WRITE8_MEMBER(sound_latch_w);
-	DECLARE_READ8_MEMBER(sound_latch_r);
-	DECLARE_WRITE8_MEMBER(ball_w);
-	DECLARE_READ8_MEMBER(mux_port_r);
-	DECLARE_WRITE8_MEMBER(mux_port_w);
-	DECLARE_WRITE8_MEMBER(wc_meters_w);
+	void blitter_y_w(uint8_t data);
+	void blitter_unk_w(uint8_t data);
+	void blitter_x_w(uint8_t data);
+	void blitter_aux_w(uint8_t data);
+	uint8_t blitter_status_r();
+	void blitter_trig_wdht_w(uint8_t data);
+	void sound_latch_w(uint8_t data);
+	uint8_t sound_latch_r();
+	void ball_w(uint8_t data);
+	uint8_t mux_port_r();
+	void mux_port_w(uint8_t data);
+	void wc_meters_w(uint8_t data);
 	void blitter_execute(int x, int y, int color, int width, int flag);
 	void corona_palette(palette_device &palette) const;
 	uint32_t screen_update_winner(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -424,27 +424,27 @@ void corona_state::corona_palette(palette_device &palette) const
 	}
 }
 
-WRITE8_MEMBER(corona_state::blitter_y_w)
+void corona_state::blitter_y_w(uint8_t data)
 {
 	m_blitter_y_reg = data;
 }
 
-WRITE8_MEMBER(corona_state::blitter_unk_w)
+void corona_state::blitter_unk_w(uint8_t data)
 {
 	m_blitter_unk_reg = data;
 }
 
-WRITE8_MEMBER(corona_state::blitter_x_w)
+void corona_state::blitter_x_w(uint8_t data)
 {
 	m_blitter_x_reg = data;
 }
 
-WRITE8_MEMBER(corona_state::blitter_aux_w)
+void corona_state::blitter_aux_w(uint8_t data)
 {
 	m_blitter_aux_reg = data;
 }
 
-READ8_MEMBER(corona_state::blitter_status_r)
+uint8_t corona_state::blitter_status_r()
 {
 /* code checks bit 6 and/or bit 7 */
 	//return machine().rand() & 0xc0;
@@ -487,7 +487,7 @@ void corona_state::blitter_execute(int x, int y, int color, int width, int flag)
 	}
 }
 
-WRITE8_MEMBER(corona_state::blitter_trig_wdht_w)
+void corona_state::blitter_trig_wdht_w(uint8_t data)
 {
 	blitter_execute(m_blitter_x_reg, 0x100 - m_blitter_y_reg, m_blitter_aux_reg & 0xf, data, m_blitter_aux_reg & 0xf0);
 }
@@ -499,22 +499,18 @@ void corona_state::video_start()
 
 uint32_t corona_state::screen_update_winner(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int x, y;
-
-	for (y = 0; y < 256; y++)
-		for (x = 0; x < 256; x++)
-			bitmap.pix16(y, x) = m_videobuf[y * 512 + x];
+	for (int y = 0; y < 256; y++)
+		for (int x = 0; x < 256; x++)
+			bitmap.pix(y, x) = m_videobuf[y * 512 + x];
 
 	return 0;
 }
 
 uint32_t corona_state::screen_update_luckyrlt(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int x, y;
-
-	for (y = 0; y < 256; y++)
-		for (x = 0; x < 256; x++)
-			bitmap.pix16(255 - y, x) = m_videobuf[y * 512 + x];
+	for (int y = 0; y < 256; y++)
+		for (int x = 0; x < 256; x++)
+			bitmap.pix(255 - y, x) = m_videobuf[y * 512 + x];
 
 	return 0;
 }
@@ -524,20 +520,20 @@ uint32_t corona_state::screen_update_luckyrlt(screen_device &screen, bitmap_ind1
 *           Read & Write Handlers          *
 *******************************************/
 
-WRITE8_MEMBER(corona_state::sound_latch_w)
+void corona_state::sound_latch_w(uint8_t data)
 {
-	m_soundlatch->write(space, 0, data & 0xff);
+	m_soundlatch->write(data & 0xff);
 	m_soundcpu->set_input_line(0, ASSERT_LINE);
 }
 
-READ8_MEMBER(corona_state::sound_latch_r)
+uint8_t corona_state::sound_latch_r()
 {
 	m_soundcpu->set_input_line(0, CLEAR_LINE);
-	return m_soundlatch->read(space, 0);
+	return m_soundlatch->read();
 }
 
 
-WRITE8_MEMBER(corona_state::ball_w)
+void corona_state::ball_w(uint8_t data)
 {
 	m_lamp = data;
 
@@ -549,7 +545,7 @@ WRITE8_MEMBER(corona_state::ball_w)
 
 /********  Multiplexed Inputs  ********/
 
-READ8_MEMBER(corona_state::mux_port_r)
+uint8_t corona_state::mux_port_r()
 {
 	switch( m_input_selector )
 	{
@@ -564,7 +560,7 @@ READ8_MEMBER(corona_state::mux_port_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(corona_state::mux_port_w)
+void corona_state::mux_port_w(uint8_t data)
 {
 /*  - bits -
     7654 3210
@@ -583,7 +579,7 @@ WRITE8_MEMBER(corona_state::mux_port_w)
 //  logerror("muxsel: %02x \n", m_input_selector);
 }
 
-WRITE8_MEMBER(corona_state::wc_meters_w)
+void corona_state::wc_meters_w(uint8_t data)
 {
 /*  - bits -
     7654 3210
@@ -1385,28 +1381,29 @@ INPUT_PORTS_END
 *             Machine Drivers              *
 *******************************************/
 
-MACHINE_CONFIG_START(corona_state::winner81)
+void corona_state::winner81(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, WC81_MAIN_XTAL/8)  /* measured */
-	MCFG_DEVICE_PROGRAM_MAP(winner81_map)
-	MCFG_DEVICE_IO_MAP(winner81_cpu_io_map)
+	Z80(config, m_maincpu, WC81_MAIN_XTAL/8);  /* measured */
+	m_maincpu->set_addrmap(AS_PROGRAM, &corona_state::winner81_map);
+	m_maincpu->set_addrmap(AS_IO, &corona_state::winner81_cpu_io_map);
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, WC81_MAIN_XTAL/10)    /* measured */
-	MCFG_DEVICE_PROGRAM_MAP(winner81_sound_map)
-	MCFG_DEVICE_IO_MAP(winner81_sound_cpu_io_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(corona_state, nmi_line_pulse,  244)    /* 244 Hz (1MHz/16/16/16) */
+	Z80(config, m_soundcpu, WC81_MAIN_XTAL/10);    /* measured */
+	m_soundcpu->set_addrmap(AS_PROGRAM, &corona_state::winner81_sound_map);
+	m_soundcpu->set_addrmap(AS_IO, &corona_state::winner81_sound_cpu_io_map);
+	m_soundcpu->set_periodic_int(FUNC(corona_state::nmi_line_pulse), attotime::from_hz(244));    /* 244 Hz (1MHz/16/16/16) */
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) //not accurate
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(corona_state, screen_update_winner)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); //not accurate
+	m_screen->set_size(32*8, 32*8);
+	m_screen->set_visarea(0*8, 32*8-1, 1*8, 31*8-1);
+	m_screen->set_screen_update(FUNC(corona_state::screen_update_winner));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	PALETTE(config, "palette", FUNC(corona_state::corona_palette), 0x100);
 
@@ -1415,30 +1412,31 @@ MACHINE_CONFIG_START(corona_state::winner81)
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	AY8912(config, "aysnd", AY_CLK1).add_route(ALL_OUTPUTS, "mono", 1.0);    /* measured */
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(corona_state::winner82)
+void corona_state::winner82(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, WC82_MAIN_XTAL/8)  /* measured */
-	MCFG_DEVICE_PROGRAM_MAP(winner82_map)
-	MCFG_DEVICE_IO_MAP(winner82_cpu_io_map)
+	Z80(config, m_maincpu, WC82_MAIN_XTAL/8);  /* measured */
+	m_maincpu->set_addrmap(AS_PROGRAM, &corona_state::winner82_map);
+	m_maincpu->set_addrmap(AS_IO, &corona_state::winner82_cpu_io_map);
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, WC82_MAIN_XTAL/8) /* measured */
-	MCFG_DEVICE_PROGRAM_MAP(winner82_sound_map)        /* IM1 instead of NMI */
-	MCFG_DEVICE_IO_MAP(winner82_sound_cpu_io_map)
+	Z80(config, m_soundcpu, WC82_MAIN_XTAL/8); /* measured */
+	m_soundcpu->set_addrmap(AS_PROGRAM, &corona_state::winner82_sound_map);        /* IM1 instead of NMI */
+	m_soundcpu->set_addrmap(AS_IO, &corona_state::winner82_sound_cpu_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) //not accurate
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(corona_state, screen_update_winner)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); //not accurate
+	m_screen->set_size(32*8, 32*8);
+	m_screen->set_visarea(0*8, 32*8-1, 1*8, 31*8-1);
+	m_screen->set_screen_update(FUNC(corona_state::screen_update_winner));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	PALETTE(config, "palette", FUNC(corona_state::corona_palette), 0x100);
 
@@ -1447,31 +1445,32 @@ MACHINE_CONFIG_START(corona_state::winner82)
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	AY8910(config, "aysnd", AY_CLK2).add_route(ALL_OUTPUTS, "mono", 1.0);    /* measured */
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(corona_state::re800)
+void corona_state::re800(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, RE_MAIN_XTAL/8)    /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(re800_map)
-	MCFG_DEVICE_IO_MAP(re800_cpu_io_map)
+	Z80(config, m_maincpu, RE_MAIN_XTAL/8);    /* measured 2MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &corona_state::re800_map);
+	m_maincpu->set_addrmap(AS_IO, &corona_state::re800_cpu_io_map);
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, RE_MAIN_XTAL/8)   /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(re800_sound_map)
-	MCFG_DEVICE_IO_MAP(re800_sound_cpu_io_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(corona_state, nmi_line_pulse,  244)    /* 244 Hz (1MHz/16/16/16) */
+	Z80(config, m_soundcpu, RE_MAIN_XTAL/8);   /* measured 2MHz */
+	m_soundcpu->set_addrmap(AS_PROGRAM, &corona_state::re800_sound_map);
+	m_soundcpu->set_addrmap(AS_IO, &corona_state::re800_sound_cpu_io_map);
+	m_soundcpu->set_periodic_int(FUNC(corona_state::nmi_line_pulse), attotime::from_hz(244));    /* 244 Hz (1MHz/16/16/16) */
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) //not accurate
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(corona_state, screen_update_winner)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); //not accurate
+	m_screen->set_size(32*8, 32*8);
+	m_screen->set_visarea(0*8, 32*8-1, 1*8, 32*8-1);
+	m_screen->set_screen_update(FUNC(corona_state::screen_update_winner));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	PALETTE(config, "palette", FUNC(corona_state::corona_palette), 0x100);
 
@@ -1480,30 +1479,31 @@ MACHINE_CONFIG_START(corona_state::re800)
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	AY8912(config, "aysnd", AY_CLK2).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(corona_state::rcirulet)
+void corona_state::rcirulet(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, RE_MAIN_XTAL/8)    /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(re800_map)
-	MCFG_DEVICE_IO_MAP(re800_cpu_io_map)
+	Z80(config, m_maincpu, RE_MAIN_XTAL/8);    /* measured 2MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &corona_state::re800_map);
+	m_maincpu->set_addrmap(AS_IO, &corona_state::re800_cpu_io_map);
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, RE_MAIN_XTAL/8)   /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(winner82_sound_map)        /* IM1 instead of NMI */
-	MCFG_DEVICE_IO_MAP(winner82_sound_cpu_io_map)
+	Z80(config, m_soundcpu, RE_MAIN_XTAL/8);   /* measured 2MHz */
+	m_soundcpu->set_addrmap(AS_PROGRAM, &corona_state::winner82_sound_map);        /* IM1 instead of NMI */
+	m_soundcpu->set_addrmap(AS_IO, &corona_state::winner82_sound_cpu_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) //not accurate
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(corona_state, screen_update_winner)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); //not accurate
+	m_screen->set_size(32*8, 32*8);
+	m_screen->set_visarea(0*8, 32*8-1, 1*8, 32*8-1);
+	m_screen->set_screen_update(FUNC(corona_state::screen_update_winner));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	PALETTE(config, "palette", FUNC(corona_state::corona_palette), 0x100);
 
@@ -1512,31 +1512,32 @@ MACHINE_CONFIG_START(corona_state::rcirulet)
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	AY8912(config, "aysnd", AY_CLK2).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(corona_state::luckyrlt)
+void corona_state::luckyrlt(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, RE_MAIN_XTAL/8)    /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(luckyrlt_map)
-	MCFG_DEVICE_IO_MAP(luckyrlt_cpu_io_map)
+	Z80(config, m_maincpu, RE_MAIN_XTAL/8);    /* measured 2MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &corona_state::luckyrlt_map);
+	m_maincpu->set_addrmap(AS_IO, &corona_state::luckyrlt_cpu_io_map);
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, RE_MAIN_XTAL/8)   /* measured 2MHz */
-	MCFG_DEVICE_PROGRAM_MAP(luckyrlt_sound_map)
-	MCFG_DEVICE_IO_MAP(luckyrlt_sound_cpu_io_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(corona_state, nmi_line_pulse,  244)    /* 244 Hz (1MHz/16/16/16) */
+	Z80(config, m_soundcpu, RE_MAIN_XTAL/8);   /* measured 2MHz */
+	m_soundcpu->set_addrmap(AS_PROGRAM, &corona_state::luckyrlt_sound_map);
+	m_soundcpu->set_addrmap(AS_IO, &corona_state::luckyrlt_sound_cpu_io_map);
+	m_soundcpu->set_periodic_int(FUNC(corona_state::nmi_line_pulse), attotime::from_hz(244));    /* 244 Hz (1MHz/16/16/16) */
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) //not accurate
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(corona_state, screen_update_luckyrlt)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); //not accurate
+	m_screen->set_size(32*8, 32*8);
+	m_screen->set_visarea(0*8, 32*8-1, 1*8, 30*8-1);
+	m_screen->set_screen_update(FUNC(corona_state::screen_update_luckyrlt));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	PALETTE(config, "palette", FUNC(corona_state::corona_palette), 0x100);
 
@@ -1545,7 +1546,7 @@ MACHINE_CONFIG_START(corona_state::luckyrlt)
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	AY8912(config, "aysnd", AY_CLK1).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
 /**************** Corona Co,LTD. Hardware ****************

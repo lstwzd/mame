@@ -51,7 +51,7 @@
 
 DEFINE_DEVICE_TYPE_NS(TI99_GROMPORT_MULTI,  bus::ti99::gromport, ti99_multi_cart_conn_device,  "ti99_mcartconn", "TI-99 Multi-cartridge extender")
 
-namespace bus { namespace ti99 { namespace gromport {
+namespace bus::ti99::gromport {
 
 #define AUTO -1
 
@@ -181,7 +181,7 @@ WRITE_LINE_MEMBER(ti99_multi_cart_conn_device::gclock_in)
 	}
 }
 
-READ8Z_MEMBER(ti99_multi_cart_conn_device::readz)
+void ti99_multi_cart_conn_device::readz(offs_t offset, uint8_t *value)
 {
 	int slot = get_active_slot(true, offset);
 
@@ -195,7 +195,7 @@ READ8Z_MEMBER(ti99_multi_cart_conn_device::readz)
 			if (m_cartridge[i] != nullptr)
 			{
 				uint8_t newval = *value;
-				m_cartridge[i]->readz(space, offset, &newval, 0xff);
+				m_cartridge[i]->readz(offset, &newval);
 				if (i==slot)
 				{
 					*value = newval;
@@ -207,12 +207,12 @@ READ8Z_MEMBER(ti99_multi_cart_conn_device::readz)
 	{
 		if (slot < NUMBER_OF_CARTRIDGE_SLOTS && m_cartridge[slot] != nullptr)
 		{
-			m_cartridge[slot]->readz(space, offset, value, 0xff);
+			m_cartridge[slot]->readz(offset, value);
 		}
 	}
 }
 
-WRITE8_MEMBER(ti99_multi_cart_conn_device::write)
+void ti99_multi_cart_conn_device::write(offs_t offset, uint8_t data)
 {
 	// Same issue as above (read)
 	// We don't have GRAM cartridges, anyway, so it's just used for setting the address.
@@ -222,7 +222,7 @@ WRITE8_MEMBER(ti99_multi_cart_conn_device::write)
 		{
 			if (elem != nullptr)
 			{
-				elem->write(space, offset, data, 0xff);
+				elem->write(offset, data);
 			}
 		}
 	}
@@ -232,12 +232,12 @@ WRITE8_MEMBER(ti99_multi_cart_conn_device::write)
 		if (slot < NUMBER_OF_CARTRIDGE_SLOTS && m_cartridge[slot] != nullptr)
 		{
 			// logerror("writing %04x (slot %d) <- %02x\n", offset, slot, data);
-			m_cartridge[slot]->write(space, offset, data, 0xff);
+			m_cartridge[slot]->write(offset, data);
 		}
 	}
 }
 
-READ8Z_MEMBER(ti99_multi_cart_conn_device::crureadz)
+void ti99_multi_cart_conn_device::crureadz(offs_t offset, uint8_t *value)
 {
 	int slot = get_active_slot(false, offset);
 	/* Sanity check. Higher slots are always empty. */
@@ -246,11 +246,11 @@ READ8Z_MEMBER(ti99_multi_cart_conn_device::crureadz)
 
 	if (m_cartridge[slot] != nullptr)
 	{
-		m_cartridge[slot]->crureadz(space, offset, value);
+		m_cartridge[slot]->crureadz(offset, value);
 	}
 }
 
-WRITE8_MEMBER(ti99_multi_cart_conn_device::cruwrite)
+void ti99_multi_cart_conn_device::cruwrite(offs_t offset, uint8_t data)
 {
 	int slot = get_active_slot(true, offset);
 
@@ -260,7 +260,7 @@ WRITE8_MEMBER(ti99_multi_cart_conn_device::cruwrite)
 
 	if (m_cartridge[slot] != nullptr)
 	{
-		m_cartridge[slot]->cruwrite(space, offset, data);
+		m_cartridge[slot]->cruwrite(offset, data);
 	}
 }
 
@@ -311,7 +311,7 @@ void ti99_multi_cart_conn_device::device_add_mconfig(machine_config &config)
 
 INPUT_CHANGED_MEMBER( ti99_multi_cart_conn_device::switch_changed )
 {
-	LOGMASKED(LOG_CHANGE, "Slot changed %d - %d\n", (int)((uint64_t)param & 0x07), newval);
+	LOGMASKED(LOG_CHANGE, "Slot changed %d - %d\n", (int)(param & 0x07), newval);
 	m_active_slot = m_fixed_slot = newval - 1;
 }
 
@@ -330,5 +330,5 @@ ioport_constructor ti99_multi_cart_conn_device::device_input_ports() const
 	return INPUT_PORTS_NAME(multi_slot);
 }
 
-} } } // end namespace bus::ti99::gromport
+} // end namespace bus::ti99::gromport
 

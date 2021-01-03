@@ -98,6 +98,7 @@ Note
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class spool99_state : public driver_device
@@ -134,13 +135,13 @@ private:
 
 	tilemap_t *m_sc0_tilemap;
 
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_WRITE8_MEMBER(cram_w);
-	DECLARE_READ8_MEMBER(spool99_io_r);
-	DECLARE_READ8_MEMBER(vcarn_io_r);
-	DECLARE_WRITE8_MEMBER(eeprom_resetline_w);
-	DECLARE_WRITE8_MEMBER(eeprom_clockline_w);
-	DECLARE_WRITE8_MEMBER(eeprom_dataline_w);
+	void vram_w(offs_t offset, uint8_t data);
+	void cram_w(offs_t offset, uint8_t data);
+	uint8_t spool99_io_r(offs_t offset);
+	uint8_t vcarn_io_r(offs_t offset);
+	void eeprom_resetline_w(uint8_t data);
+	void eeprom_clockline_w(uint8_t data);
+	void eeprom_dataline_w(uint8_t data);
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TILE_GET_INFO_MEMBER(get_tile_info);
@@ -153,7 +154,7 @@ TILE_GET_INFO_MEMBER(spool99_state::get_tile_info)
 	int code = ((m_vram[tile_index*2+1]<<8) | (m_vram[tile_index*2+0]));
 	int color = m_cram[tile_index*2+0];
 
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			code & 0x3fff,
 			color & 0x1f,
 			0);
@@ -161,7 +162,7 @@ TILE_GET_INFO_MEMBER(spool99_state::get_tile_info)
 
 void spool99_state::video_start()
 {
-	m_sc0_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(spool99_state::get_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_sc0_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(spool99_state::get_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
 }
 
 uint32_t spool99_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
@@ -170,13 +171,13 @@ uint32_t spool99_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 	return 0;
 }
 
-WRITE8_MEMBER(spool99_state::vram_w)
+void spool99_state::vram_w(offs_t offset, uint8_t data)
 {
 	m_vram[offset] = data;
 	m_sc0_tilemap->mark_tile_dirty(offset/2);
 }
 
-WRITE8_MEMBER(spool99_state::cram_w)
+void spool99_state::cram_w(offs_t offset, uint8_t data)
 {
 	m_cram[offset] = data;
 	m_sc0_tilemap->mark_tile_dirty(offset/2);
@@ -184,7 +185,7 @@ WRITE8_MEMBER(spool99_state::cram_w)
 
 
 
-READ8_MEMBER(spool99_state::spool99_io_r)
+uint8_t spool99_state::spool99_io_r(offs_t offset)
 {
 	uint8_t *ROM = memregion("maincpu")->base();
 
@@ -208,7 +209,7 @@ READ8_MEMBER(spool99_state::spool99_io_r)
 //          case 0xafe5: return 1;
 //          case 0xafe6: return 1;
 			case 0xafe7: return m_eeprom->do_read();
-			case 0xaff8: return m_oki->read(space,0);
+			case 0xaff8: return m_oki->read();
 		}
 	}
 //  printf("%04x %d\n",offset+0xaf00,io_switch);
@@ -217,19 +218,19 @@ READ8_MEMBER(spool99_state::spool99_io_r)
 }
 
 
-WRITE8_MEMBER(spool99_state::eeprom_resetline_w)
+void spool99_state::eeprom_resetline_w(uint8_t data)
 {
 	// reset line asserted: reset.
 	m_eeprom->cs_write((data & 0x01) ? ASSERT_LINE : CLEAR_LINE );
 }
 
-WRITE8_MEMBER(spool99_state::eeprom_clockline_w)
+void spool99_state::eeprom_clockline_w(uint8_t data)
 {
 	// clock line asserted: write latch or select next bit to read
 	m_eeprom->clk_write((data & 0x01) ? ASSERT_LINE : CLEAR_LINE );
 }
 
-WRITE8_MEMBER(spool99_state::eeprom_dataline_w)
+void spool99_state::eeprom_dataline_w(uint8_t data)
 {
 	// latch the bit
 	m_eeprom->di_write(data & 0x01);
@@ -252,7 +253,7 @@ void spool99_state::spool99_map(address_map &map)
 	map(0xf000, 0xffff).ram().w(FUNC(spool99_state::cram_w)).share("cram");
 }
 
-READ8_MEMBER(spool99_state::vcarn_io_r)
+uint8_t spool99_state::vcarn_io_r(offs_t offset)
 {
 	uint8_t *ROM = memregion("maincpu")->base();
 
@@ -267,7 +268,7 @@ READ8_MEMBER(spool99_state::vcarn_io_r)
 			case 0xa725: return ioport("HOLD3")->read();
 			case 0xa726: return ioport("HOLD4")->read();
 			case 0xa727: return ioport("HOLD2")->read();
-			case 0xa780: return m_oki->read(space,0);
+			case 0xa780: return m_oki->read();
 			case 0xa7a0: return ioport("HOLD1")->read();
 			case 0xa7a1: return ioport("HOLD5")->read();
 			case 0xa7a2: return ioport("START")->read();
@@ -295,7 +296,7 @@ void spool99_state::vcarn_map(address_map &map)
 	map(0xa800, 0xabff).ram().w("palette", FUNC(palette_device::write8)).share("palette");
 
 	map(0xb000, 0xdfff).ram();
-//  AM_RANGE(0xdf00, 0xdfff) AM_READWRITE(vcarn_io_r,vcarn_io_w) AM_SHARE("vcarn_io")
+//  map(0xdf00, 0xdfff).rw(FUNC(spool99_state::vcarn_io_r), FUNC(spool99_state::vcarn_io_w)).share("vcarn_io");
 	map(0xe000, 0xefff).ram().w(FUNC(spool99_state::vram_w)).share("vram");
 	map(0xf000, 0xffff).ram().w(FUNC(spool99_state::cram_w)).share("cram");
 }
@@ -367,21 +368,21 @@ INPUT_PORTS_END
 
 
 
-MACHINE_CONFIG_START(spool99_state::spool99)
-
-	MCFG_DEVICE_ADD("maincpu", Z80, 24000000/8)
-	MCFG_DEVICE_PROGRAM_MAP(spool99_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", spool99_state,  irq0_line_hold)
+void spool99_state::spool99(machine_config &config)
+{
+	Z80(config, m_maincpu, 24000000/8);
+	m_maincpu->set_addrmap(AS_PROGRAM, &spool99_state::spool99_map);
+	m_maincpu->set_vblank_int("screen", FUNC(spool99_state::irq0_line_hold));
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_spool99);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(7*8, 55*8-1, 1*8, 31*8-1) //384x240,raw guess
-	MCFG_SCREEN_UPDATE_DRIVER(spool99_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(7*8, 55*8-1, 1*8, 31*8-1); //384x240,raw guess
+	screen.set_screen_update(FUNC(spool99_state::screen_update));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_444, 0x200);
 
@@ -391,20 +392,18 @@ MACHINE_CONFIG_START(spool99_state::spool99)
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 1000000, okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, 1000000, okim6295_device::PIN7_HIGH); // clock frequency & pin 7 not verified
+	m_oki->add_route(ALL_OUTPUTS, "lspeaker", 0.47);
+	m_oki->add_route(ALL_OUTPUTS, "rspeaker", 0.47);
+}
 
-MACHINE_CONFIG_START(spool99_state::vcarn)
+void spool99_state::vcarn(machine_config &config)
+{
 	spool99(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(vcarn_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &spool99_state::vcarn_map);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 1*8, 31*8-1) //512x240, raw guess
-
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_visarea(0*8, 64*8-1, 1*8, 31*8-1); //512x240, raw guess
+}
 
 
 ROM_START( spool99 )

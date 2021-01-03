@@ -147,23 +147,23 @@ private:
 
 	uint32_t screen_update_hazl1500(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	DECLARE_READ8_MEMBER(ram_r);
-	DECLARE_WRITE8_MEMBER(ram_w);
+	uint8_t ram_r(offs_t offset);
+	void ram_w(offs_t offset, uint8_t data);
 
-	DECLARE_READ8_MEMBER(system_test_r); // noted as "for use with auto test equip" in flowchart on pg. 30, ref[1], jumps to 0x8000 if bit 0 is unset
-	DECLARE_READ8_MEMBER(status_reg_2_r);
-	DECLARE_WRITE8_MEMBER(status_reg_3_w);
+	uint8_t system_test_r(); // noted as "for use with auto test equip" in flowchart on pg. 30, ref[1], jumps to 0x8000 if bit 0 is unset
+	uint8_t status_reg_2_r();
+	void status_reg_3_w(uint8_t data);
 
-	DECLARE_READ8_MEMBER(uart_r);
-	DECLARE_WRITE8_MEMBER(uart_w);
+	uint8_t uart_r();
+	void uart_w(uint8_t data);
 
-	DECLARE_READ8_MEMBER(kbd_status_latch_r);
-	DECLARE_READ8_MEMBER(kbd_encoder_r);
+	uint8_t kbd_status_latch_r();
+	uint8_t kbd_encoder_r();
 	DECLARE_READ_LINE_MEMBER(ay3600_shift_r);
 	DECLARE_READ_LINE_MEMBER(ay3600_control_r);
 	DECLARE_WRITE_LINE_MEMBER(ay3600_data_ready_w);
 
-	DECLARE_WRITE8_MEMBER(refresh_address_w);
+	void refresh_address_w(uint8_t data);
 
 	NETDEV_ANALOG_CALLBACK_MEMBER(video_out_cb);
 	NETDEV_ANALOG_CALLBACK_MEMBER(vblank_cb);
@@ -269,11 +269,10 @@ uint32_t hazl1500_state::screen_update_hazl1500(screen_device &screen, bitmap_rg
 	m_last_hpos = 0;
 	m_last_vpos = 0;
 
-	uint32_t pixindex = 0;
 	for (int y = 0; y < SCREEN_VTOTAL; y++)
 	{
-		uint32_t *scanline = &bitmap.pix32(y);
-		pixindex = y * SCREEN_HTOTAL;
+		uint32_t *scanline = &bitmap.pix(y);
+		uint32_t pixindex = y * SCREEN_HTOTAL;
 		for (int x = 0; x < SCREEN_HTOTAL; x++)
 			//*scanline++ = 0xff000000 | (uint8_t(m_screen_buf[pixindex++] * 0.5) * 0x010101);
 			*scanline++ = 0xff000000 | (uint8_t(m_screen_buf[pixindex++] * 63.0) * 0x010101);
@@ -282,7 +281,7 @@ uint32_t hazl1500_state::screen_update_hazl1500(screen_device &screen, bitmap_rg
 	return 0;
 }
 
-READ8_MEMBER( hazl1500_state::ram_r )
+uint8_t hazl1500_state::ram_r(offs_t offset)
 {
 	const uint8_t* chips[2][8] =
 	{
@@ -301,7 +300,7 @@ READ8_MEMBER( hazl1500_state::ram_r )
 	return ret;
 }
 
-WRITE8_MEMBER( hazl1500_state::ram_w )
+void hazl1500_state::ram_w(offs_t offset, uint8_t data)
 {
 	uint8_t* chips[2][8] =
 	{
@@ -320,12 +319,12 @@ WRITE8_MEMBER( hazl1500_state::ram_w )
 	}
 }
 
-READ8_MEMBER( hazl1500_state::system_test_r )
+uint8_t hazl1500_state::system_test_r()
 {
 	return 0xff;
 }
 
-READ8_MEMBER( hazl1500_state::status_reg_2_r )
+uint8_t hazl1500_state::status_reg_2_r()
 {
 	uint8_t misc_dips = m_misc_dips->read();
 	uint8_t status = 0;
@@ -338,28 +337,28 @@ READ8_MEMBER( hazl1500_state::status_reg_2_r )
 	return status ^ 0xff;
 }
 
-WRITE8_MEMBER( hazl1500_state::status_reg_3_w )
+void hazl1500_state::status_reg_3_w(uint8_t data)
 {
 	m_status_reg_3 = data;
 	m_uart->write_rdav(BIT(data, 2));
 }
 
-READ8_MEMBER( hazl1500_state::uart_r )
+uint8_t hazl1500_state::uart_r()
 {
-	return (m_uart->get_received_data() & 0x7f) | (m_uart->pe_r() << 7);
+	return (m_uart->receive() & 0x7f) | (m_uart->pe_r() << 7);
 }
 
-WRITE8_MEMBER( hazl1500_state::uart_w )
+void hazl1500_state::uart_w(uint8_t data)
 {
-	m_uart->set_transmit_data((data & 0x7f) | (BIT(m_misc_dips->read(), 3) ? 0x00 : 0x80));
+	m_uart->transmit((data & 0x7f) | (BIT(m_misc_dips->read(), 3) ? 0x00 : 0x80));
 }
 
-READ8_MEMBER( hazl1500_state::kbd_status_latch_r )
+uint8_t hazl1500_state::kbd_status_latch_r()
 {
 	return m_kbd_status_latch;
 }
 
-READ8_MEMBER(hazl1500_state::kbd_encoder_r)
+uint8_t hazl1500_state::kbd_encoder_r()
 {
 	return m_kbdc->b_r() & 0xff; // TODO: This should go through an 8048, but we have no dump of it currently.
 }
@@ -460,7 +459,7 @@ NETDEV_ANALOG_CALLBACK_MEMBER(hazl1500_state::video_out_cb)
 	m_last_fraction = pixel_fraction;
 }
 
-WRITE8_MEMBER(hazl1500_state::refresh_address_w)
+void hazl1500_state::refresh_address_w(uint8_t data)
 {
 	synchronize();
 	//printf("refresh: %02x, %d, %d\n", data, m_screen->hpos(), m_screen->vpos());
@@ -693,28 +692,28 @@ static GFXDECODE_START( gfx_hazl1500 )
 	GFXDECODE_ENTRY( CHAR_EPROM_TAG, 0x0000, hazl1500_charlayout, 0, 1 )
 GFXDECODE_END
 
-MACHINE_CONFIG_START(hazl1500_state::hazl1500)
+void hazl1500_state::hazl1500(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(CPU_TAG, I8080, XTAL(18'000'000)/9) // 18MHz crystal on schematics, using an i8224 clock gen/driver IC
-	MCFG_DEVICE_PROGRAM_MAP(hazl1500_mem)
-	MCFG_DEVICE_IO_MAP(hazl1500_io)
-	MCFG_QUANTUM_PERFECT_CPU(CPU_TAG)
+	I8080(config, m_maincpu, XTAL(18'000'000)/9); // 18MHz crystal on schematics, using an i8224 clock gen/driver IC
+	m_maincpu->set_addrmap(AS_PROGRAM, &hazl1500_state::hazl1500_mem);
+	m_maincpu->set_addrmap(AS_IO, &hazl1500_state::hazl1500_io);
+	config.set_perfect_quantum(m_maincpu);
 
-	MCFG_INPUT_MERGER_ANY_HIGH("mainint")
-	MCFG_INPUT_MERGER_OUTPUT_HANDLER(INPUTLINE(CPU_TAG, INPUT_LINE_IRQ0))
+	INPUT_MERGER_ANY_HIGH(config, "mainint").output_handler().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD(SCREEN_TAG, RASTER)
-	MCFG_SCREEN_UPDATE_DRIVER(hazl1500_state, screen_update_hazl1500)
-	//MCFG_SCREEN_RAW_PARAMS(XTAL(33'264'000) / 2,
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_screen_update(FUNC(hazl1500_state::screen_update_hazl1500));
+	//m_screen->set_raw(XTAL(33'264'000) / 2,
 	//    SCREEN_HTOTAL, SCREEN_HSTART, SCREEN_HSTART + SCREEN_HDISP,
 	//    SCREEN_VTOTAL, SCREEN_VSTART, SCREEN_VSTART + SCREEN_VDISP); // TODO: Figure out exact visibility
-	MCFG_SCREEN_RAW_PARAMS(XTAL(33'264'000) / 2,
+	m_screen->set_raw(XTAL(33'264'000) / 2,
 		SCREEN_HTOTAL, 0, SCREEN_HTOTAL,
 		SCREEN_VTOTAL, 0, SCREEN_VTOTAL);
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_hazl1500)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_hazl1500);
 
 	com8116_device &baudgen(COM8116(config, BAUDGEN_TAG, XTAL(5'068'800)));
 	baudgen.fr_handler().set(m_uart, FUNC(ay51013_device::write_tcp));
@@ -723,43 +722,42 @@ MACHINE_CONFIG_START(hazl1500_state::hazl1500)
 	AY51013(config, m_uart);
 	m_uart->write_dav_callback().set("mainint", FUNC(input_merger_device::in_w<0>));
 
-	MCFG_DEVICE_ADD(NETLIST_TAG, NETLIST_CPU, VIDEOBRD_CLOCK)
-	MCFG_NETLIST_SETUP(hazelvid)
+	NETLIST_CPU(config, NETLIST_TAG, VIDEOBRD_CLOCK).set_source(NETLIST_NAME(hazelvid));
 
 	// First 1K
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u22", "u22")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u23", "u23")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u24", "u24")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u25", "u25")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u26", "u26")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u27", "u27")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u28", "u28")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u29", "u29")
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u22", "u22.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u23", "u23.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u24", "u24.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u25", "u25.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u26", "u26.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u27", "u27.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u28", "u28.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u29", "u29.m_RAM");
 
 	// Second 1K
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u9",  "u9")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u10", "u10")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u11", "u11")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u12", "u12")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u13", "u13")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u14", "u14")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u15", "u15")
-	MCFG_NETLIST_RAM_POINTER(NETLIST_TAG, "u16", "u16")
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u9",  "u9.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u10", "u10.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u11", "u11.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u12", "u12.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u13", "u13.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u14", "u14.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u15", "u15.m_RAM");
+	NETLIST_RAM_POINTER(config, NETLIST_TAG ":u16", "u16.m_RAM");
 
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_iowq", "cpu_iowq.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_ba4", "cpu_ba4.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db0", "cpu_db0.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db1", "cpu_db1.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db2", "cpu_db2.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db3", "cpu_db3.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db4", "cpu_db4.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db5", "cpu_db5.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db6", "cpu_db6.IN", 0)
-	MCFG_NETLIST_LOGIC_INPUT(NETLIST_TAG, "cpu_db7", "cpu_db7.IN", 0)
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_iowq", "cpu_iowq.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_ba4", "cpu_ba4.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db0", "cpu_db0.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db1", "cpu_db1.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db2", "cpu_db2.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db3", "cpu_db3.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db4", "cpu_db4.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db5", "cpu_db5.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db6", "cpu_db6.IN", 0);
+	NETLIST_LOGIC_INPUT(config, NETLIST_TAG ":cpu_db7", "cpu_db7.IN", 0);
 
-	MCFG_NETLIST_ANALOG_OUTPUT(NETLIST_TAG, "video_out", "video_out", hazl1500_state, video_out_cb, "")
-	MCFG_NETLIST_ANALOG_OUTPUT(NETLIST_TAG, "vblank", "vblank", hazl1500_state, vblank_cb, "")
-	MCFG_NETLIST_ANALOG_OUTPUT(NETLIST_TAG, "tvinterq", "tvinterq", hazl1500_state, tvinterq_cb, "")
+	NETLIST_ANALOG_OUTPUT(config, NETLIST_TAG ":video_out", 0).set_params("video_out", FUNC(hazl1500_state::video_out_cb));
+	NETLIST_ANALOG_OUTPUT(config, NETLIST_TAG ":vblank", 0).set_params("vblank", FUNC(hazl1500_state::vblank_cb));
+	NETLIST_ANALOG_OUTPUT(config, NETLIST_TAG ":tvinterq", 0).set_params("tvinterq", FUNC(hazl1500_state::tvinterq_cb));
 
 	/* keyboard controller */
 	AY3600(config, m_kbdc, 0);
@@ -775,7 +773,7 @@ MACHINE_CONFIG_START(hazl1500_state::hazl1500)
 	m_kbdc->shift().set(FUNC(hazl1500_state::ay3600_shift_r));
 	m_kbdc->control().set(FUNC(hazl1500_state::ay3600_control_r));
 	m_kbdc->data_ready().set(FUNC(hazl1500_state::ay3600_data_ready_w));
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( hazl1500 )

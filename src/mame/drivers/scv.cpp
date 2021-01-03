@@ -41,10 +41,10 @@ protected:
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 private:
-	DECLARE_WRITE8_MEMBER(porta_w);
-	DECLARE_READ8_MEMBER(portb_r);
-	DECLARE_READ8_MEMBER(portc_r);
-	DECLARE_WRITE8_MEMBER(portc_w);
+	void porta_w(uint8_t data);
+	uint8_t portb_r();
+	uint8_t portc_r();
+	void portc_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(upd1771_ack_w);
 	void scv_palette(palette_device &palette) const;
 	uint32_t screen_update_scv(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -85,7 +85,6 @@ void scv_state::scv_mem(address_map &map)
 	map(0x3600, 0x3600).w(m_upd1771c, FUNC(upd1771c_device::write));
 
 	map(0x8000, 0xff7f).rw(m_cart, FUNC(scv_cart_slot_device::read_cart), FUNC(scv_cart_slot_device::write_cart)); // cartridge
-	map(0xff80, 0xffff).ram();   // upd7801 internal RAM
 }
 
 
@@ -175,13 +174,13 @@ static INPUT_PORTS_START( scv )
 INPUT_PORTS_END
 
 
-WRITE8_MEMBER( scv_state::porta_w )
+void scv_state::porta_w(uint8_t data)
 {
 	m_porta = data;
 }
 
 
-READ8_MEMBER( scv_state::portb_r )
+uint8_t scv_state::portb_r()
 {
 	uint8_t data = 0xff;
 
@@ -195,7 +194,7 @@ READ8_MEMBER( scv_state::portb_r )
 }
 
 
-READ8_MEMBER( scv_state::portc_r )
+uint8_t scv_state::portc_r()
 {
 	uint8_t data = m_portc;
 
@@ -205,11 +204,11 @@ READ8_MEMBER( scv_state::portc_r )
 }
 
 
-WRITE8_MEMBER( scv_state::portc_w )
+void scv_state::portc_w(uint8_t data)
 {
 	//logerror("%04x: scv_portc_w: data = 0x%02x\n", m_maincpu->pc(), data );
 	m_portc = data;
-	m_cart->write_bank(space, 0, m_portc);
+	m_cart->write_bank(m_portc);
 	m_upd1771c->pcm_write(m_portc & 0x08);
 }
 
@@ -301,16 +300,16 @@ inline void scv_state::plot_sprite_part( bitmap_ind16 &bitmap, uint8_t x, uint8_
 		x -= 4;
 
 		if (pat & 0x08)
-			bitmap.pix16(y + 2, x) = col;
+			bitmap.pix(y + 2, x) = col;
 
 		if (pat & 0x04 && x < 255 )
-			bitmap.pix16(y + 2, x + 1) = col;
+			bitmap.pix(y + 2, x + 1) = col;
 
 		if (pat & 0x02 && x < 254)
-			bitmap.pix16(y + 2, x + 2) = col;
+			bitmap.pix(y + 2, x + 2) = col;
 
 		if (pat & 0x01 && x < 253)
-			bitmap.pix16(y + 2, x + 3) = col;
+			bitmap.pix(y + 2, x + 3) = col;
 	}
 }
 
@@ -355,32 +354,30 @@ inline void scv_state::draw_sprite( bitmap_ind16 &bitmap, uint8_t x, uint8_t y, 
 
 inline void scv_state::draw_text( bitmap_ind16 &bitmap, uint8_t x, uint8_t y, uint8_t *char_data, uint8_t fg, uint8_t bg )
 {
-	int i;
-
-	for ( i = 0; i < 8; i++ )
+	for ( int i = 0; i < 8; i++ )
 	{
-		uint8_t d = char_data[i];
+		uint8_t const d = char_data[i];
 
-		bitmap.pix16(y + i, x + 0 ) = ( d & 0x80 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 1 ) = ( d & 0x40 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 2 ) = ( d & 0x20 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 3 ) = ( d & 0x10 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 4 ) = ( d & 0x08 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 5 ) = ( d & 0x04 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 6 ) = ( d & 0x02 ) ? fg : bg;
-		bitmap.pix16(y + i, x + 7 ) = ( d & 0x01 ) ? fg : bg;
+		bitmap.pix(y + i, x + 0 ) = ( d & 0x80 ) ? fg : bg;
+		bitmap.pix(y + i, x + 1 ) = ( d & 0x40 ) ? fg : bg;
+		bitmap.pix(y + i, x + 2 ) = ( d & 0x20 ) ? fg : bg;
+		bitmap.pix(y + i, x + 3 ) = ( d & 0x10 ) ? fg : bg;
+		bitmap.pix(y + i, x + 4 ) = ( d & 0x08 ) ? fg : bg;
+		bitmap.pix(y + i, x + 5 ) = ( d & 0x04 ) ? fg : bg;
+		bitmap.pix(y + i, x + 6 ) = ( d & 0x02 ) ? fg : bg;
+		bitmap.pix(y + i, x + 7 ) = ( d & 0x01 ) ? fg : bg;
 	}
 
-	for ( i = 8; i < 16; i++ )
+	for ( int i = 8; i < 16; i++ )
 	{
-		bitmap.pix16(y + i, x + 0 ) = bg;
-		bitmap.pix16(y + i, x + 1 ) = bg;
-		bitmap.pix16(y + i, x + 2 ) = bg;
-		bitmap.pix16(y + i, x + 3 ) = bg;
-		bitmap.pix16(y + i, x + 4 ) = bg;
-		bitmap.pix16(y + i, x + 5 ) = bg;
-		bitmap.pix16(y + i, x + 6 ) = bg;
-		bitmap.pix16(y + i, x + 7 ) = bg;
+		bitmap.pix(y + i, x + 0 ) = bg;
+		bitmap.pix(y + i, x + 1 ) = bg;
+		bitmap.pix(y + i, x + 2 ) = bg;
+		bitmap.pix(y + i, x + 3 ) = bg;
+		bitmap.pix(y + i, x + 4 ) = bg;
+		bitmap.pix(y + i, x + 5 ) = bg;
+		bitmap.pix(y + i, x + 6 ) = bg;
+		bitmap.pix(y + i, x + 7 ) = bg;
 	}
 
 }
@@ -388,35 +385,31 @@ inline void scv_state::draw_text( bitmap_ind16 &bitmap, uint8_t x, uint8_t y, ui
 
 inline void scv_state::draw_semi_graph( bitmap_ind16 &bitmap, uint8_t x, uint8_t y, uint8_t data, uint8_t fg )
 {
-	int i;
-
 	if ( ! data )
 		return;
 
-	for ( i = 0; i < 4; i++ )
+	for ( int i = 0; i < 4; i++ )
 	{
-		bitmap.pix16(y + i, x + 0) = fg;
-		bitmap.pix16(y + i, x + 1) = fg;
-		bitmap.pix16(y + i, x + 2) = fg;
-		bitmap.pix16(y + i, x + 3) = fg;
+		bitmap.pix(y + i, x + 0) = fg;
+		bitmap.pix(y + i, x + 1) = fg;
+		bitmap.pix(y + i, x + 2) = fg;
+		bitmap.pix(y + i, x + 3) = fg;
 	}
 }
 
 
 inline void scv_state::draw_block_graph( bitmap_ind16 &bitmap, uint8_t x, uint8_t y, uint8_t col )
 {
-	int i;
-
-	for ( i = 0; i < 8; i++ )
+	for ( int i = 0; i < 8; i++ )
 	{
-		bitmap.pix16(y + i, x + 0) = col;
-		bitmap.pix16(y + i, x + 1) = col;
-		bitmap.pix16(y + i, x + 2) = col;
-		bitmap.pix16(y + i, x + 3) = col;
-		bitmap.pix16(y + i, x + 4) = col;
-		bitmap.pix16(y + i, x + 5) = col;
-		bitmap.pix16(y + i, x + 6) = col;
-		bitmap.pix16(y + i, x + 7) = col;
+		bitmap.pix(y + i, x + 0) = col;
+		bitmap.pix(y + i, x + 1) = col;
+		bitmap.pix(y + i, x + 2) = col;
+		bitmap.pix(y + i, x + 3) = col;
+		bitmap.pix(y + i, x + 4) = col;
+		bitmap.pix(y + i, x + 5) = col;
+		bitmap.pix(y + i, x + 6) = col;
+		bitmap.pix(y + i, x + 7) = col;
 	}
 }
 
@@ -649,8 +642,8 @@ static void scv_cart(device_slot_interface &device)
 	device.option_add_internal("rom128k_ram", SCV_ROM128K_RAM4K);
 }
 
-MACHINE_CONFIG_START(scv_state::scv)
-
+void scv_state::scv(machine_config &config)
+{
 	upd7801_device &upd(UPD7801(config, m_maincpu, 4_MHz_XTAL));
 	upd.set_addrmap(AS_PROGRAM, &scv_state::scv_mem);
 	upd.pa_out_cb().set(FUNC(scv_state::porta_w));
@@ -664,7 +657,7 @@ MACHINE_CONFIG_START(scv_state::scv)
 	m_screen->set_screen_update(FUNC(scv_state::screen_update_scv));
 	m_screen->set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_scv)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_scv);
 	PALETTE(config, "palette", FUNC(scv_state::scv_palette), 16);
 
 	/* Sound is generated by UPD1771C clocked at XTAL(6'000'000) */
@@ -673,11 +666,11 @@ MACHINE_CONFIG_START(scv_state::scv)
 	m_upd1771c->ack_handler().set(FUNC(scv_state::upd1771_ack_w));
 	m_upd1771c->add_route(ALL_OUTPUTS, "mono", 1.00);
 
-	MCFG_SCV_CARTRIDGE_ADD("cartslot", scv_cart, nullptr)
+	SCV_CART_SLOT(config, m_cart, scv_cart, nullptr);
 
 	/* Software lists */
-	MCFG_SOFTWARE_LIST_ADD("cart_list","scv")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("scv");
+}
 
 
 void scv_state::scv_pal(machine_config &config)

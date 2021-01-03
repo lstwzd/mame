@@ -104,7 +104,6 @@
 
 
 #include "emu.h"
-#include "includes/mcr.h"
 #include "includes/mcr3.h"
 
 #include "machine/nvram.h"
@@ -119,7 +118,7 @@
 
 
 
-WRITE8_MEMBER(mcr3_state::mcrmono_control_port_w)
+void mcr3_state::mcrmono_control_port_w(uint8_t data)
 {
 	/*
 	    Bit layout is as follows:
@@ -144,28 +143,28 @@ WRITE8_MEMBER(mcr3_state::mcrmono_control_port_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::demoderm_ip1_r)
+uint8_t mcr3_state::demoderm_ip1_r()
 {
 	return ioport("MONO.IP1")->read() |
 		(ioport(m_input_mux ? "MONO.IP1.ALT2" : "MONO.IP1.ALT1")->read() << 2);
 }
 
 
-READ8_MEMBER(mcr3_state::demoderm_ip2_r)
+uint8_t mcr3_state::demoderm_ip2_r()
 {
 	return ioport("MONO.IP2")->read() |
 		(ioport(m_input_mux ? "MONO.IP2.ALT2" : "MONO.IP2.ALT1")->read() << 2);
 }
 
 
-WRITE8_MEMBER(mcr3_state::demoderm_op6_w)
+void mcr3_state::demoderm_op6_w(uint8_t data)
 {
 	/* top 2 bits select the input */
 	if (data & 0x80) m_input_mux = 0;
 	if (data & 0x40) m_input_mux = 1;
 
 	/* low 5 bits control the turbo CS */
-	m_turbo_cheap_squeak->write(space, offset, data);
+	m_turbo_cheap_squeak->write(data);
 }
 
 
@@ -176,13 +175,13 @@ WRITE8_MEMBER(mcr3_state::demoderm_op6_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::maxrpm_ip1_r)
+uint8_t maxrpm_state::maxrpm_ip1_r()
 {
 	return m_latched_input;
 }
 
 
-READ8_MEMBER(mcr3_state::maxrpm_ip2_r)
+uint8_t maxrpm_state::maxrpm_ip2_r()
 {
 	/* this is a blatant hack, should really do a better implementation */
 	static const uint8_t shift_bits[5] = { 0x00, 0x05, 0x06, 0x01, 0x02 };
@@ -227,24 +226,24 @@ READ8_MEMBER(mcr3_state::maxrpm_ip2_r)
 }
 
 
-WRITE8_MEMBER(mcr3_state::maxrpm_op5_w)
+void maxrpm_state::maxrpm_op5_w(uint8_t data)
 {
 	/* latch bits 1-4 as input to the ADC0844 */
 	m_maxrpm_adc_control = (data >> 1) & 0x0f;
 
 	/* remaining bits go to standard connections */
-	mcrmono_control_port_w(space, offset, data);
+	mcrmono_control_port_w(data);
 }
 
 
-WRITE8_MEMBER(mcr3_state::maxrpm_op6_w)
+void maxrpm_state::maxrpm_op6_w(uint8_t data)
 {
 	/*
 	    Reflective Sensor Control:
 	        4 bits of input from OP5 are routed to a transceiver at U2, and
 	        ultimately on to the low 4 I/O pins of the ADC0844. The /EN on
 	        the transceiver is directly connected to J2-2. Note that two bits
-	            get swapped in the process: OP53 = MA3 and OP54 = MA2.
+	        get swapped in the process: OP53 = MA3 and OP54 = MA2.
 
 	        In order to perform a read or a write to the ADC0844, the /RD and
 	        /WR signals are directly controlled via J2-8 and J2-7 respectively.
@@ -260,14 +259,14 @@ WRITE8_MEMBER(mcr3_state::maxrpm_op6_w)
 
 	/* when the read is toggled is when the ADC value is latched */
 	if (!(data & 0x80))
-		m_latched_input = m_maxrpm_adc->read(space, 0);
+		m_latched_input = m_maxrpm_adc->read();
 
 	/* when both the write and the enable are low, it's a write to the ADC0844 */
 	if (!(data & 0x40) && !(data & 0x20))
-		m_maxrpm_adc->write(space, 0, bitswap<4>(m_maxrpm_adc_control, 2, 3, 1, 0));
+		m_maxrpm_adc->write(bitswap<4>(m_maxrpm_adc_control, 2, 3, 1, 0));
 
 	/* low 5 bits control the turbo CS */
-	m_turbo_cheap_squeak->write(space, offset, data);
+	m_turbo_cheap_squeak->write(data);
 }
 
 
@@ -278,19 +277,19 @@ WRITE8_MEMBER(mcr3_state::maxrpm_op6_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::rampage_ip4_r)
+uint8_t mcr3_state::rampage_ip4_r()
 {
-	return ioport("MONO.IP4")->read() | (m_sounds_good->read(space,0) << 7);
+	return ioport("MONO.IP4")->read() | (m_sounds_good->read() << 7);
 }
 
 
-WRITE8_MEMBER(mcr3_state::rampage_op6_w)
+void mcr3_state::rampage_op6_w(uint8_t data)
 {
 	/* bit 5 controls reset of the Sounds Good board */
 	m_sounds_good->reset_write((~data >> 5) & 1);
 
 	/* low 5 bits go directly to the Sounds Good board */
-	m_sounds_good->write(space, offset, data);
+	m_sounds_good->write(data);
 }
 
 
@@ -301,13 +300,13 @@ WRITE8_MEMBER(mcr3_state::rampage_op6_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::powerdrv_ip2_r)
+uint8_t mcr3_state::powerdrv_ip2_r()
 {
-	return ioport("MONO.IP2")->read() | (m_sounds_good->read(space, 0) << 7);
+	return ioport("MONO.IP2")->read() | (m_sounds_good->read() << 7);
 }
 
 
-WRITE8_MEMBER(mcr3_state::powerdrv_op5_w)
+void mcr3_state::powerdrv_op5_w(uint8_t data)
 {
 	/*
 	    Lamp Board:
@@ -324,17 +323,17 @@ WRITE8_MEMBER(mcr3_state::powerdrv_op5_w)
 	m_lamps[2] = BIT(data, 1);
 
 	/* remaining bits go to standard connections */
-	mcrmono_control_port_w(space, offset, data);
+	mcrmono_control_port_w(data);
 }
 
 
-WRITE8_MEMBER(mcr3_state::powerdrv_op6_w)
+void mcr3_state::powerdrv_op6_w(uint8_t data)
 {
 	/* bit 5 controls reset of the Sounds Good board */
 	m_sounds_good->reset_write((~data >> 5) & 1);
 
 	/* low 5 bits go directly to the Sounds Good board */
-	m_sounds_good->write(space, offset, data);
+	m_sounds_good->write(data);
 }
 
 
@@ -345,16 +344,16 @@ WRITE8_MEMBER(mcr3_state::powerdrv_op6_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::stargrds_ip0_r)
+uint8_t mcr3_state::stargrds_ip0_r()
 {
 	uint8_t result = ioport("MONO.IP0")->read();
 	if (m_input_mux)
 		result = (result & ~0x0a) | (ioport("MONO.IP0.ALT")->read() & 0x0a);
-	return (result & ~0x10) | ((m_sounds_good->read(space, 0) << 4) & 0x10);
+	return (result & ~0x10) | ((m_sounds_good->read() << 4) & 0x10);
 }
 
 
-WRITE8_MEMBER(mcr3_state::stargrds_op5_w)
+void mcr3_state::stargrds_op5_w(uint8_t data)
 {
 	/* bit 1 controls input muxing on port 0 */
 	m_input_mux = (data >> 1) & 1;
@@ -367,17 +366,17 @@ WRITE8_MEMBER(mcr3_state::stargrds_op5_w)
 	m_lamps[2] = BIT(data, 4);
 
 	/* remaining bits go to standard connections */
-	mcrmono_control_port_w(space, offset, data);
+	mcrmono_control_port_w(data);
 }
 
 
-WRITE8_MEMBER(mcr3_state::stargrds_op6_w)
+void mcr3_state::stargrds_op6_w(uint8_t data)
 {
 	/* bit 6 controls reset of the Sounds Good board */
 	m_sounds_good->reset_write((~data >> 6) & 1);
 
 	/* unline the other games, the STROBE is in the high bit instead of the low bit */
-	m_sounds_good->write(space, offset, (data << 1) | (data >> 7));
+	m_sounds_good->write((data << 1) | (data >> 7));
 }
 
 
@@ -388,20 +387,20 @@ WRITE8_MEMBER(mcr3_state::stargrds_op6_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::spyhunt_ip1_r)
+uint8_t mcrsc_csd_state::spyhunt_ip1_r()
 {
-	return ioport("ssio:IP1")->read() | (m_cheap_squeak_deluxe->stat_r(space, 0) << 5);
+	return ioport("ssio:IP1")->read() | (m_cheap_squeak_deluxe->stat_r() << 5);
 }
 
 
-READ8_MEMBER(mcr3_state::spyhunt_ip2_r)
+uint8_t mcrsc_csd_state::spyhunt_ip2_r()
 {
 	/* multiplexed steering wheel/gas pedal */
 	return ioport(m_input_mux ? "ssio:IP2.ALT" : "ssio:IP2")->read();
 }
 
 
-WRITE8_MEMBER(mcr3_state::spyhunt_op4_w)
+void mcrsc_csd_state::spyhunt_op4_w(uint8_t data)
 {
 	/* Spy Hunter uses port 4 for talking to the Cheap Squeak Deluxe */
 	/* (and for toggling the lamps and muxing the analog inputs) */
@@ -430,7 +429,7 @@ WRITE8_MEMBER(mcr3_state::spyhunt_op4_w)
 	m_last_op4 = data;
 
 	/* low 5 bits go to control the Cheap Squeak Deluxe */
-	m_cheap_squeak_deluxe->sr_w(space, offset, data & 0x0f);
+	m_cheap_squeak_deluxe->sr_w(data & 0x0f);
 	m_cheap_squeak_deluxe->sirq_w(BIT(data, 4));
 }
 
@@ -442,7 +441,7 @@ WRITE8_MEMBER(mcr3_state::spyhunt_op4_w)
  *
  *************************************/
 
-READ8_MEMBER(mcr3_state::turbotag_ip2_r)
+uint8_t mcrsc_csd_state::turbotag_ip2_r()
 {
 	/* multiplexed steering wheel/gas pedal */
 	if (m_input_mux)
@@ -452,7 +451,7 @@ READ8_MEMBER(mcr3_state::turbotag_ip2_r)
 }
 
 
-READ8_MEMBER(mcr3_state::turbotag_kludge_r)
+uint8_t mcrsc_csd_state::turbotag_kludge_r()
 {
 	/* The checksum on the ttprog1.bin ROM seems to be bad by 1 bit */
 	/* The checksum should come out to $82 but it should be $92     */
@@ -1078,15 +1077,15 @@ GFXDECODE_END
  *************************************/
 
 /* Core MCR monoboard system with no sound */
-MACHINE_CONFIG_START(mcr3_state::mcrmono)
-
+void mcr3_state::mcrmono(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, MASTER_CLOCK/4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &mcr3_state::mcrmono_map);
 	m_maincpu->set_addrmap(AS_IO, &mcr3_state::mcrmono_portmap);
 	m_maincpu->set_daisy_config(mcr_daisy_chain);
 
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", mcr3_state, mcr_interrupt, "screen", 0, 1)
+	TIMER(config, "scantimer").configure_scanline(FUNC(mcr3_state::mcr_interrupt), "screen", 0, 1);
 
 	Z80CTC(config, m_ctc, MASTER_CLOCK/4 /* same as "maincpu" */);
 	m_ctc->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
@@ -1101,34 +1100,35 @@ MACHINE_CONFIG_START(mcr3_state::mcrmono)
 	SPEAKER(config, "rspeaker").front_right();
 
 	/* video hardware */
-	MCFG_SCREEN_ADD(m_screen, RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
-	MCFG_SCREEN_REFRESH_RATE(30)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*16, 30*16)
-	MCFG_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 0*16, 30*16-1)
-	MCFG_SCREEN_UPDATE_DRIVER(mcr3_state, screen_update_mcr3)
-	MCFG_SCREEN_PALETTE("palette")
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
+	m_screen->set_refresh_hz(30);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	m_screen->set_size(32*16, 30*16);
+	m_screen->set_visarea(0*16, 32*16-1, 0*16, 30*16-1);
+	m_screen->set_screen_update(FUNC(mcr3_state::screen_update_mcr3));
+	m_screen->set_palette(m_palette);
 
-	GFXDECODE(config, "gfxdecode", "palette", gfx_mcr3);
-	PALETTE(config, "palette").set_entries(64);
-MACHINE_CONFIG_END
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_mcr3);
+	PALETTE(config, m_palette).set_entries(64);
+}
 
 
 /*************************************/
 
 
 /* Sarge/Demolition Derby Mono/Max RPM = MCR monoboard with Turbo Cheap Squeak */
-MACHINE_CONFIG_START(mcr3_state::mono_tcs)
+void mcr3_state::mono_tcs(machine_config &config)
+{
 	mcrmono(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("tcs", MIDWAY_TURBO_CHEAP_SQUEAK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MIDWAY_TURBO_CHEAP_SQUEAK(config, m_turbo_cheap_squeak);
+	m_turbo_cheap_squeak->add_route(ALL_OUTPUTS, "lspeaker", 0.8);
+	m_turbo_cheap_squeak->add_route(ALL_OUTPUTS, "rspeaker", 0.8);
+}
 
-void mcr3_state::maxrpm(machine_config &config)
+void maxrpm_state::maxrpm(machine_config &config)
 {
 	mono_tcs(config);
 
@@ -1141,51 +1141,53 @@ void mcr3_state::maxrpm(machine_config &config)
 
 
 /* Rampage/Power Drive/Star Guards = MCR monoboard with Sounds Good */
-MACHINE_CONFIG_START(mcr3_state::mono_sg)
+void mcr3_state::mono_sg(machine_config &config)
+{
 	mcrmono(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("sg", MIDWAY_SOUNDS_GOOD)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MIDWAY_SOUNDS_GOOD(config, m_sounds_good);
+	m_sounds_good->add_route(ALL_OUTPUTS, "lspeaker", 0.75);
+	m_sounds_good->add_route(ALL_OUTPUTS, "rspeaker", 0.75);
+}
 
 
 /*************************************/
 
 
 /* Core scrolling system with SSIO sound */
-MACHINE_CONFIG_START(mcr3_state::mcrscroll)
+void mcr3_state::mcrscroll(machine_config &config)
+{
 	mcrmono(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("ssio", MIDWAY_SSIO)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MIDWAY_SSIO(config, m_ssio);
+	m_ssio->add_route(0, "lspeaker", 1.0);
+	m_ssio->add_route(1, "rspeaker", 1.0);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &mcr3_state::spyhunt_map);
 	m_maincpu->set_addrmap(AS_IO, &mcr3_state::spyhunt_portmap);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(30*16, 30*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 30*16-1, 0, 30*16-1)
-	MCFG_SCREEN_UPDATE_DRIVER(mcr3_state, screen_update_spyhunt)
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_spyhunt)
+	m_screen->set_size(30*16, 30*16);
+	m_screen->set_visarea(0, 30*16-1, 0, 30*16-1);
+	m_screen->set_screen_update(FUNC(mcr3_state::screen_update_spyhunt));
+	m_gfxdecode->set_info(gfx_spyhunt);
 	subdevice<palette_device>("palette")->set_entries(64 + 4).set_init(FUNC(mcr3_state::spyhunt_palette));
 
 	MCFG_VIDEO_START_OVERRIDE(mcr3_state,spyhunt)
-MACHINE_CONFIG_END
+}
 
 
 /* Spy Hunter = scrolling system with an SSIO and a cheap squeak deluxe */
-MACHINE_CONFIG_START(mcr3_state::mcrsc_csd)
+void mcrsc_csd_state::mcrsc_csd(machine_config &config)
+{
 	mcrscroll(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("csd", MIDWAY_CHEAP_SQUEAK_DELUXE)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
+	MIDWAY_CHEAP_SQUEAK_DELUXE(config, m_cheap_squeak_deluxe);
+	m_cheap_squeak_deluxe->add_route(ALL_OUTPUTS, "lspeaker", 0.8);
+	m_cheap_squeak_deluxe->add_route(ALL_OUTPUTS, "rspeaker", 0.8);
 
 	CD4099(config, m_lamplatch); // U1 on Lamp Driver Board
 	m_lamplatch->q_out_cb<0>().set_output("lamp0");
@@ -1196,12 +1198,7 @@ MACHINE_CONFIG_START(mcr3_state::mcrsc_csd)
 	m_lamplatch->q_out_cb<5>().set_output("lamp5");
 	m_lamplatch->q_out_cb<6>().set_output("lamp6");
 	m_lamplatch->q_out_cb<7>().set_output("lamp7");
-MACHINE_CONFIG_END
-
-
-
-
-
+}
 
 
 /*************************************
@@ -1312,7 +1309,7 @@ ROM_START( rampage )
 	ROM_LOAD( "fg-3_4e_6-30-86.4e",   0x30000, 0x10000, CRC(81e1de40) SHA1(7e7818792845ec3687b3202eeade60a298ef513e) )
 
 	ROM_REGION( 0x0001, "sg:pal", 0 ) /* Sounds Good board pal */
-	ROM_LOAD( "e36a31axnaxqd.u15.bin", 0x0000, 0x0001, NO_DUMP) /* PAL20L10CNS */
+	ROM_LOAD( "e36a31axnaxqd.u15.bin", 0x0000, 0x0001, NO_DUMP) /* PAL20L10CNS, called "SG01R0 PAL" with part number "E36-00803-0009" on the schematics */
 ROM_END
 
 
@@ -1339,7 +1336,7 @@ ROM_START( rampage2 )
 	ROM_LOAD( "fg-3_4e_6-30-86.4e",   0x30000, 0x10000, CRC(81e1de40) SHA1(7e7818792845ec3687b3202eeade60a298ef513e) )
 
 	ROM_REGION( 0x0001, "sg:pal", 0 ) /* Sounds Good board pal */
-	ROM_LOAD( "e36a31axnaxqd.u15.bin", 0x0000, 0x0001, NO_DUMP) /* PAL20L10CNS */
+	ROM_LOAD( "e36a31axnaxqd.u15.bin", 0x0000, 0x0001, NO_DUMP) /* PAL20L10CNS, called "SG01R0 PAL" with part number "E36-00803-0009" on the schematics */
 ROM_END
 
 
@@ -1572,26 +1569,26 @@ void mcr3_state::mcr_common_init()
 void mcr3_state::init_demoderm()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_read_handler(0x01, 0x01, read8_delegate(FUNC(mcr3_state::demoderm_ip1_r),this));
-	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8_delegate(FUNC(mcr3_state::demoderm_ip2_r),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(mcr3_state::demoderm_op6_w),this));
+	m_maincpu->space(AS_IO).install_read_handler(0x01, 0x01, read8smo_delegate(*this, FUNC(mcr3_state::demoderm_ip1_r)));
+	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8smo_delegate(*this, FUNC(mcr3_state::demoderm_ip2_r)));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*this, FUNC(mcr3_state::demoderm_op6_w)));
 }
 
 
 void mcr3_state::init_sarge()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(midway_turbo_cheap_squeak_device::write),m_turbo_cheap_squeak.target()));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*m_turbo_cheap_squeak, FUNC(midway_turbo_cheap_squeak_device::write)));
 }
 
 
-void mcr3_state::init_maxrpm()
+void maxrpm_state::init_maxrpm()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_read_handler(0x01, 0x01, read8_delegate(FUNC(mcr3_state::maxrpm_ip1_r),this));
-	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8_delegate(FUNC(mcr3_state::maxrpm_ip2_r),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8_delegate(FUNC(mcr3_state::maxrpm_op5_w),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(mcr3_state::maxrpm_op6_w),this));
+	m_maincpu->space(AS_IO).install_read_handler(0x01, 0x01, read8smo_delegate(*this, FUNC(maxrpm_state::maxrpm_ip1_r)));
+	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8smo_delegate(*this, FUNC(maxrpm_state::maxrpm_ip2_r)));
+	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8smo_delegate(*this, FUNC(maxrpm_state::maxrpm_op5_w)));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*this, FUNC(maxrpm_state::maxrpm_op6_w)));
 
 	save_item(NAME(m_maxrpm_adc_control));
 	save_item(NAME(m_maxrpm_last_shift));
@@ -1603,35 +1600,35 @@ void mcr3_state::init_maxrpm()
 void mcr3_state::init_rampage()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_read_handler(0x04, 0x04, read8_delegate(FUNC(mcr3_state::rampage_ip4_r),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(mcr3_state::rampage_op6_w),this));
+	m_maincpu->space(AS_IO).install_read_handler(0x04, 0x04, read8smo_delegate(*this, FUNC(mcr3_state::rampage_ip4_r)));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*this, FUNC(mcr3_state::rampage_op6_w)));
 }
 
 
 void mcr3_state::init_powerdrv()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8_delegate(FUNC(mcr3_state::powerdrv_ip2_r),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8_delegate(FUNC(mcr3_state::powerdrv_op5_w),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(mcr3_state::powerdrv_op6_w),this));
+	m_maincpu->space(AS_IO).install_read_handler(0x02, 0x02, read8smo_delegate(*this, FUNC(mcr3_state::powerdrv_ip2_r)));
+	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8smo_delegate(*this, FUNC(mcr3_state::powerdrv_op5_w)));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*this, FUNC(mcr3_state::powerdrv_op6_w)));
 }
 
 
 void mcr3_state::init_stargrds()
 {
 	mcr_common_init();
-	m_maincpu->space(AS_IO).install_read_handler(0x00, 0x00, read8_delegate(FUNC(mcr3_state::stargrds_ip0_r),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8_delegate(FUNC(mcr3_state::stargrds_op5_w),this));
-	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8_delegate(FUNC(mcr3_state::stargrds_op6_w),this));
+	m_maincpu->space(AS_IO).install_read_handler(0x00, 0x00, read8smo_delegate(*this, FUNC(mcr3_state::stargrds_ip0_r)));
+	m_maincpu->space(AS_IO).install_write_handler(0x05, 0x05, write8smo_delegate(*this, FUNC(mcr3_state::stargrds_op5_w)));
+	m_maincpu->space(AS_IO).install_write_handler(0x06, 0x06, write8smo_delegate(*this, FUNC(mcr3_state::stargrds_op6_w)));
 }
 
 
-void mcr3_state::init_spyhunt()
+void mcrsc_csd_state::init_spyhunt()
 {
 	mcr_common_init();
-	m_ssio->set_custom_input(1, 0x60, read8_delegate(FUNC(mcr3_state::spyhunt_ip1_r),this));
-	m_ssio->set_custom_input(2, 0xff, read8_delegate(FUNC(mcr3_state::spyhunt_ip2_r),this));
-	m_ssio->set_custom_output(4, 0xff, write8_delegate(FUNC(mcr3_state::spyhunt_op4_w),this));
+	m_ssio->set_custom_input(1, 0x60, *this, FUNC(mcrsc_csd_state::spyhunt_ip1_r));
+	m_ssio->set_custom_input(2, 0xff, *this, FUNC(mcrsc_csd_state::spyhunt_ip2_r));
+	m_ssio->set_custom_output(4, 0xff, *this, FUNC(mcrsc_csd_state::spyhunt_op4_w));
 
 	m_spyhunt_sprite_color_mask = 0x00;
 	m_spyhunt_scroll_offset = 16;
@@ -1648,12 +1645,12 @@ void mcr3_state::init_crater()
 }
 
 
-void mcr3_state::init_turbotag()
+void mcrsc_csd_state::init_turbotag()
 {
 	mcr_common_init();
-	m_ssio->set_custom_input(1, 0x60, read8_delegate(FUNC(mcr3_state::spyhunt_ip1_r),this));
-	m_ssio->set_custom_input(2, 0xff, read8_delegate(FUNC(mcr3_state::turbotag_ip2_r),this));
-	m_ssio->set_custom_output(4, 0xff, write8_delegate(FUNC(mcr3_state::spyhunt_op4_w),this));
+	m_ssio->set_custom_input(1, 0x60, *this, FUNC(mcrsc_csd_state::spyhunt_ip1_r));
+	m_ssio->set_custom_input(2, 0xff, *this, FUNC(mcrsc_csd_state::turbotag_ip2_r));
+	m_ssio->set_custom_output(4, 0xff, *this, FUNC(mcrsc_csd_state::spyhunt_op4_w));
 
 	m_spyhunt_sprite_color_mask = 0x00;
 	m_spyhunt_scroll_offset = 88;
@@ -1662,7 +1659,7 @@ void mcr3_state::init_turbotag()
 	m_cheap_squeak_deluxe->suspend_cpu();
 
 	/* kludge for bad ROM read */
-	m_maincpu->space(AS_PROGRAM).install_read_handler(0x0b53, 0x0b53, read8_delegate(FUNC(mcr3_state::turbotag_kludge_r),this));
+	m_maincpu->space(AS_PROGRAM).install_read_handler(0x0b53, 0x0b53, read8smo_delegate(*this, FUNC(mcrsc_csd_state::turbotag_kludge_r)));
 }
 
 
@@ -1676,14 +1673,14 @@ void mcr3_state::init_turbotag()
 /* MCR monoboard games */
 GAME(  1984, demoderm, demoderb, mono_tcs,  demoderm, mcr3_state, init_demoderm, ROT0,  "Bally Midway", "Demolition Derby (MCR-3 Mono Board Version)", MACHINE_SUPPORTS_SAVE )
 GAME(  1985, sarge,    0,        mono_tcs,  sarge,    mcr3_state, init_sarge,    ROT0,  "Bally Midway", "Sarge", MACHINE_SUPPORTS_SAVE )
-GAME(  1986, maxrpm,   0,        maxrpm,    maxrpm,   mcr3_state, init_maxrpm,   ROT0,  "Bally Midway", "Max RPM (ver 2)", MACHINE_SUPPORTS_SAVE )
+GAME(  1986, maxrpm,   0,        maxrpm,    maxrpm,   maxrpm_state, init_maxrpm, ROT0,  "Bally Midway", "Max RPM (ver 2)", MACHINE_SUPPORTS_SAVE )
 GAME(  1986, rampage,  0,        mono_sg,   rampage,  mcr3_state, init_rampage,  ROT0,  "Bally Midway", "Rampage (Rev 3, 8/27/86)", MACHINE_SUPPORTS_SAVE )
 GAME(  1986, rampage2, rampage,  mono_sg,   rampage,  mcr3_state, init_rampage,  ROT0,  "Bally Midway", "Rampage (Rev 2, 8/4/86)", MACHINE_SUPPORTS_SAVE )
 GAME(  1986, powerdrv, 0,        mono_sg,   powerdrv, mcr3_state, init_powerdrv, ROT0,  "Bally Midway", "Power Drive", MACHINE_SUPPORTS_SAVE )
 GAME(  1987, stargrds, 0,        mono_sg,   stargrds, mcr3_state, init_stargrds, ROT0,  "Bally Midway", "Star Guards", MACHINE_SUPPORTS_SAVE )
 
 /* MCR scrolling games */
-GAMEL( 1983, spyhunt,  0,        mcrsc_csd, spyhunt,  mcr3_state, init_spyhunt,  ROT90, "Bally Midway", "Spy Hunter", MACHINE_SUPPORTS_SAVE, layout_spyhunt )
-GAMEL( 1983, spyhuntp, spyhunt,  mcrsc_csd, spyhunt,  mcr3_state, init_spyhunt,  ROT90, "Bally Midway (Playtronic license)", "Spy Hunter (Playtronic license)", MACHINE_SUPPORTS_SAVE, layout_spyhunt )
-GAME(  1984, crater,   0,        mcrscroll, crater,   mcr3_state, init_crater,   ORIENTATION_FLIP_X, "Bally Midway", "Crater Raider", MACHINE_SUPPORTS_SAVE )
-GAMEL( 1985, turbotag, 0,        mcrsc_csd, turbotag, mcr3_state, init_turbotag, ROT90, "Bally Midway", "Turbo Tag (prototype)", MACHINE_SUPPORTS_SAVE, layout_turbotag )
+GAMEL( 1983, spyhunt,  0,        mcrsc_csd, spyhunt,  mcrsc_csd_state, init_spyhunt,  ROT90, "Bally Midway", "Spy Hunter", MACHINE_SUPPORTS_SAVE, layout_spyhunt )
+GAMEL( 1983, spyhuntp, spyhunt,  mcrsc_csd, spyhunt,  mcrsc_csd_state, init_spyhunt,  ROT90, "Bally Midway (Playtronic license)", "Spy Hunter (Playtronic license)", MACHINE_SUPPORTS_SAVE, layout_spyhunt )
+GAME(  1984, crater,   0,        mcrscroll, crater,   mcr3_state,      init_crater,   ORIENTATION_FLIP_X, "Bally Midway", "Crater Raider", MACHINE_SUPPORTS_SAVE )
+GAMEL( 1985, turbotag, 0,        mcrsc_csd, turbotag, mcrsc_csd_state, init_turbotag, ROT90, "Bally Midway", "Turbo Tag (prototype)", MACHINE_SUPPORTS_SAVE, layout_turbotag )

@@ -158,8 +158,11 @@ Adder hardware:
 #include "video/bfm_dm01.h"
 #include "machine/steppers.h"
 
+#include "machine/bfm_comn.h"
+
 #include "machine/bfm_bd1.h"  // vfd
 #include "machine/meters.h"
+#include "machine/rescap.h"
 
 #include "speaker.h"
 
@@ -176,7 +179,6 @@ Adder hardware:
 #include "sc2_vfd.lh"
 #include "sc2_dmd.lh"
 #include "drwho.lh"
-#include "machine/bfm_comn.h"
 
 #include "sc2ptytm1.lh"
 #include "sc2cpe.lh"
@@ -201,9 +203,9 @@ public:
 		, m_upd7759(*this, "upd")
 		, m_vfd0(*this, "vfd0")
 		, m_vfd1(*this, "vfd1")
+		, m_ym2413(*this, "ymsnd")
 		, m_strobein(*this, "STROBE%u", 0)
 		, m_rombank1(*this, "bank1")
-		, m_ym2413(*this, "ymsnd")
 		, m_meters(*this, "meters")
 		, m_lamps(*this, "lamp%u", 0U)
 	{
@@ -214,43 +216,42 @@ public:
 protected:
 	void e2ram_init(nvram_device &nvram, void *data, size_t size);
 	DECLARE_WRITE_LINE_MEMBER(bfmdm01_busy);
-	DECLARE_WRITE8_MEMBER(bankswitch_w);
-	DECLARE_WRITE8_MEMBER(mmtr_w);
-	DECLARE_WRITE8_MEMBER(mux_output_w);
-	DECLARE_READ8_MEMBER(mux_input_r);
-	DECLARE_WRITE8_MEMBER(unlock_w);
-	DECLARE_WRITE8_MEMBER(dimas_w);
-	DECLARE_WRITE8_MEMBER(dimcnt_w);
-	DECLARE_WRITE8_MEMBER(unknown_w);
-	DECLARE_WRITE8_MEMBER(volume_override_w);
-	DECLARE_WRITE8_MEMBER(expansion_latch_w);
-	DECLARE_READ8_MEMBER(expansion_latch_r);
-	DECLARE_WRITE8_MEMBER(muxena_w);
-	DECLARE_WRITE8_MEMBER(timerirq_w);
-	DECLARE_READ8_MEMBER(timerirqclr_r);
-	DECLARE_READ8_MEMBER(irqstatus_r);
-	DECLARE_WRITE8_MEMBER(coininhib_w);
-	DECLARE_READ8_MEMBER(coin_input_r);
-	DECLARE_WRITE8_MEMBER(payout_latch_w);
-	DECLARE_WRITE8_MEMBER(payout_triac_w);
-	DECLARE_WRITE8_MEMBER(payout_select_w);
-	DECLARE_WRITE8_MEMBER(vfd_reset_w);
-	DECLARE_READ8_MEMBER(uart1stat_r);
-	DECLARE_READ8_MEMBER(uart1data_r);
-	DECLARE_WRITE8_MEMBER(uart1ctrl_w);
-	DECLARE_WRITE8_MEMBER(uart1data_w);
-	DECLARE_READ8_MEMBER(uart2stat_r);
-	DECLARE_READ8_MEMBER(uart2data_r);
-	DECLARE_WRITE8_MEMBER(uart2ctrl_w);
-	DECLARE_WRITE8_MEMBER(uart2data_w);
-	DECLARE_READ8_MEMBER(key_r);
-	DECLARE_WRITE8_MEMBER(vfd1_bd1_w);
-	DECLARE_WRITE8_MEMBER(vfd2_data_w);
-	DECLARE_WRITE8_MEMBER(e2ram_w);
-	DECLARE_READ8_MEMBER(direct_input_r);
+	void bankswitch_w(uint8_t data);
+	void mmtr_w(uint8_t data);
+	void mux_output_w(offs_t offset, uint8_t data);
+	uint8_t mux_input_r(offs_t offset);
+	void unlock_w(uint8_t data);
+	void dimas_w(uint8_t data);
+	void dimcnt_w(uint8_t data);
+	void unknown_w(uint8_t data);
+	void volume_override_w(uint8_t data);
+	void expansion_latch_w(uint8_t data);
+	uint8_t expansion_latch_r();
+	void muxena_w(uint8_t data);
+	void timerirq_w(uint8_t data);
+	uint8_t timerirqclr_r();
+	uint8_t irqstatus_r();
+	void coininhib_w(uint8_t data);
+	void payout_latch_w(uint8_t data);
+	void payout_triac_w(uint8_t data);
+	void payout_select_w(uint8_t data);
+	void vfd_reset_w(uint8_t data);
+	uint8_t uart1stat_r();
+	uint8_t uart1data_r();
+	void uart1ctrl_w(uint8_t data);
+	void uart1data_w(uint8_t data);
+	uint8_t uart2stat_r();
+	uint8_t uart2data_r();
+	void uart2ctrl_w(uint8_t data);
+	void uart2data_w(uint8_t data);
+	uint8_t key_r(offs_t offset);
+	void vfd1_bd1_w(uint8_t data);
+	void vfd2_data_w(uint8_t data);
+	void e2ram_w(uint8_t data);
+	uint8_t direct_input_r();
 	int recdata(int changed, int data);
-	DECLARE_WRITE8_MEMBER(nec_reset_w);
-	DECLARE_WRITE8_MEMBER(nec_latch_w);
+	void nec_reset_w(uint8_t data);
+	void nec_latch_w(uint8_t data);
 	virtual void machine_start() override;
 	INTERRUPT_GEN_MEMBER(timer_irq);
 	void on_scorpion2_reset();
@@ -272,6 +273,7 @@ protected:
 	required_device<cpu_device> m_maincpu;
 	required_device<upd7759_device> m_upd7759;
 	optional_device<bfm_bd1_device> m_vfd0, m_vfd1;
+	optional_device<ym2413_device> m_ym2413;
 
 	int m_sc2_show_door;
 	int m_sc2_door_state;
@@ -287,7 +289,6 @@ protected:
 private:
 	required_ioport_array<12> m_strobein;
 	optional_memory_bank m_rombank1;
-	optional_device<ym2413_device> m_ym2413;
 
 	optional_device<meters_device> m_meters; // scorpion2_vid doesn't use this (scorpion2_vidm does)
 
@@ -342,8 +343,8 @@ public:
 protected:
 	virtual void machine_reset() override;
 
-	DECLARE_WRITE8_MEMBER(reel12_vid_w);
-	DECLARE_READ8_MEMBER(vfd_status_hop_r);
+	void reel12_vid_w(uint8_t data);
+	uint8_t vfd_status_hop_r();
 
 	void memmap_vid(address_map &map);
 };
@@ -362,10 +363,10 @@ public:
 
 protected:
 	template <unsigned N> DECLARE_WRITE_LINE_MEMBER(reel_optic_cb) { if (state) m_optic_pattern |= (1 << N); else m_optic_pattern &= ~(1 << N); }
-	DECLARE_WRITE8_MEMBER(reel12_w);
-	DECLARE_WRITE8_MEMBER(reel34_w);
-	DECLARE_WRITE8_MEMBER(reel56_w);
-	DECLARE_READ8_MEMBER(vfd_status_r);
+	void reel12_w(uint8_t data);
+	void reel34_w(uint8_t data);
+	void reel56_w(uint8_t data);
+	uint8_t vfd_status_r();
 
 	void init_drwho_common();
 	virtual void save_state() override;
@@ -417,8 +418,8 @@ protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
-	DECLARE_WRITE8_MEMBER(vfd1_dmd_w);
-	DECLARE_WRITE8_MEMBER(dmd_reset_w);
+	void vfd1_dmd_w(uint8_t data);
+	void dmd_reset_w(uint8_t data);
 };
 
 
@@ -574,7 +575,7 @@ void bfm_sc2_state::e2ram_init(nvram_device &nvram, void *data, size_t size)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::bankswitch_w)
+void bfm_sc2_state::bankswitch_w(uint8_t data)
 {
 	m_rombank1->set_entry(data & 0x03);
 }
@@ -596,7 +597,7 @@ INTERRUPT_GEN_MEMBER(bfm_sc2_state::timer_irq)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_vid_state::reel12_vid_w)// in a video cabinet this is used to drive a hopper
+void bfm_sc2_vid_state::reel12_vid_w(uint8_t data) // in a video cabinet this is used to drive a hopper
 {
 	m_reel12_latch = data;
 
@@ -631,7 +632,7 @@ WRITE8_MEMBER(bfm_sc2_vid_state::reel12_vid_w)// in a video cabinet this is used
 
 
 /* Reels 1 and 2 */
-WRITE8_MEMBER(bfm_sc2_novid_state::reel12_w)
+void bfm_sc2_novid_state::reel12_w(uint8_t data)
 {
 	m_reel12_latch = data;
 
@@ -642,7 +643,7 @@ WRITE8_MEMBER(bfm_sc2_novid_state::reel12_w)
 	awp_draw_reel(machine(),"reel2", *m_reel[1]);
 }
 
-WRITE8_MEMBER(bfm_sc2_novid_state::reel34_w)
+void bfm_sc2_novid_state::reel34_w(uint8_t data)
 {
 	m_reel34_latch = data;
 
@@ -655,7 +656,7 @@ WRITE8_MEMBER(bfm_sc2_novid_state::reel34_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_novid_state::reel56_w)
+void bfm_sc2_novid_state::reel56_w(uint8_t data)
 {
 	m_reel56_latch = data;
 
@@ -672,16 +673,15 @@ WRITE8_MEMBER(bfm_sc2_novid_state::reel56_w)
 // mechanical meters //////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::mmtr_w)
+void bfm_sc2_state::mmtr_w(uint8_t data)
 {
-	int i;
 	int  changed = m_mmtr_latch ^ data;
 
 	m_mmtr_latch = data;
 
 	if (m_meters != nullptr)
 	{
-		for (i = 0; i<8; i++)
+		for (int i = 0; i<8; i++)
 		{
 			if ( changed & (1 << i) )
 			{
@@ -695,7 +695,7 @@ WRITE8_MEMBER(bfm_sc2_state::mmtr_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::mux_output_w)
+void bfm_sc2_state::mux_output_w(offs_t offset, uint8_t data)
 {
 	// this is a useful profiler point to make sure the artwork writes / lookups are performing properly.
 	g_profiler.start(PROFILER_USER6);
@@ -719,7 +719,7 @@ WRITE8_MEMBER(bfm_sc2_state::mux_output_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::mux_input_r)
+uint8_t bfm_sc2_state::mux_input_r(offs_t offset)
 {
 	int result = 0xFF,t1,t2;
 
@@ -745,31 +745,31 @@ READ8_MEMBER(bfm_sc2_state::mux_input_r)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::unlock_w)
+void bfm_sc2_state::unlock_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::dimas_w)
+void bfm_sc2_state::dimas_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::dimcnt_w)
+void bfm_sc2_state::dimcnt_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::unknown_w)
+void bfm_sc2_state::unknown_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::volume_override_w)
+void bfm_sc2_state::volume_override_w(uint8_t data)
 {
 	int old = m_volume_override;
 
@@ -792,7 +792,7 @@ WRITE8_MEMBER(bfm_sc2_state::volume_override_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::nec_reset_w)
+void bfm_sc2_state::nec_reset_w(uint8_t data)
 {
 	m_upd7759->start_w(0);
 	m_upd7759->reset_w(data != 0);
@@ -800,7 +800,7 @@ WRITE8_MEMBER(bfm_sc2_state::nec_reset_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::nec_latch_w)
+void bfm_sc2_state::nec_latch_w(uint8_t data)
 {
 	int bank = 0;
 
@@ -816,7 +816,7 @@ WRITE8_MEMBER(bfm_sc2_state::nec_latch_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_vid_state::vfd_status_hop_r)// on video games, hopper inputs are connected to this
+uint8_t bfm_sc2_vid_state::vfd_status_hop_r()// on video games, hopper inputs are connected to this
 {
 	// b7 = NEC busy
 	// b6 = alpha busy (also matrix board)
@@ -848,7 +848,7 @@ READ8_MEMBER(bfm_sc2_vid_state::vfd_status_hop_r)// on video games, hopper input
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::expansion_latch_w)
+void bfm_sc2_state::expansion_latch_w(uint8_t data)
 {
 	int changed = m_expansion_latch^data;
 
@@ -894,27 +894,27 @@ WRITE8_MEMBER(bfm_sc2_state::expansion_latch_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::expansion_latch_r)
+uint8_t bfm_sc2_state::expansion_latch_r()
 {
 	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::muxena_w)
+void bfm_sc2_state::muxena_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::timerirq_w)
+void bfm_sc2_state::timerirq_w(uint8_t data)
 {
 	m_is_timer_enabled = data & 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::timerirqclr_r)
+uint8_t bfm_sc2_state::timerirqclr_r()
 {
 	m_irq_timer_stat = 0;
 	m_irq_status     = 0;
@@ -924,7 +924,7 @@ READ8_MEMBER(bfm_sc2_state::timerirqclr_r)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::irqstatus_r)
+uint8_t bfm_sc2_state::irqstatus_r()
 {
 	int result = m_irq_status | m_irq_timer_stat | 0x80;    // 0x80 = ~MUXERROR
 
@@ -935,7 +935,7 @@ READ8_MEMBER(bfm_sc2_state::irqstatus_r)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::coininhib_w)
+void bfm_sc2_state::coininhib_w(uint8_t data)
 {
 	int changed = m_coin_inhibits^data,i,p;
 
@@ -957,23 +957,17 @@ WRITE8_MEMBER(bfm_sc2_state::coininhib_w)
 	}
 }
 
-///////////////////////////////////////////////////////////////////////////
-
-READ8_MEMBER(bfm_sc2_state::coin_input_r)
-{
-	return ioport("COINS")->read();
-}
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::payout_latch_w)
+void bfm_sc2_state::payout_latch_w(uint8_t data)
 {
 	m_pay_latch = data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::payout_triac_w)
+void bfm_sc2_state::payout_triac_w(uint8_t data)
 {
 	if ( m_triac_select == 0x57 )
 	{
@@ -1034,7 +1028,7 @@ WRITE8_MEMBER(bfm_sc2_state::payout_triac_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::payout_select_w)
+void bfm_sc2_state::payout_select_w(uint8_t data)
 {
 	m_triac_select = data;
 }
@@ -1043,7 +1037,7 @@ WRITE8_MEMBER(bfm_sc2_state::payout_select_w)
 
 ///////////////////////////////////////////////////////////////////////////
 //TODO: Change this!
-WRITE8_MEMBER(bfm_sc2_state::vfd2_data_w)
+void bfm_sc2_state::vfd2_data_w(uint8_t data)
 {
 	m_vfd1->write_char(data);
 }
@@ -1052,7 +1046,7 @@ WRITE8_MEMBER(bfm_sc2_state::vfd2_data_w)
 // serial port ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::uart1stat_r)
+uint8_t bfm_sc2_state::uart1stat_r()
 {
 	int status = 0x06;
 
@@ -1063,20 +1057,20 @@ READ8_MEMBER(bfm_sc2_state::uart1stat_r)
 }
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::uart1data_r)
+uint8_t bfm_sc2_state::uart1data_r()
 {
 	return m_uart1_data;
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::uart1ctrl_w)
+void bfm_sc2_state::uart1ctrl_w(uint8_t data)
 {
 	UART_LOG(("uart1ctrl:%x\n", data));
 }
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::uart1data_w)
+void bfm_sc2_state::uart1data_w(uint8_t data)
 {
 	m_data_to_uart2 = 1;
 	m_uart1_data    = data;
@@ -1084,7 +1078,7 @@ WRITE8_MEMBER(bfm_sc2_state::uart1data_w)
 }
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::uart2stat_r)
+uint8_t bfm_sc2_state::uart2stat_r()
 {
 	int status = 0x06;
 
@@ -1095,21 +1089,21 @@ READ8_MEMBER(bfm_sc2_state::uart2stat_r)
 }
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::uart2data_r)
+uint8_t bfm_sc2_state::uart2data_r()
 {
 	return m_uart2_data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::uart2ctrl_w)
+void bfm_sc2_state::uart2ctrl_w(uint8_t data)
 {
 	UART_LOG(("uart2ctrl:%x\n", data));
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_sc2_state::uart2data_w)
+void bfm_sc2_state::uart2data_w(uint8_t data)
 {
 	m_data_to_uart1 = 1;
 	m_uart2_data    = data;
@@ -1120,7 +1114,7 @@ WRITE8_MEMBER(bfm_sc2_state::uart2data_w)
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_sc2_state::key_r)
+uint8_t bfm_sc2_state::key_r(offs_t offset)
 {
 	int result = m_key[ offset ];
 
@@ -1215,7 +1209,7 @@ int bfm_sc2_state::recAck(int changed, int data)
 
 
 /* VFD Status */
-READ8_MEMBER(bfm_sc2_novid_state::vfd_status_r)
+uint8_t bfm_sc2_novid_state::vfd_status_r()
 {
 	/* b7 = NEC busy */
 	/* b6 = alpha busy (also matrix board) */
@@ -1231,24 +1225,24 @@ READ8_MEMBER(bfm_sc2_novid_state::vfd_status_r)
 	return result;
 }
 
-WRITE8_MEMBER(bfm_sc2_state::vfd1_bd1_w)
+void bfm_sc2_state::vfd1_bd1_w(uint8_t data)
 {
 	m_vfd0->write_char(data);
 }
 
-WRITE8_MEMBER(bfm_sc2_state::vfd_reset_w)
+void bfm_sc2_state::vfd_reset_w(uint8_t data)
 {
 	m_vfd0->reset();
 	m_vfd1->reset();
 }
 
-WRITE8_MEMBER(bfm_sc2_dmd_state::vfd1_dmd_w)
+void bfm_sc2_dmd_state::vfd1_dmd_w(uint8_t data)
 {
 	m_dm01->writedata(data);
 }
 
 //
-WRITE8_MEMBER(bfm_sc2_state::e2ram_w)
+void bfm_sc2_state::e2ram_w(uint8_t data)
 {
 	int changed, ack;
 
@@ -1476,7 +1470,7 @@ void bfm_sc2_vid_state::machine_reset()
 }
 
 
-READ8_MEMBER(bfm_sc2_state::direct_input_r)
+uint8_t bfm_sc2_state::direct_input_r()
 {
 	return 0;
 }
@@ -1566,10 +1560,10 @@ void bfm_sc2_state::sc2_basemap(address_map &map)
 	map(0x2C00, 0x2C00).w(FUNC(bfm_sc2_state::unlock_w));                     /* custom chip unlock */
 	map(0x2D00, 0x2D01).w(m_ym2413, FUNC(ym2413_device::write));
 	map(0x2E00, 0x2E00).w(FUNC(bfm_sc2_state::bankswitch_w));                 /* write bank (rom page select for 0x6000 - 0x7fff ) */
-	//AM_RANGE(0x2F00, 0x2F00) AM_WRITE(vfd2_data_w)                /* vfd2 data (not usually connected!)*/
+	//map(0x2F00, 0x2F00).w(FUNC(bfm_sc2_state::vfd2_data_w));                /* vfd2 data (not usually connected!)*/
 
 	map(0x3FFE, 0x3FFE).r(FUNC(bfm_sc2_state::direct_input_r));
-	map(0x3FFF, 0x3FFF).r(FUNC(bfm_sc2_state::coin_input_r));
+	map(0x3FFF, 0x3FFF).portr("COINS");
 	map(0x4000, 0x5FFF).rom();
 	map(0x4000, 0xFFFF).w(FUNC(bfm_sc2_state::unknown_w));            // contains unknown I/O registers
 	map(0x6000, 0x7FFF).bankr("bank1");
@@ -2248,20 +2242,20 @@ INPUT_PORTS_END
 // machine config fragments for different meters numbers //////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-MACHINE_CONFIG_START(bfm_sc2_state::_3meters)
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(3)
-MACHINE_CONFIG_END
+void bfm_sc2_state::_3meters(machine_config &config)
+{
+	METERS(config, m_meters, 0).set_number(3);
+}
 
-MACHINE_CONFIG_START(bfm_sc2_state::_5meters)
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(5)
-MACHINE_CONFIG_END
+void bfm_sc2_state::_5meters(machine_config &config)
+{
+	METERS(config, m_meters, 0).set_number(5);
+}
 
-MACHINE_CONFIG_START(bfm_sc2_state::_8meters)
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(8)
-MACHINE_CONFIG_END
+void bfm_sc2_state::_8meters(machine_config &config)
+{
+	METERS(config, m_meters, 0).set_number(8);
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // machine driver for scorpion2 board + adder2 expansion //////////////////
@@ -2277,11 +2271,12 @@ void bfm_sc2_state::machine_start()
 	save_state();
 }
 
-MACHINE_CONFIG_START(bfm_sc2_vid_state::scorpion2_vid)
-	MCFG_DEVICE_ADD("maincpu", M6809, MASTER_CLOCK/4 ) // 6809 CPU at 2 Mhz
-	MCFG_DEVICE_PROGRAM_MAP(memmap_vid)                    // setup scorpion2 board memorymap
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(bfm_sc2_vid_state, timer_irq,  1000)           // generate 1000 IRQ's per second
-	MCFG_QUANTUM_TIME(attotime::from_hz(960))                                   // needed for serial communication !!
+void bfm_sc2_vid_state::scorpion2_vid(machine_config &config)
+{
+	MC6809(config, m_maincpu, MASTER_CLOCK); // MC68B09P (2 MHz bus)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bfm_sc2_vid_state::memmap_vid);                       // setup scorpion2 board memorymap
+	m_maincpu->set_periodic_int(FUNC(bfm_sc2_vid_state::timer_irq), attotime::from_hz(1000)); // generate 1000 IRQ's per second
+	config.set_maximum_quantum(attotime::from_hz(960));                                        // needed for serial communication !!
 
 	WATCHDOG_TIMER(config, "watchdog").set_time(PERIOD_OF_555_MONOSTABLE(120000,100e-9));
 
@@ -2295,18 +2290,17 @@ MACHINE_CONFIG_START(bfm_sc2_vid_state::scorpion2_vid)
 	BFM_ADDER2(config, "adder2", 0);
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("upd", UPD7759)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	MCFG_DEVICE_ADD("ymsnd", YM2413, XTAL(3'579'545))
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	YM2413(config, m_ym2413, XTAL(3'579'545)).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 /* machine driver for scorpion2_vid board with meters (i.e. quintoon uk). Are we really sure the other games don't?*/
-MACHINE_CONFIG_START(bfm_sc2_vid_state::scorpion2_vidm)
+void bfm_sc2_vid_state::scorpion2_vidm(machine_config &config)
+{
 	scorpion2_vid(config);
 	_8meters(config);
-MACHINE_CONFIG_END
+}
 
 
 
@@ -2764,7 +2758,7 @@ ROM_END
 
 #ifdef UNUSED_FUNCTION
 /* Scorpion 3 expansion */
-READ8_MEMBER(bfm_sc2_state::sc3_expansion_r)
+uint8_t bfm_sc2_state::sc3_expansion_r(offs_t offset)
 {
 	int result = 0;
 
@@ -2779,7 +2773,7 @@ READ8_MEMBER(bfm_sc2_state::sc3_expansion_r)
 }
 
 
-WRITE8_MEMBER(bfm_sc2_state::sc3_expansion_w)
+void bfm_sc2_state::sc3_expansion_w(offs_t offset, uint8_t data)
 {
 	switch ( offset )
 	{
@@ -3732,7 +3726,7 @@ static INPUT_PORTS_START( scorpion3 )
 
 INPUT_PORTS_END
 
-WRITE8_MEMBER(bfm_sc2_dmd_state::dmd_reset_w)
+void bfm_sc2_dmd_state::dmd_reset_w(uint8_t data)
 {
 	//TODO: Reset callback for DMD
 }
@@ -3741,16 +3735,17 @@ void bfm_sc2_dmd_state::machine_start()
 {
 	bfm_sc2_state::machine_start();
 	address_space &space = m_maincpu->space(AS_PROGRAM);
-	space.install_write_handler(0x2800, 0x2800, write8_delegate(FUNC(bfm_sc2_dmd_state::vfd1_dmd_w),this));
-	space.install_write_handler(0x2900, 0x2900, write8_delegate(FUNC(bfm_sc2_dmd_state::dmd_reset_w),this));
+	space.install_write_handler(0x2800, 0x2800, write8smo_delegate(*this, FUNC(bfm_sc2_dmd_state::vfd1_dmd_w)));
+	space.install_write_handler(0x2900, 0x2900, write8smo_delegate(*this, FUNC(bfm_sc2_dmd_state::dmd_reset_w)));
 }
 
 /* machine driver for scorpion2 board */
 
-MACHINE_CONFIG_START(bfm_sc2_awp_state::scorpion2)
-	MCFG_DEVICE_ADD("maincpu", M6809, MASTER_CLOCK/4 )
-	MCFG_DEVICE_PROGRAM_MAP(memmap_no_vid)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(bfm_sc2_awp_state, timer_irq,  1000)
+void bfm_sc2_awp_state::scorpion2(machine_config &config)
+{
+	MC6809(config, m_maincpu, MASTER_CLOCK); // MC68B09P (2 MHz bus)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bfm_sc2_awp_state::memmap_no_vid);
+	m_maincpu->set_periodic_int(FUNC(bfm_sc2_awp_state::timer_irq), attotime::from_hz(1000));
 
 	WATCHDOG_TIMER(config, "watchdog").set_time(PERIOD_OF_555_MONOSTABLE(120000,100e-9));
 
@@ -3758,11 +3753,9 @@ MACHINE_CONFIG_START(bfm_sc2_awp_state::scorpion2)
 	BFM_BD1(config, m_vfd1, 60, 1);
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("upd",UPD7759)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	MCFG_DEVICE_ADD("ymsnd",YM2413, XTAL(3'579'545))
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	YM2413(config, m_ym2413, XTAL(3'579'545)).add_route(ALL_OUTPUTS, "mono", 1.0);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 	NVRAM(config, "e2ram").set_custom_handler(FUNC(bfm_sc2_awp_state::e2ram_init));
@@ -3784,41 +3777,42 @@ MACHINE_CONFIG_START(bfm_sc2_awp_state::scorpion2)
 	m_reel[5]->optic_handler().set(FUNC(bfm_sc2_awp_state::reel_optic_cb<5>));
 
 	_8meters(config);
-MACHINE_CONFIG_END
+}
 
 #if 0
-MACHINE_CONFIG_START(bfm_sc2_awp_state::scorpion2_3m)
+void bfm_sc2_awp_state::scorpion2_3m(machine_config &config)
+{
 	scorpion2(config);
 
-	MCFG_DEVICE_REMOVE("meters")
+	config.device_remove("meters");
 	_3meters(config);
-MACHINE_CONFIG_END
+}
 #endif
 
 /* machine driver for scorpion3 board */
-MACHINE_CONFIG_START(bfm_sc2_awp_state::scorpion3)
+void bfm_sc2_awp_state::scorpion3(machine_config &config)
+{
 	scorpion2(config);
 
-	MCFG_DEVICE_REMOVE("meters")
+	config.device_remove("meters");
 	_5meters(config);
-MACHINE_CONFIG_END
+}
 
 
 /* machine driver for scorpion2 board + matrix board */
-MACHINE_CONFIG_START(bfm_sc2_dmd_state::scorpion2_dm01)
-	MCFG_QUANTUM_TIME(attotime::from_hz(960))                                   // needed for serial communication !!
-	MCFG_DEVICE_ADD("maincpu", M6809, MASTER_CLOCK/4 )
-	MCFG_DEVICE_PROGRAM_MAP(memmap_no_vid)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(bfm_sc2_dmd_state, timer_irq,  1000)
+void bfm_sc2_dmd_state::scorpion2_dm01(machine_config &config)
+{
+	config.set_maximum_quantum(attotime::from_hz(960));                                   // needed for serial communication !!
+	MC6809(config, m_maincpu, MASTER_CLOCK); // MC68B09P (2 MHz bus)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bfm_sc2_dmd_state::memmap_no_vid);
+	m_maincpu->set_periodic_int(FUNC(bfm_sc2_dmd_state::timer_irq), attotime::from_hz(1000));
 
 	WATCHDOG_TIMER(config, "watchdog").set_time(PERIOD_OF_555_MONOSTABLE(120000,100e-9));
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("ymsnd",YM2413, XTAL(3'579'545))
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	YM2413(config, m_ym2413, XTAL(3'579'545)).add_route(ALL_OUTPUTS, "mono", 1.0);
 
-	MCFG_DEVICE_ADD("upd",UPD7759)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 	NVRAM(config, "e2ram").set_custom_handler(FUNC(bfm_sc2_dmd_state::e2ram_init));
@@ -3842,19 +3836,21 @@ MACHINE_CONFIG_START(bfm_sc2_dmd_state::scorpion2_dm01)
 	m_reel[5]->optic_handler().set(FUNC(bfm_sc2_dmd_state::reel_optic_cb<5>));
 
 	_8meters(config);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(bfm_sc2_dmd_state::scorpion2_dm01_3m)
+void bfm_sc2_dmd_state::scorpion2_dm01_3m(machine_config &config)
+{
 	scorpion2_dm01(config);
-	MCFG_DEVICE_REMOVE("meters")
+	config.device_remove("meters");
 	_3meters(config);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(bfm_sc2_dmd_state::scorpion2_dm01_5m)
+void bfm_sc2_dmd_state::scorpion2_dm01_5m(machine_config &config)
+{
 	scorpion2_dm01(config);
-	MCFG_DEVICE_REMOVE("meters")
+	config.device_remove("meters");
 	_5meters(config);
-MACHINE_CONFIG_END
+}
 
 void bfm_sc2_novid_state::sc2awp_common_init(int reels, int decrypt)
 {
@@ -7719,7 +7715,7 @@ GAMEL( 1996, sltblgpo,    0,        scorpion2_vid,  sltblgpo, bfm_sc2_vid_state,
 GAMEL( 1996, sltblgp1,    sltblgpo, scorpion2_vid,  sltblgpo, bfm_sc2_vid_state,  init_sltsbelg,    0, "BFM/ELAM", "Slots (Belgian Cash, Game Card 95-752-008)",   MACHINE_SUPPORTS_SAVE,layout_sltblgpo )
 
 GAMEL( 1997, gldncrwn,    0,        scorpion2_vid,  gldncrwn, bfm_sc2_vid_state,  init_gldncrwn,    0, "BFM/ELAM", "Golden Crown (Dutch, Game Card 95-752-011)",   MACHINE_SUPPORTS_SAVE,layout_gldncrwn )
-GAMEL( 1997, gldncrwnhop, gldncrwn, scorpion2_vid,  gldncrwn, bfm_sc2_vid_state,  init_gldncrwn,    0, "BFM/ELAM", "Golden Crown Hopper (Dutch, Game Card)",       MACHINE_SUPPORTS_SAVE,layout_gldncrwn )
+GAMEL( 1997, gldncrwnhop, gldncrwn, scorpion2_vid,  gldncrwn, bfm_sc2_vid_state,  init_gldncrwn,    0, "BFM/ELAM", "Golden Crown Hopper (Dutch, Game Card)",       MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE,layout_gldncrwn ) // SUMCHECK 3 and SUMCHECK 4 errors
 
 /* Non-Video */
 

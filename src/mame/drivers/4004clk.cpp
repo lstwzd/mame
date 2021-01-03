@@ -12,7 +12,6 @@
 #include "cpu/mcs40/mcs40.h"
 #include "machine/clock.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 #include "4004clk.lh"
@@ -29,17 +28,18 @@ public:
 
 	void _4004clk(machine_config &config);
 
+protected:
+	virtual void machine_start() override;
+
 private:
-	DECLARE_WRITE8_MEMBER( nixie_w );
-	DECLARE_WRITE8_MEMBER( neon_w );
+	void nixie_w(offs_t offset, uint8_t data);
+	void neon_w(uint8_t data);
 
 	void _4004clk_mem(address_map &map);
 	void _4004clk_mp(address_map &map);
 	void _4004clk_rom(address_map &map);
 	void _4004clk_rp(address_map &map);
 	void _4004clk_stat(address_map &map);
-
-	virtual void machine_start() override;
 
 	static constexpr uint8_t nixie_to_num(uint16_t val)
 	{
@@ -62,7 +62,7 @@ private:
 	output_finder<4> m_neon_out;
 };
 
-WRITE8_MEMBER(nixieclock_state::nixie_w)
+void nixieclock_state::nixie_w(offs_t offset, uint8_t data)
 {
 	m_nixie[offset >> 4] = data;
 	m_nixie_out[5] = nixie_to_num(((m_nixie[2] & 3)<<8) | (m_nixie[1] << 4) | m_nixie[0]);
@@ -73,7 +73,7 @@ WRITE8_MEMBER(nixieclock_state::nixie_w)
 	m_nixie_out[0] = nixie_to_num((m_nixie[14] << 6) | (m_nixie[13] << 2) | (m_nixie[12] >>2));
 }
 
-WRITE8_MEMBER(nixieclock_state::neon_w)
+void nixieclock_state::neon_w(uint8_t data)
 {
 	m_neon_out[0] = BIT(data,3);
 	m_neon_out[1] = BIT(data,2);
@@ -134,8 +134,8 @@ void nixieclock_state::machine_start()
 	save_pointer(NAME(m_nixie), 6);
 }
 
-MACHINE_CONFIG_START(nixieclock_state::_4004clk)
-
+void nixieclock_state::_4004clk(machine_config &config)
+{
 	/* basic machine hardware */
 	i4004_cpu_device &cpu(I4004(config, "maincpu", 5_MHz_XTAL / 8));
 	cpu.set_rom_map(&nixieclock_state::_4004clk_rom);
@@ -149,13 +149,11 @@ MACHINE_CONFIG_START(nixieclock_state::_4004clk)
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", DAC_1BIT, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25)
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT)
+	DAC_1BIT(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.25);
 
-	MCFG_CLOCK_ADD("clk", 60)
-	MCFG_CLOCK_SIGNAL_HANDLER(INPUTLINE("maincpu", I4004_TEST_LINE))
-MACHINE_CONFIG_END
+	clock_device &clk(CLOCK(config, "clk", 60));
+	clk.signal_handler().set_inputline("maincpu", I4004_TEST_LINE);
+}
 
 /* ROM definition */
 ROM_START( 4004clk )

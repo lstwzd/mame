@@ -87,17 +87,17 @@ private:
 	// screen updates
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	DECLARE_READ8_MEMBER(file_r);
-	DECLARE_WRITE8_MEMBER(file_w);
+	uint8_t file_r(offs_t offset);
+	void file_w(offs_t offset, uint8_t data);
 
-	DECLARE_READ8_MEMBER(app_r);
-	DECLARE_WRITE8_MEMBER(app_w);
+	uint8_t app_r(offs_t offset);
+	void app_w(offs_t offset, uint8_t data);
 
-	DECLARE_WRITE8_MEMBER(file_output_w);
-	DECLARE_WRITE8_MEMBER(app_output_w);
+	void file_output_w(offs_t offset, uint8_t data);
+	void app_output_w(uint8_t data);
 
-	DECLARE_READ8_MEMBER( sio_r );
-	DECLARE_WRITE8_MEMBER( sio_w );
+	uint8_t sio_r(offs_t offset);
+	void sio_w(offs_t offset, uint8_t data);
 
 	uint8_t app_ram_enable;
 	uint8_t file_ram_enable;
@@ -119,7 +119,7 @@ uint32_t molecula_state::screen_update( screen_device &screen, bitmap_ind16 &bit
 	return 0;
 }
 
-READ8_MEMBER(molecula_state::file_r)
+uint8_t molecula_state::file_r(offs_t offset)
 {
 	if(file_ram_enable)
 		return m_file_ram[offset];
@@ -128,12 +128,12 @@ READ8_MEMBER(molecula_state::file_r)
 }
 
 
-WRITE8_MEMBER(molecula_state::file_w)
+void molecula_state::file_w(offs_t offset, uint8_t data)
 {
 	m_file_ram[offset] = data;
 }
 
-READ8_MEMBER(molecula_state::app_r)
+uint8_t molecula_state::app_r(offs_t offset)
 {
 	if(app_ram_enable)
 		return m_app_ram[offset];
@@ -142,12 +142,12 @@ READ8_MEMBER(molecula_state::app_r)
 }
 
 
-WRITE8_MEMBER(molecula_state::app_w)
+void molecula_state::app_w(offs_t offset, uint8_t data)
 {
 	m_app_ram[offset] = data;
 }
 
-WRITE8_MEMBER(molecula_state::file_output_w)
+void molecula_state::file_output_w(offs_t offset, uint8_t data)
 {
 	if(offset == 0)
 		file_ram_enable = (data & 0x80) >> 7;
@@ -157,7 +157,7 @@ WRITE8_MEMBER(molecula_state::file_output_w)
 }
 
 
-WRITE8_MEMBER(molecula_state::app_output_w)
+void molecula_state::app_output_w(uint8_t data)
 {
 	app_ram_enable = (data & 0x80) >> 7;
 
@@ -165,7 +165,7 @@ WRITE8_MEMBER(molecula_state::app_output_w)
 		printf("APP 0x10 -> %02x\n",data);
 }
 
-READ8_MEMBER( molecula_state::sio_r)
+uint8_t molecula_state::sio_r(offs_t offset)
 {
 	if(offset == 1)
 		return 4;
@@ -173,7 +173,7 @@ READ8_MEMBER( molecula_state::sio_r)
 	return 0;
 }
 
-WRITE8_MEMBER( molecula_state::sio_w)
+void molecula_state::sio_w(offs_t offset, uint8_t data)
 {
 	if(offset == 0)
 		printf("%c\n",data);
@@ -187,7 +187,7 @@ void molecula_state::molecula_file_map(address_map &map)
 void molecula_state::molecula_file_io(address_map &map)
 {
 	map.global_mask(0xff);
-//  AM_RANGE(0x40, 0x43) AM_READWRITE(sio_r,sio_w)
+//  map(0x40, 0x43).rw(FUNC(molecula_state::sio_r), FUNC(molecula_state::sio_w));
 	map(0x72, 0x73).w(FUNC(molecula_state::file_output_w)); // unknown
 }
 
@@ -297,40 +297,40 @@ void molecula_state::molecula_palette(palette_device &palette) const
 {
 }
 
-MACHINE_CONFIG_START(molecula_state::molecula)
-
+void molecula_state::molecula(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("filecpu",Z80,Z80_CLOCK/2)
-	MCFG_DEVICE_PROGRAM_MAP(molecula_file_map)
-	MCFG_DEVICE_IO_MAP(molecula_file_io)
-	MCFG_DEVICE_DISABLE()
+	Z80(config, m_filecpu, Z80_CLOCK/2);
+	m_filecpu->set_addrmap(AS_PROGRAM, &molecula_state::molecula_file_map);
+	m_filecpu->set_addrmap(AS_IO, &molecula_state::molecula_file_io);
+	m_filecpu->set_disable();
 
-	MCFG_DEVICE_ADD("appcpu",Z80,Z80_CLOCK/2)
-	MCFG_DEVICE_PROGRAM_MAP(molecula_app_map)
-	MCFG_DEVICE_IO_MAP(molecula_app_io)
+	z80_device &appcpu(Z80(config, "appcpu", Z80_CLOCK/2));
+	appcpu.set_addrmap(AS_PROGRAM, &molecula_state::molecula_app_map);
+	appcpu.set_addrmap(AS_IO, &molecula_state::molecula_app_io);
 
-//  MCFG_DEVICE_ADD("sub",I8086,I86_CLOCK/2)
-//  MCFG_DEVICE_PROGRAM_MAP(molecula_map)
-//  MCFG_DEVICE_IO_MAP(molecula_io)
-//  MCFG_DEVICE_DISABLE()
+//  i8086_device &sub(I8086(config, "sub", I86_CLOCK/2));
+//  sub.set_addrmap(AS_PROGRAM, &molecula_state::molecula_map);
+//  sub.set_addrmap(AS_IO, &molecula_state::molecula_io);
+//  sub.set_disable();
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_UPDATE_DRIVER(molecula_state, screen_update)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_screen_update(FUNC(molecula_state::screen_update));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 0*8, 32*8-1);
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_molecula)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_molecula);
 
 	PALETTE(config, "palette", FUNC(molecula_state::molecula_palette), 8);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 //  AY8910(config, "aysnd", MAIN_CLOCK/4).add_route(ALL_OUTPUTS, "mono", 0.30);
-MACHINE_CONFIG_END
+}
 
 
 /***************************************************************************

@@ -28,13 +28,13 @@ public:
 	void gokidetor(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(out4_w);
-	DECLARE_WRITE8_MEMBER(out5_w);
-	DECLARE_WRITE8_MEMBER(out6_w);
-	DECLARE_WRITE8_MEMBER(out7_w);
-	DECLARE_WRITE8_MEMBER(out8_w);
-	DECLARE_WRITE8_MEMBER(out9_w);
-	DECLARE_WRITE8_MEMBER(ym_porta_w);
+	void out4_w(uint8_t data);
+	void out5_w(uint8_t data);
+	void out6_w(uint8_t data);
+	void out7_w(uint8_t data);
+	void out8_w(uint8_t data);
+	void out9_w(uint8_t data);
+	void ym_porta_w(uint8_t data);
 
 	void main_map(address_map &map);
 	void sound_map(address_map &map);
@@ -50,37 +50,37 @@ void gokidetor_state::machine_start()
 }
 
 
-WRITE8_MEMBER(gokidetor_state::out4_w)
+void gokidetor_state::out4_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 4\n", data);
 }
 
-WRITE8_MEMBER(gokidetor_state::out5_w)
+void gokidetor_state::out5_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 5\n", data);
 }
 
-WRITE8_MEMBER(gokidetor_state::out6_w)
+void gokidetor_state::out6_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 6\n", data);
 }
 
-WRITE8_MEMBER(gokidetor_state::out7_w)
+void gokidetor_state::out7_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 7\n", data);
 }
 
-WRITE8_MEMBER(gokidetor_state::out8_w)
+void gokidetor_state::out8_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 8\n", data & 0x3f);
 }
 
-WRITE8_MEMBER(gokidetor_state::out9_w)
+void gokidetor_state::out9_w(uint8_t data)
 {
 	logerror("Writing %02X to TE7750 port 9\n", data);
 }
 
-WRITE8_MEMBER(gokidetor_state::ym_porta_w)
+void gokidetor_state::ym_porta_w(uint8_t data)
 {
 	if (data != 0x40)
 		logerror("Writing %02X to YM2203 port A\n", data);
@@ -99,7 +99,7 @@ void gokidetor_state::main_map(address_map &map)
 	// d101 = ?output
 	// d1c0 = ?output
 	map(0xd800, 0xd80f).rw("te7750", FUNC(te7750_device::read), FUNC(te7750_device::write));
-	//AM_RANGE(0xda00, 0xda01) AM_DEVWRITE("pwm", m66240_device, write)
+	//map(0xda00, 0xda01).w("pwm", FUNC(m66240_device::write));
 	// de00 ?input
 	// df00 ?input
 	map(0xe000, 0xe003).nopr(); // ?input
@@ -121,9 +121,10 @@ void gokidetor_state::sound_map(address_map &map)
 }
 
 
-MACHINE_CONFIG_START(gokidetor_state::gokidetor)
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(16'000'000) / 4) // divider not verified
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+void gokidetor_state::gokidetor(machine_config &config)
+{
+	Z80(config, m_maincpu, XTAL(16'000'000) / 4); // divider not verified
+	m_maincpu->set_addrmap(AS_PROGRAM, &gokidetor_state::main_map);
 	// IRQ from ???
 	// NMI related to E002 input and TE7750 port 7
 
@@ -140,8 +141,8 @@ MACHINE_CONFIG_START(gokidetor_state::gokidetor)
 	te7750.out_port8_cb().set(FUNC(gokidetor_state::out8_w));
 	te7750.out_port9_cb().set(FUNC(gokidetor_state::out9_w));
 
-	MCFG_DEVICE_ADD("soundcpu", Z80, 4000000)
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	z80_device &soundcpu(Z80(config, "soundcpu", 4000000));
+	soundcpu.set_addrmap(AS_PROGRAM, &gokidetor_state::sound_map);
 
 	pc060ha_device &ciu(PC060HA(config, "ciu", 0));
 	ciu.set_master_tag(m_maincpu);
@@ -157,9 +158,8 @@ MACHINE_CONFIG_START(gokidetor_state::gokidetor)
 	ymsnd.add_route(2, "mono", 0.25);
 	ymsnd.add_route(3, "mono", 0.80);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 1056000, okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	OKIM6295(config, "oki", 1056000, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 0.50); // clock frequency & pin 7 not verified
+}
 
 INPUT_PORTS_START( gokidetor )
 	PORT_START("IN1")

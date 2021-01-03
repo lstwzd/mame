@@ -7,22 +7,23 @@
     Core file I/O interface functions and definitions.
 
 ***************************************************************************/
-
-#pragma once
-
 #ifndef MAME_LIB_UTIL_COREFILE_H
 #define MAME_LIB_UTIL_COREFILE_H
 
-#include "corestr.h"
-#include "coretmpl.h"
+#pragma once
+
+
+#include "osdfile.h"
 #include "strformat.h"
 
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 
 namespace util {
+
 /***************************************************************************
     ADDITIONAL OPEN FLAGS
 ***************************************************************************/
@@ -110,7 +111,7 @@ public:
 	virtual std::uint32_t write(const void *buffer, std::uint32_t length) = 0;
 
 	// write a line of text to the file
-	virtual int puts(const char *s) = 0;
+	virtual int puts(std::string_view s) = 0;
 
 	// printf-style text write to a file
 	virtual int vprintf(util::format_argument_pack<std::ostream> const &args) = 0;
@@ -129,6 +130,22 @@ public:
 protected:
 	core_file();
 };
+
+
+/***************************************************************************
+    INLINE FUNCTIONS
+***************************************************************************/
+
+// is a given character a directory separator?
+
+constexpr bool is_directory_separator(char c)
+{
+#if defined(WIN32)
+	return ('\\' == c) || ('/' == c) || (':' == c);
+#else
+	return '/' == c;
+#endif
+}
 
 } // namespace util
 

@@ -48,12 +48,12 @@ protected:
 	virtual void machine_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(p0_w);
-	DECLARE_READ8_MEMBER(p1_r);
-	DECLARE_WRITE8_MEMBER(p1_w);
-	DECLARE_READ8_MEMBER(p2_r);
-	DECLARE_READ8_MEMBER(p3_r);
-	DECLARE_WRITE8_MEMBER(p3_w);
+	void p0_w(uint8_t data);
+	uint8_t p1_r();
+	void p1_w(uint8_t data);
+	uint8_t p2_r();
+	uint8_t p3_r();
+	void p3_w(uint8_t data);
 	void controlidx628_palette(palette_device &palette) const;
 
 	void io_map(address_map &map);
@@ -87,40 +87,40 @@ void controlidx628_state::io_map(address_map &map)
 }
 
 
-WRITE8_MEMBER(controlidx628_state::p0_w)
+void controlidx628_state::p0_w(uint8_t data)
 {
 	m_p0_data = data;
 }
 
-READ8_MEMBER(controlidx628_state::p1_r)
+uint8_t controlidx628_state::p1_r()
 {
 	// P1.1 is used for serial I/O; P1.4 and P1.5 are also used bidirectionally
 	return 0xcd;
 }
 
-WRITE8_MEMBER(controlidx628_state::p1_w)
+void controlidx628_state::p1_w(uint8_t data)
 {
 	if ((BIT(m_p1_data, 6) == 0) && (BIT(data, 6) == 1)) // on raising-edge of bit 6
 	{
-		m_lcdc->write(space, BIT(data, 7), m_p0_data);
+		m_lcdc->write(BIT(data, 7), m_p0_data);
 	}
 	// P1.0 is also used as a serial I/O clock
 	m_p1_data = data;
 }
 
-READ8_MEMBER(controlidx628_state::p2_r)
+uint8_t controlidx628_state::p2_r()
 {
 	// Low nibble used for input
 	return 0xf0;
 }
 
-READ8_MEMBER(controlidx628_state::p3_r)
+uint8_t controlidx628_state::p3_r()
 {
 	// P3.3 (INT1) and P3.4 (T0) used bidirectionally
 	return 0xff;
 }
 
-WRITE8_MEMBER(controlidx628_state::p3_w)
+void controlidx628_state::p3_w(uint8_t data)
 {
 	m_p3_data = data;
 }
@@ -144,7 +144,8 @@ void controlidx628_state::controlidx628_palette(palette_device &palette) const
 *     Machine Driver     *
 *************************/
 
-MACHINE_CONFIG_START(controlidx628_state::controlidx628)
+void controlidx628_state::controlidx628(machine_config &config)
+{
 	// basic machine hardware
 	at89s52_device &maincpu(AT89S52(config, "maincpu", XTAL(11'059'200)));
 	maincpu.set_addrmap(AS_IO, &controlidx628_state::io_map);
@@ -156,18 +157,18 @@ MACHINE_CONFIG_START(controlidx628_state::controlidx628)
 	maincpu.port_out_cb<3>().set(FUNC(controlidx628_state::p3_w));
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) // not accurate
-	MCFG_SCREEN_SIZE(132, 65)
-	MCFG_SCREEN_VISIBLE_AREA(3, 130, 0, 63)
-	MCFG_SCREEN_UPDATE_DEVICE("nt7534", nt7534_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
+	screen.set_size(132, 65);
+	screen.set_visarea(3, 130, 0, 63);
+	screen.set_screen_update("nt7534", FUNC(nt7534_device::screen_update));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(controlidx628_state::controlidx628_palette), 2);
 
 	NT7534(config, m_lcdc);
-MACHINE_CONFIG_END
+}
 
 
 /*************************

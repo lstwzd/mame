@@ -257,6 +257,7 @@ uwp_window_info::uwp_window_info(
 		m_target(nullptr),
 		m_targetview(0),
 		m_targetorient(0),
+		m_targetvismask(0),
 		m_lastclicktime(std::chrono::system_clock::time_point::min()),
 		m_lastclickx(0),
 		m_lastclicky(0),
@@ -319,10 +320,10 @@ void winwindow_process_events_periodic(running_machine &machine)
 //  (main or window thread)
 //============================================================
 
-BOOL winwindow_has_focus(void)
+bool winwindow_has_focus(void)
 {
 	// For now always act like we have focus
-	return TRUE;
+	return true;
 }
 
 //============================================================
@@ -403,6 +404,7 @@ void uwp_window_info::create(running_machine &machine, int index, std::shared_pt
 	window->m_targetview = window->m_target->view();
 	window->m_targetorient = window->m_target->orientation();
 	window->m_targetlayerconfig = window->m_target->layer_config();
+	window->m_targetvismask = window->m_target->visibility_mask();
 
 	// make the window title
 	if (video_config.numscreens == 1)
@@ -461,6 +463,7 @@ void uwp_window_info::destroy()
 
 	// free the render target
 	machine().render().target_free(m_target);
+	m_target = nullptr;
 }
 
 
@@ -472,20 +475,19 @@ void uwp_window_info::destroy()
 
 void uwp_window_info::update()
 {
-	int targetview, targetorient;
-	render_layer_config targetlayerconfig;
-
 	assert(GetCurrentThreadId() == main_threadid);
 
 	// see if the target has changed significantly in window mode
-	targetview = m_target->view();
-	targetorient = m_target->orientation();
-	targetlayerconfig = m_target->layer_config();
-	if (targetview != m_targetview || targetorient != m_targetorient || targetlayerconfig != m_targetlayerconfig)
+	unsigned const targetview = m_target->view();
+	int const targetorient = m_target->orientation();
+	render_layer_config const targetlayerconfig = m_target->layer_config();
+	u32 const targetvismask = m_target->visibility_mask();
+	if (targetview != m_targetview || targetorient != m_targetorient || targetlayerconfig != m_targetlayerconfig || targetvismask != m_targetvismask)
 	{
 		m_targetview = targetview;
 		m_targetorient = targetorient;
 		m_targetlayerconfig = targetlayerconfig;
+		m_targetvismask = targetvismask;
 
 		// in window mode, reminimize/maximize
 		if (!fullscreen())
@@ -525,7 +527,7 @@ void uwp_window_info::update()
 
 			// Actually perform the redraw
 			m_primlist = primlist;
-			draw_video_contents(FALSE);
+			draw_video_contents(false);
 		}
 	}
 }
@@ -535,7 +537,7 @@ void uwp_window_info::update()
 //  (window thread)
 //============================================================
 
-void uwp_window_info::draw_video_contents(int update)
+void uwp_window_info::draw_video_contents(bool update)
 {
 	assert(GetCurrentThreadId() == window_threadid);
 
@@ -951,8 +953,9 @@ void uwp_window_info::update_minmax_state()
 		RECT bounds;
 
 		// compare the maximum bounds versus the current bounds
-		osd_dim minbounds = get_min_bounds(video_config.keepaspect);
-		osd_dim maxbounds = get_max_bounds(video_config.keepaspect);
+		const bool keep_aspect = keepaspect();
+		osd_dim minbounds = get_min_bounds(keep_aspect);
+		osd_dim maxbounds = get_max_bounds(keep_aspect);
 		//GetWindowRect(platform_window<HWND>(), &bounds);
 
 		// if either the width or height matches, we were maximized
@@ -979,7 +982,7 @@ void uwp_window_info::minimize_window()
 {
 	assert(GetCurrentThreadId() == window_threadid);
 
-	osd_dim newsize = get_min_bounds(video_config.keepaspect);
+	osd_dim newsize = get_min_bounds(keepaspect());
 
 	// get the window rect
 	//RECT bounds;
@@ -1000,7 +1003,7 @@ void uwp_window_info::maximize_window()
 {
 	assert(GetCurrentThreadId() == window_threadid);
 
-	osd_dim newsize = get_max_bounds(video_config.keepaspect);
+	osd_dim newsize = get_max_bounds(keepaspect());
 
 	// center within the work area
 	osd_rect work = m_monitor->usuable_position_size();
@@ -1032,7 +1035,7 @@ void uwp_window_info::adjust_window_position_after_major_change()
 	if (!fullscreen())
 	{
 		// constrain the existing size to the aspect ratio
-		if (video_config.keepaspect)
+		if (keepaspect())
 			newrect = constrain_to_aspect_ratio(newrect, WMSZ_BOTTOMRIGHT);
 	}
 

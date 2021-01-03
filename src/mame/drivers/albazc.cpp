@@ -39,10 +39,10 @@ public:
 
 private:
 	/* video-related */
-	DECLARE_WRITE8_MEMBER(hanaroku_out_0_w);
-	DECLARE_WRITE8_MEMBER(hanaroku_out_1_w);
-	DECLARE_WRITE8_MEMBER(hanaroku_out_2_w);
-	DECLARE_WRITE8_MEMBER(albazc_vregs_w);
+	void hanaroku_out_0_w(uint8_t data);
+	void hanaroku_out_1_w(uint8_t data);
+	void hanaroku_out_2_w(uint8_t data);
+	void albazc_vregs_w(offs_t offset, uint8_t data);
 	virtual void video_start() override;
 	void albazc_palette(palette_device &palette) const;
 	uint32_t screen_update_hanaroku(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -113,7 +113,7 @@ uint32_t albazc_state::screen_update_hanaroku(screen_device &screen, bitmap_ind1
 	return 0;
 }
 
-WRITE8_MEMBER(albazc_state::hanaroku_out_0_w)
+void albazc_state::hanaroku_out_0_w(uint8_t data)
 {
 	/*
 	    bit     description
@@ -135,7 +135,7 @@ WRITE8_MEMBER(albazc_state::hanaroku_out_0_w)
 	machine().bookkeeping().coin_counter_w(4, data & 0x80);
 }
 
-WRITE8_MEMBER(albazc_state::hanaroku_out_1_w)
+void albazc_state::hanaroku_out_1_w(uint8_t data)
 {
 	/*
 	    bit     description
@@ -153,12 +153,12 @@ WRITE8_MEMBER(albazc_state::hanaroku_out_1_w)
 	m_hopper->motor_w(BIT(data, 0));
 }
 
-WRITE8_MEMBER(albazc_state::hanaroku_out_2_w)
+void albazc_state::hanaroku_out_2_w(uint8_t data)
 {
 	// unused
 }
 
-WRITE8_MEMBER(albazc_state::albazc_vregs_w)
+void albazc_state::albazc_vregs_w(offs_t offset, uint8_t data)
 {
 	#ifdef UNUSED_FUNCTION
 	{
@@ -276,28 +276,28 @@ static GFXDECODE_START( gfx_hanaroku )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(albazc_state::hanaroku)
-
-	MCFG_DEVICE_ADD("maincpu", Z80,6000000)         /* ? MHz */
-	MCFG_DEVICE_PROGRAM_MAP(hanaroku_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", albazc_state,  irq0_line_hold)
+void albazc_state::hanaroku(machine_config &config)
+{
+	Z80(config, m_maincpu, 6000000);         /* ? MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &albazc_state::hanaroku_map);
+	m_maincpu->set_vblank_int("screen", FUNC(albazc_state::irq0_line_hold));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
-	MCFG_TICKET_DISPENSER_ADD("hopper", attotime::from_msec(50), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH )
+	TICKET_DISPENSER(config, m_hopper, attotime::from_msec(50), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH );
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(0, 48*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(albazc_state, screen_update_hanaroku)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 64*8);
+	screen.set_visarea(0, 48*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(albazc_state::screen_update_hanaroku));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_hanaroku)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_hanaroku);
 
-	PALETTE(config, "palette", FUNC(albazc_state::albazc_palette), 0x200);
+	PALETTE(config, m_palette, FUNC(albazc_state::albazc_palette), 0x200);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -306,7 +306,7 @@ MACHINE_CONFIG_START(albazc_state::hanaroku)
 	aysnd.port_a_read_callback().set_ioport("DSW1");
 	aysnd.port_b_read_callback().set_ioport("DSW2");
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( hanaroku )

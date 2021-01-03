@@ -29,14 +29,12 @@
 #include "includes/apollo.h"
 
 #include "cpu/m68000/m68000.h"
-#include "sound/beep.h"
 
 // we use set_verbose
 #include "bus/isa/omti8621.h"
 #include "bus/isa/3c505.h"
 
 #include "debugger.h"
-#include "speaker.h"
 
 #include "apollo_dsp.lh"
 
@@ -208,7 +206,7 @@ uint8_t apollo_get_ram_config_byte(void) {
   apollo_instruction_hook
   must be called by the CPU core before executing each instruction
 ***************************************************************************/
-READ32_MEMBER(apollo_state::apollo_instruction_hook)
+uint32_t apollo_state::apollo_instruction_hook(offs_t offset)
 {
 	static uint16_t idle_counter = 0;
 
@@ -270,25 +268,28 @@ void apollo_state::apollo_bus_error()
 	apollo_csr_set_status_register(APOLLO_CSR_SR_CPU_TIMEOUT, APOLLO_CSR_SR_CPU_TIMEOUT);
 }
 
-IRQ_CALLBACK_MEMBER(apollo_state::apollo_irq_acknowledge)
+void apollo_state::cpu_space_map(address_map &map)
 {
-	int result = M68K_INT_ACK_AUTOVECTOR;
+	map(0xfffffff2, 0xffffffff).r(FUNC(apollo_state::apollo_irq_acknowledge));
+}
 
-	m_maincpu->set_input_line(irqline, CLEAR_LINE);
+u16 apollo_state::apollo_irq_acknowledge(offs_t offset)
+{
+	m_maincpu->set_input_line(offset+1, CLEAR_LINE);
 
-	MLOG2(("apollo_irq_acknowledge: interrupt level=%d", irqline));
+	MLOG2(("apollo_irq_acknowledge: interrupt level=%d", offset+1));
 
-	if (irqline == 6) {
-		result = apollo_pic_acknowledge(device, irqline);
-	}
-	return result;
+	if (offset+1 == 6)
+		return apollo_pic_get_vector();
+	else
+		return m68000_base_device::autovector(offset+1);
 }
 
 /***************************************************************************
  DN3500 Cache Control/Status Register at 0x10200
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::cache_control_register_w){
+void apollo_state::cache_control_register_w(offs_t offset, uint8_t data){
 	if (apollo_is_dn5500())
 	{
 		SLOG1(("Error: writing DN5500 Cache Status Register at offset %02x = %02x", offset, data));
@@ -301,7 +302,7 @@ WRITE8_MEMBER(apollo_state::cache_control_register_w){
 	}
 }
 
-READ8_MEMBER(apollo_state::cache_status_register_r){
+uint8_t apollo_state::cache_status_register_r(offs_t offset){
 	uint8_t data = cache_status_register;
 
 	if (apollo_is_dn5500()) {
@@ -327,13 +328,13 @@ void apollo_set_cache_status_register(device_t *device,uint8_t mask, uint8_t dat
  DN3500 Task Alias Register at 0x10300
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::task_alias_register_w){
+void apollo_state::task_alias_register_w(offs_t offset, uint8_t data){
 	task_alias_register = data;
 	apollo_set_cache_status_register(this,0x07,  data);
 	SLOG(("writing Task Alias Register at offset %02x = %02x",offset, data));
 }
 
-READ8_MEMBER(apollo_state::task_alias_register_r){
+uint8_t apollo_state::task_alias_register_r(offs_t offset){
 	uint8_t data = 0xff;
 	SLOG(("reading Task Alias Register at offset %02x = %02x", offset, data));
 	return data;
@@ -343,12 +344,12 @@ READ8_MEMBER(apollo_state::task_alias_register_r){
  DN3000/DN3500 Latch Page on Parity Error Register at 0x9300/0x11300
  ***************************************************************************/
 
-WRITE16_MEMBER(apollo_state::latch_page_on_parity_error_register_w){
+void apollo_state::latch_page_on_parity_error_register_w(offs_t offset, uint16_t data){
 	latch_page_on_parity_error_register = data;
 	SLOG1(("writing Latch Page on Error Parity Register at offset %02x = %04x", offset*2, data));
 }
 
-READ16_MEMBER(apollo_state::latch_page_on_parity_error_register_r){
+uint16_t apollo_state::latch_page_on_parity_error_register_r(offs_t offset){
 	uint16_t data = latch_page_on_parity_error_register;
 	SLOG2(("reading Latch Page on Error Parity Register at offset %02x = %04x", offset*2, data));
 	return data;
@@ -358,12 +359,12 @@ READ16_MEMBER(apollo_state::latch_page_on_parity_error_register_r){
  DN3500 Master REQ Register at 0x11600
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::master_req_register_w){
+void apollo_state::master_req_register_w(offs_t offset, uint8_t data){
 	master_req_register = data;
 	SLOG2(("writing Master REQ Register at offset %02x = %02x", offset, data));
 }
 
-READ8_MEMBER(apollo_state::master_req_register_r){
+uint8_t apollo_state::master_req_register_r(offs_t offset){
 	uint8_t data = 0xff;
 	SLOG1(("reading Master REQ Register at offset %02x = %02x", offset, data));
 	return data;
@@ -373,7 +374,7 @@ READ8_MEMBER(apollo_state::master_req_register_r){
  DN3500 Selective Clear Locations at 0x11600
  ***************************************************************************/
 
-WRITE16_MEMBER(apollo_state::selective_clear_locations_w){
+void apollo_state::selective_clear_locations_w(offs_t offset, uint16_t data){
 	SLOG2(("writing Selective Clear Locations at offset %02x = %02x", offset*2, data));
 	switch (offset * 2) {
 	case 0x00: // Clear All
@@ -393,7 +394,7 @@ WRITE16_MEMBER(apollo_state::selective_clear_locations_w){
 	}
 }
 
-READ16_MEMBER(apollo_state::selective_clear_locations_r){
+uint16_t apollo_state::selective_clear_locations_r(offs_t offset){
 	uint16_t data = 0xffff;
 	SLOG1(("reading Selective Clear Locations at offset %02x = %02x", offset*2, data));
 	return data;
@@ -403,7 +404,7 @@ READ16_MEMBER(apollo_state::selective_clear_locations_r){
  DN3000/DN3500 RAM with parity (and null proc loop delay for DomainOS)
  ***************************************************************************/
 
-READ32_MEMBER(apollo_state::ram_with_parity_r){
+uint32_t apollo_state::ram_with_parity_r(offs_t offset, uint32_t mem_mask){
 	uint32_t data = m_messram_ptr[parity_error_offset+offset];
 
 	SLOG2(("memory dword read with parity error at %08x = %08x & %08x parity_byte=%04x",
@@ -416,14 +417,14 @@ READ32_MEMBER(apollo_state::ram_with_parity_r){
 
 		if (apollo_csr_get_control_register() & APOLLO_CSR_CR_INTERRUPT_ENABLE) {
 			// force parity error (if NMI is enabled)
-			m_maincpu->set_input_line_and_vector(7, ASSERT_LINE, M68K_INT_ACK_AUTOVECTOR);
+			m_maincpu->set_input_line(7, ASSERT_LINE);
 
 		}
 	}
 	return data;
 }
 
-WRITE32_MEMBER(apollo_state::ram_with_parity_w){
+void apollo_state::ram_with_parity_w(offs_t offset, uint32_t data, uint32_t mem_mask){
 	COMBINE_DATA(m_messram_ptr+offset);
 
 	if (apollo_csr_get_control_register() & APOLLO_CSR_CR_FORCE_BAD_PARITY) {
@@ -443,7 +444,7 @@ WRITE32_MEMBER(apollo_state::ram_with_parity_w){
 			// no more than 192 read/write handlers may be used
 			// see table_assign_handler in memory.c
 			if (parity_error_handler_install_counter < 40) {
-				m_maincpu->space(AS_PROGRAM).install_read_handler(ram_base_address+offset*4, ram_base_address+offset*4+3, read32_delegate(FUNC(apollo_state::ram_with_parity_r),this));
+				m_maincpu->space(AS_PROGRAM).install_read_handler(ram_base_address+offset*4, ram_base_address+offset*4+3, read32s_delegate(*this, FUNC(apollo_state::ram_with_parity_r)));
 				parity_error_handler_is_installed = 1;
 				parity_error_handler_install_counter++;
 			}
@@ -466,7 +467,7 @@ WRITE32_MEMBER(apollo_state::ram_with_parity_w){
  DN3000/DN3500 unmapped memory
  ***************************************************************************/
 
-READ32_MEMBER(apollo_state::apollo_unmapped_r)
+uint32_t apollo_state::apollo_unmapped_r(offs_t offset, uint32_t mem_mask)
 {
 	offs_t address = offset * 4;
 
@@ -495,7 +496,7 @@ READ32_MEMBER(apollo_state::apollo_unmapped_r)
 	return 0xffffffff;
 }
 
-WRITE32_MEMBER(apollo_state::apollo_unmapped_w)
+void apollo_state::apollo_unmapped_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	SLOG(("unmapped memory dword write to %08x = %08x & %08x", offset * 4, data, mem_mask));
 
@@ -507,7 +508,7 @@ WRITE32_MEMBER(apollo_state::apollo_unmapped_w)
  DN3000/DN3500 ROM write
  ***************************************************************************/
 
-WRITE32_MEMBER(apollo_state::apollo_rom_w)
+void apollo_state::apollo_rom_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	offs_t address =  offset * 4;
 	offs_t pc = m_maincpu->pcbase();
@@ -523,56 +524,56 @@ WRITE32_MEMBER(apollo_state::apollo_rom_w)
  DN3000/DN3500 AT Bus I/O space
  ***************************************************************************/
 
-READ16_MEMBER(apollo_state::apollo_atbus_io_r)
+uint16_t apollo_state::apollo_atbus_io_r(offs_t offset, uint16_t mem_mask)
 {
 	uint32_t isa_addr = (offset & 3) + ((offset & ~0x1ff) >> 7);
 
 	// Motorola CPU is MSB first, ISA Bus is LSB first
-	uint16_t data = m_isa->io16_swap_r(space, isa_addr, mem_mask);
+	uint16_t data = m_isa->io16_swap_r(isa_addr, mem_mask);
 
 	SLOG2(("apollo_atbus_io_r at %08x -> %04x = %04x & %04x", ATBUS_IO_BASE + offset*2, isa_addr*2, data, mem_mask));
 
 	return data;
 }
 
-WRITE16_MEMBER(apollo_state::apollo_atbus_io_w)
+void apollo_state::apollo_atbus_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint32_t isa_addr = (offset & 3) + ((offset & ~0x1ff) >> 7);
 
 	SLOG2(("apollo_atbus_io_w at %08x -> %04x = %04x & %04x", ATBUS_IO_BASE + offset*2, isa_addr*2, data, mem_mask));
 
 	// Motorola CPU is MSB first, ISA Bus is LSB first
-	m_isa->io16_swap_w(space, isa_addr, data, mem_mask);
+	m_isa->io16_swap_w(isa_addr, data, mem_mask);
 }
 
 /***************************************************************************
  DN3000/DN3500 AT Bus memory space
  ***************************************************************************/
 
-READ16_MEMBER(apollo_state::apollo_atbus_memory_r)
+uint16_t apollo_state::apollo_atbus_memory_r(offs_t offset, uint16_t mem_mask)
 {
 	uint16_t data;
 
 	// Motorola CPU is MSB first, ISA Bus is LSB first
-	data = m_isa->mem16_swap_r(space, offset, mem_mask);
+	data = m_isa->mem16_swap_r(offset, mem_mask);
 
 	SLOG2(("apollo_atbus_memory_r at %08x = %04x & %04x", ATBUS_MEMORY_BASE + offset * 2, data, mem_mask));
 	return data;
 }
 
-WRITE16_MEMBER(apollo_state::apollo_atbus_memory_w)
+void apollo_state::apollo_atbus_memory_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	SLOG2(("apollo_atbus_memory_w at %08x = %04x & %04x", ATBUS_MEMORY_BASE + offset*2, data, mem_mask));
 
 	// Motorola CPU is MSB first, ISA Bus is LSB first
-	m_isa->mem16_swap_w(space, offset, data, mem_mask);
+	m_isa->mem16_swap_w(offset, data, mem_mask);
 }
 
 /***************************************************************************
  DN3000/DN3500 AT Bus unmapped read/write
  ***************************************************************************/
 
-READ16_MEMBER(apollo_state::apollo_atbus_unmap_io_r)
+uint16_t apollo_state::apollo_atbus_unmap_io_r(offs_t offset, uint16_t mem_mask)
 {
 	// ISA bus has 0xff for unmapped addresses
 	uint16_t data = 0xffff;
@@ -581,13 +582,13 @@ READ16_MEMBER(apollo_state::apollo_atbus_unmap_io_r)
 	return data;
 }
 
-WRITE16_MEMBER(apollo_state::apollo_atbus_unmap_io_w)
+void apollo_state::apollo_atbus_unmap_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint32_t isa_addr = (offset & 3) + ((offset & ~0x1ff) >> 7);
 	SLOG1(("apollo_atbus_unmap_io_w at %08x -> %04x = %04x & %04x", ATBUS_IO_BASE + offset*2, isa_addr*2, data, mem_mask));
 }
 
-READ8_MEMBER(apollo_state::apollo_atbus_unmap_r)
+uint8_t apollo_state::apollo_atbus_unmap_r(offs_t offset, uint8_t mem_mask)
 {
 	// ISA bus has 0xff for unmapped addresses
 	uint8_t data = 0xff;
@@ -595,7 +596,7 @@ READ8_MEMBER(apollo_state::apollo_atbus_unmap_r)
 	return data;
 }
 
-WRITE8_MEMBER(apollo_state::apollo_atbus_unmap_w)
+void apollo_state::apollo_atbus_unmap_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
 	SLOG1(("apollo_atbus_unmap_w at %08x = %02x & %02x", ATBUS_MEMORY_BASE + offset, data, mem_mask));
 }
@@ -605,11 +606,11 @@ WRITE8_MEMBER(apollo_state::apollo_atbus_unmap_w)
  Strange: documented but not used
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::dn5500_memory_present_register_w){
+void apollo_state::dn5500_memory_present_register_w(offs_t offset, uint8_t data){
 	SLOG(("Error: writing DN5500 Memory Present Register at offset %02x = %02x", offset, data));
 }
 
-READ8_MEMBER(apollo_state::dn5500_memory_present_register_r){
+uint8_t apollo_state::dn5500_memory_present_register_r(offs_t offset){
 	uint8_t data = DN5500_MEM_PRESENT_BYTE;
 	SLOG(("reading DN5500 Memory Present Register at offset %02x = %02x", offset, data));
 	return data;
@@ -619,11 +620,11 @@ READ8_MEMBER(apollo_state::dn5500_memory_present_register_r){
  DN5500 11500 Registers at 0x11500-0x115ff (undocumented, what does it do?)
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::dn5500_11500_w){
+void apollo_state::dn5500_11500_w(offs_t offset, uint8_t data){
 	SLOG1(("writing DN5500 11500 at offset %02x = %02x", offset, data));
 }
 
-READ8_MEMBER(apollo_state::dn5500_11500_r){
+uint8_t apollo_state::dn5500_11500_r(offs_t offset){
 	uint8_t data = 0xff;
 	SLOG1(("reading DN5500 11500 at offset %02x = %02x", offset, data));
 	return data;
@@ -633,12 +634,12 @@ READ8_MEMBER(apollo_state::dn5500_11500_r){
  DN5500 I/O Protection Map at 0x7000000-0x700FFFF
  ***************************************************************************/
 
-WRITE8_MEMBER(apollo_state::dn5500_io_protection_map_w){
+void apollo_state::dn5500_io_protection_map_w(offs_t offset, uint8_t data){
 	// TODO
 	SLOG1(("writing DN5500 I/O Protection Map at offset %02x = %02x", offset, data));
 }
 
-READ8_MEMBER(apollo_state::dn5500_io_protection_map_r){
+uint8_t apollo_state::dn5500_io_protection_map_r(offs_t offset){
 	uint8_t data = 0xff;
 	SLOG1(("reading DN5500 I/O Protection Map at offset %02x = %02x", offset, data));
 	return data;
@@ -649,7 +650,7 @@ READ8_MEMBER(apollo_state::dn5500_io_protection_map_r){
  DN3000/DN3500 at f8000000 - ffffffff (used by fpa and/or color7?)
  ***************************************************************************/
 
-READ32_MEMBER(apollo_state::apollo_f8_r){
+uint32_t apollo_state::apollo_f8_r(offs_t offset, uint32_t mem_mask){
 	offs_t address = 0xf8000000 + offset * 4;
 	uint32_t data = 0xffffffff;
 	SLOG2(("unexpected memory dword read from %08x = %08x & %08x",
@@ -657,7 +658,7 @@ READ32_MEMBER(apollo_state::apollo_f8_r){
 	return data;
 }
 
-WRITE32_MEMBER(apollo_state::apollo_f8_w){
+void apollo_state::apollo_f8_w(offs_t offset, uint32_t data, uint32_t mem_mask){
 	offs_t address = 0xf8000000 +offset * 4;
 
 	SLOG2(("unexpected memory dword write to %08x = %08x & %08x",
@@ -698,7 +699,7 @@ void apollo_state::dn3500_map(address_map &map)
 		map(ATBUS_MEMORY_BASE, ATBUS_MEMORY_END).rw(FUNC(apollo_state::apollo_atbus_memory_r), FUNC(apollo_state::apollo_atbus_memory_w));
 
 		// FIXME: must match with RAM size in driver/apollo_sio.c
-		// AM_RANGE(DN3500_RAM_BASE, DN3500_RAM_END) AM_RAM /* 8MB RAM */
+		// map(DN3500_RAM_BASE, DN3500_RAM_END).ram(); /* 8MB RAM */
 		map(DN3500_RAM_BASE, DN3500_RAM_END).ram().w(FUNC(apollo_state::ram_with_parity_w)).share(RAM_TAG);
 
 		map(0x05d800, 0x05dc07).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_mcr_r), FUNC(apollo_graphics_15i::apollo_mcr_w));
@@ -707,11 +708,11 @@ void apollo_state::dn3500_map(address_map &map)
 		map(0x05e800, 0x05ec07).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_ccr_r), FUNC(apollo_graphics_15i::apollo_ccr_w));
 		map(0x0a0000, 0x0bffff).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_cgm_r), FUNC(apollo_graphics_15i::apollo_cgm_w));
 
-//      AM_RANGE(0x03020000, 0x0303ffff) Cache Tag Store (DN4500 only)
-//      AM_RANGE(0x04000000, 0x0400ffff) Cache Tag Data (DN4500 only)
-//      AM_RANGE(0x0e000000, 0x0fffffff) FPA address space
+//      map(0x03020000, 0x0303ffff) Cache Tag Store (DN4500 only)
+//      map(0x04000000, 0x0400ffff) Cache Tag Data (DN4500 only)
+//      map(0x0e000000, 0x0fffffff) FPA address space
 
-//      AM_RANGE(0xf8000000, 0xffffffff) AM_READWRITE(apollo_f8_r, apollo_f8_w)
+//      map(0xf8000000, 0xffffffff).rw(FUNC(apollo_state::apollo_f8_r), FUNC(apollo_state::apollo_f8_w));
 }
 
 void apollo_state::dsp3500_map(address_map &map)
@@ -744,7 +745,7 @@ void apollo_state::dsp3500_map(address_map &map)
 
 		map(ATBUS_MEMORY_BASE, ATBUS_MEMORY_END).rw(FUNC(apollo_state::apollo_atbus_memory_r), FUNC(apollo_state::apollo_atbus_memory_w));
 
-//      AM_RANGE(0xf8000000, 0xffffffff) AM_READWRITE(apollo_f8_r, apollo_f8_w)
+//      map(0xf8000000, 0xffffffff).rw(FUNC(apollo_state::apollo_f8_r), FUNC(apollo_state::apollo_f8_w));
 }
 
 void apollo_state::dn3000_map(address_map &map)
@@ -770,7 +771,7 @@ void apollo_state::dn3000_map(address_map &map)
 		map(ATBUS_MEMORY_BASE, ATBUS_MEMORY_END).rw(FUNC(apollo_state::apollo_atbus_memory_r), FUNC(apollo_state::apollo_atbus_memory_w));
 
 		// FIXME: must match with RAM size in driver/apollo_sio.c
-		// AM_RANGE(DN3000_RAM_BASE, DN3000_RAM_END) AM_RAM  /* 8MB RAM */
+		// map(DN3000_RAM_BASE, DN3000_RAM_END).ram();  /* 8MB RAM */
 		map(DN3000_RAM_BASE, DN3000_RAM_END).ram().w(FUNC(apollo_state::ram_with_parity_w)).share(RAM_TAG);
 
 		map(0x05d800, 0x05dc07).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_mcr_r), FUNC(apollo_graphics_15i::apollo_mcr_w));
@@ -804,7 +805,7 @@ void apollo_state::dsp3000_map(address_map &map)
 		map(ATBUS_MEMORY_BASE, ATBUS_MEMORY_END).rw(FUNC(apollo_state::apollo_atbus_memory_r), FUNC(apollo_state::apollo_atbus_memory_w));
 
 		// FIXME: must match with RAM size in driver/apollo_sio.c
-		// AM_RANGE(DN3000_RAM_BASE, DN3000_RAM_END) AM_RAM  /* 8MB RAM */
+		// map(DN3000_RAM_BASE, DN3000_RAM_END).ram();  /* 8MB RAM */
 		map(DN3000_RAM_BASE, DN3000_RAM_END).ram().w(FUNC(apollo_state::ram_with_parity_w)).share(RAM_TAG);
 
 }
@@ -840,7 +841,7 @@ void apollo_state::dn5500_map(address_map &map)
 	map(ATBUS_MEMORY_BASE, ATBUS_MEMORY_END).rw(FUNC(apollo_state::apollo_atbus_memory_r), FUNC(apollo_state::apollo_atbus_memory_w));
 
 	// FIXME: must match with RAM size in driver/apollo_sio.c
-	// AM_RANGE(DN3500_RAM_BASE, DN3500_RAM_END) AM_RAM  /* 8MB RAM */
+	// map(DN3500_RAM_BASE, DN3500_RAM_END).ram();  /* 8MB RAM */
 	map(DN5500_RAM_BASE, DN5500_RAM_END).ram().w(FUNC(apollo_state::ram_with_parity_w)).share(RAM_TAG);
 
 	map(0x05d800, 0x05dc07).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_mcr_r), FUNC(apollo_graphics_15i::apollo_mcr_w));
@@ -849,12 +850,12 @@ void apollo_state::dn5500_map(address_map &map)
 	map(0x05e800, 0x05ec07).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_ccr_r), FUNC(apollo_graphics_15i::apollo_ccr_w));
 	map(0x0a0000, 0x0bffff).rw(m_graphics, FUNC(apollo_graphics_15i::apollo_cgm_r), FUNC(apollo_graphics_15i::apollo_cgm_w));
 
-//  AM_RANGE(0x03020000, 0x0303ffff) Cache Tag Store (DN4500 only)
-//  AM_RANGE(0x04000000, 0x0400ffff) Cache Tag Data (DN4500 only)
+//  map(0x03020000, 0x0303ffff) Cache Tag Store (DN4500 only)
+//  map(0x04000000, 0x0400ffff) Cache Tag Data (DN4500 only)
 	map(0x07000000, 0x0700FFFF).rw(FUNC(apollo_state::dn5500_io_protection_map_r), FUNC(apollo_state::dn5500_io_protection_map_w));
-//  AM_RANGE(0x0e000000, 0x0fffffff) FPA address space
+//  map(0x0e000000, 0x0fffffff) FPA address space
 
-//  AM_RANGE(0xf8000000, 0xffffffff) AM_READWRITE(apollo_f8_r, apollo_f8_w)
+//  map(0xf8000000, 0xffffffff).rw(FUNC(apollo_state::apollo_f8_r), FUNC(apollo_state::apollo_f8_w));
 }
 
 void apollo_state::dsp5500_map(address_map &map)
@@ -890,7 +891,7 @@ void apollo_state::dsp5500_map(address_map &map)
 	map(DN5500_RAM_BASE, DN5500_RAM_END).ram().w(FUNC(apollo_state::ram_with_parity_w)).share(RAM_TAG);
 
 	map(0x07000000, 0x0700FFFF).rw(FUNC(apollo_state::dn5500_io_protection_map_r), FUNC(apollo_state::dn5500_io_protection_map_w));
-//  AM_RANGE(0xf8000000, 0xffffffff) AM_READWRITE(apollo_f8_r, apollo_f8_w)
+//  map(0xf8000000, 0xffffffff).rw(FUNC(apollo_state::apollo_f8_r), FUNC(apollo_state::apollo_f8_w));
 }
 
 /***************************************************************************
@@ -906,7 +907,6 @@ void apollo_state::machine_reset()
 #ifdef APOLLO_XXL
 	// set configuration
 	omti8621_device::set_verbose(apollo_config(APOLLO_CONF_DISK_TRACE));
-	threecom3c505_device::set_verbose(apollo_config(APOLLO_CONF_NET_TRACE));
 #endif
 
 	if (apollo_config(APOLLO_CONF_NODE_ID))
@@ -916,7 +916,7 @@ void apollo_state::machine_reset()
 	}
 
 #if 0
-	m_maincpu->set_instruction_hook(read32_delegate(FUNC(apollo_state::apollo_instruction_hook),this));
+	m_maincpu->set_instruction_hook(read32sm_delegate(*this, FUNC(apollo_state::apollo_instruction_hook)));
 #endif
 }
 
@@ -935,7 +935,7 @@ WRITE_LINE_MEMBER(apollo_state::apollo_reset_instr_callback)
 		m_graphics->reset();
 		m_keyboard->reset();
 #ifdef APOLLO_XXL
-		machine().device(APOLLO_STDIO_TAG )->reset();
+		m_sio2->reset();
 #endif
 	}
 }
@@ -954,8 +954,8 @@ void apollo_state::machine_start(){
 	MACHINE_START_CALL_MEMBER(apollo);
 
 	// install nop handlers for unmapped ISA bus addresses
-	m_isa->install16_device((ATBUS_IO_BASE - 0x40000) >> 7, (ATBUS_IO_END - 0x40000) >> 7, read16_delegate(FUNC(apollo_state::apollo_atbus_unmap_io_r), this), write16_delegate(FUNC(apollo_state::apollo_atbus_unmap_io_w), this));
-	m_isa->install_memory(0, ATBUS_MEMORY_END, read8_delegate(FUNC(apollo_state::apollo_atbus_unmap_r), this), write8_delegate(FUNC(apollo_state::apollo_atbus_unmap_w), this));
+	m_isa->install16_device((ATBUS_IO_BASE - 0x40000) >> 7, (ATBUS_IO_END - 0x40000) >> 7, read16s_delegate(*this, FUNC(apollo_state::apollo_atbus_unmap_io_r)), write16s_delegate(*this, FUNC(apollo_state::apollo_atbus_unmap_io_w)));
+	m_isa->install_memory(0, ATBUS_MEMORY_END, read8s_delegate(*this, FUNC(apollo_state::apollo_atbus_unmap_r)), write8s_delegate(*this, FUNC(apollo_state::apollo_atbus_unmap_w)));
 }
 
 /***************************************************************************
@@ -967,7 +967,7 @@ void apollo_state::init_dn3500()
 //  MLOG1(("driver_init_dn3500"));
 
 	/* hook the RESET line, which resets a slew of other components */
-	m_maincpu->set_reset_callback(write_line_delegate(FUNC(apollo_state::apollo_reset_instr_callback),this));
+	m_maincpu->set_reset_callback(*this, FUNC(apollo_state::apollo_reset_instr_callback));
 
 	ram_base_address = DN3500_RAM_BASE;
 	ram_end_address = DN3500_RAM_END;
@@ -1044,49 +1044,41 @@ READ_LINE_MEMBER( apollo_state::apollo_kbd_is_german )
  MACHINE DRIVERS
  ***************************************************************************/
 
-MACHINE_CONFIG_START(apollo_state::dn3500)
+void apollo_state::dn3500(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(MAINCPU, M68030, 25000000) /* 25 MHz 68030 */
-	MCFG_DEVICE_PROGRAM_MAP(dn3500_map)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(apollo_state,apollo_irq_acknowledge)
+	M68030(config, m_maincpu, 25000000); /* 25 MHz 68030 */
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dn3500_map);
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &apollo_state::cpu_space_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	apollo(config);
-
-	/* keyboard beeper */
-	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("beep", BEEP, 1000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("8M").set_extra_options("4M,8M,16M,32M");
 
 #ifdef APOLLO_XXL
 	apollo_stdio_device &stdio(APOLLO_STDIO(config, APOLLO_STDIO_TAG, 0));
-	stdio.tx_callback().set(m_sio, FUNC(apollo_sio::rx_b_w));
+	stdio.tx_cb().set(m_sio, FUNC(apollo_sio::rx_b_w));
 #endif
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(apollo_state::dsp3500)
-	MCFG_DEVICE_ADD(MAINCPU, M68030, 25000000) /* 25 MHz 68030 */
-	MCFG_DEVICE_PROGRAM_MAP(dsp3500_map)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(apollo_state,apollo_irq_acknowledge)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+void apollo_state::dsp3500(machine_config &config)
+{
+	M68030(config, m_maincpu, 25000000); /* 25 MHz 68030 */
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dsp3500_map);
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &apollo_state::cpu_space_map);
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	apollo_terminal(config);
-
-	/* keyboard beeper */
-	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("beep", BEEP, 1000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("8M").set_extra_options("4M,8M,16M,32M");
 
 	/* terminal hardware */
 	config.set_default_layout(layout_apollo_dsp);
-MACHINE_CONFIG_END
+}
 
 void apollo_state::dn3500_19i(machine_config &config)
 {
@@ -1108,30 +1100,27 @@ void apollo_state::dn3500_15i(machine_config &config)
 	m_keyboard->german_cb().set(FUNC(apollo_state::apollo_kbd_is_german));
 }
 
-MACHINE_CONFIG_START(apollo_state::dn3000)
+void apollo_state::dn3000(machine_config &config)
+{
 	dn3500(config);
-	MCFG_DEVICE_REPLACE(MAINCPU, M68020PMMU, 12000000) /* 12 MHz */
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(apollo_state,apollo_irq_acknowledge)
-	MCFG_DEVICE_PROGRAM_MAP(dn3000_map)
+	M68020PMMU(config.replace(), m_maincpu, 12000000); /* 12 MHz */
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &apollo_state::cpu_space_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dn3000_map);
 	config.device_remove( APOLLO_SIO2_TAG );
 	m_ram->set_default_size("8M").set_extra_options("4M");
 
 	// FIXME: is this interrupt really only connected on DN3000?
 	m_rtc->irq().set(FUNC(apollo_state::apollo_rtc_irq_function));
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(apollo_state::dsp3000)
-	MCFG_DEVICE_ADD(MAINCPU, M68020PMMU, 12000000) /* 12 MHz */
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(apollo_state,apollo_irq_acknowledge)
-	MCFG_DEVICE_PROGRAM_MAP(dsp3000_map)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+void apollo_state::dsp3000(machine_config &config)
+{
+	M68020PMMU(config, m_maincpu, 12000000); /* 12 MHz */
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &apollo_state::cpu_space_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dsp3000_map);
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	apollo_terminal(config);
-
-	/* keyboard beeper */
-	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("beep", BEEP, 1000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("8M").set_extra_options("4M");
@@ -1140,7 +1129,7 @@ MACHINE_CONFIG_START(apollo_state::dsp3000)
 
 	/* terminal hardware */
 	config.set_default_layout(layout_apollo_dsp);
-MACHINE_CONFIG_END
+}
 
 void apollo_state::dn3000_19i(machine_config &config)
 {
@@ -1162,24 +1151,21 @@ void apollo_state::dn3000_15i(machine_config &config)
 	m_keyboard->german_cb().set(FUNC(apollo_state::apollo_kbd_is_german));
 }
 
-MACHINE_CONFIG_START(apollo_state::dn5500)
+void apollo_state::dn5500(machine_config &config)
+{
 	dn3500(config);
-	MCFG_DEVICE_REPLACE(MAINCPU, M68040, 25000000) /* 25 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(dn5500_map)
-MACHINE_CONFIG_END
+	M68040(config.replace(), m_maincpu, 25000000); /* 25 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dn5500_map);
+}
 
-MACHINE_CONFIG_START(apollo_state::dsp5500)
-	MCFG_DEVICE_ADD(MAINCPU, M68040, 25000000) /* 25 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(dsp5500_map)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(apollo_state,apollo_irq_acknowledge)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+void apollo_state::dsp5500(machine_config &config)
+{
+	M68040(config, m_maincpu, 25000000); /* 25 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &apollo_state::dsp5500_map);
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &apollo_state::cpu_space_map);
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	apollo_terminal(config);
-
-	/* keyboard beeper */
-	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("beep", BEEP, 1000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
 	/* internal ram */
 	// FIXME: guess, to fix validation
@@ -1187,7 +1173,7 @@ MACHINE_CONFIG_START(apollo_state::dsp5500)
 
 	/* terminal hardware */
 	config.set_default_layout(layout_apollo_dsp);
-MACHINE_CONFIG_END
+}
 
 void apollo_state::dn5500_19i(machine_config &config)
 {

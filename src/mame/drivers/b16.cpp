@@ -51,14 +51,14 @@ private:
 	required_device<palette_device> m_palette;
 	required_region_ptr<uint8_t> m_char_rom;
 
-	DECLARE_READ16_MEMBER(vblank_r);
-	DECLARE_WRITE8_MEMBER(b16_pcg_w);
-	DECLARE_WRITE8_MEMBER(b16_6845_address_w);
-	DECLARE_WRITE8_MEMBER(b16_6845_data_w);
-	DECLARE_READ8_MEMBER(unk_dev_r);
-	DECLARE_WRITE8_MEMBER(unk_dev_w);
-	DECLARE_READ8_MEMBER(memory_read_byte);
-	DECLARE_WRITE8_MEMBER(memory_write_byte);
+	uint16_t vblank_r();
+	void b16_pcg_w(offs_t offset, uint8_t data);
+	void b16_6845_address_w(uint8_t data);
+	void b16_6845_data_w(uint8_t data);
+	uint8_t unk_dev_r(offs_t offset);
+	void unk_dev_w(offs_t offset, uint8_t data);
+	uint8_t memory_read_byte(offs_t offset);
+	void memory_write_byte(offs_t offset, uint8_t data);
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
@@ -97,18 +97,17 @@ uint32_t b16_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, c
 	{
 		for(int x=0;x<mc6845_h_display;x++)
 		{
-			int tile = m_vram[x+y*mc6845_h_display] & 0xff;
-			int color = (m_vram[x+y*mc6845_h_display] & 0x700) >> 8;
-			int pen;
+			int const tile = m_vram[x+y*mc6845_h_display] & 0xff;
+			int const color = (m_vram[x+y*mc6845_h_display] & 0x700) >> 8;
 
 			for(int yi=0;yi<mc6845_tile_height;yi++)
 			{
 				for(int xi=0;xi<8;xi++)
 				{
-					pen = (m_char_rom[tile*16+yi] >> (7-xi) & 1) ? color : 0;
+					int const pen = (m_char_rom[tile*16+yi] >> (7-xi) & 1) ? color : 0;
 
 					if(y*mc6845_tile_height < 400 && x*8+xi < 640) /* TODO: safety check */
-						bitmap.pix16(y*mc6845_tile_height+yi, x*8+xi) = m_palette->pen(pen);
+						bitmap.pix(y*mc6845_tile_height+yi, x*8+xi) = m_palette->pen(pen);
 				}
 			}
 		}
@@ -117,7 +116,7 @@ uint32_t b16_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, c
 	return 0;
 }
 
-WRITE8_MEMBER( b16_state::b16_pcg_w )
+void b16_state::b16_pcg_w(offs_t offset, uint8_t data)
 {
 	m_char_rom[offset] = data;
 
@@ -134,21 +133,21 @@ void b16_state::b16_map(address_map &map)
 	map(0xfc000, 0xfffff).rom().region("ipl", 0);
 }
 
-READ16_MEMBER( b16_state::vblank_r )
+uint16_t b16_state::vblank_r()
 {
 	return ioport("SYSTEM")->read();
 }
 
-WRITE8_MEMBER( b16_state::b16_6845_address_w )
+void b16_state::b16_6845_address_w(uint8_t data)
 {
 	m_crtc_index = data;
-	m_mc6845->address_w(space,offset, data);
+	m_mc6845->address_w(data);
 }
 
-WRITE8_MEMBER( b16_state::b16_6845_data_w )
+void b16_state::b16_6845_data_w(uint8_t data)
 {
 	m_crtc_vreg[m_crtc_index] = data;
-	m_mc6845->register_w(space, offset, data);
+	m_mc6845->register_w(data);
 }
 
 /*
@@ -197,7 +196,7 @@ b6 (0e) W
 05 (06) W
 */
 
-READ8_MEMBER( b16_state::unk_dev_r )
+uint8_t b16_state::unk_dev_r(offs_t offset)
 {
 	static int test;
 
@@ -212,7 +211,7 @@ READ8_MEMBER( b16_state::unk_dev_r )
 	return 0xff;
 }
 
-WRITE8_MEMBER( b16_state::unk_dev_w )
+void b16_state::unk_dev_w(offs_t offset, uint8_t data)
 {
 	printf("%02x (%02x) W\n",data,offset << 1);
 
@@ -253,35 +252,36 @@ static GFXDECODE_START( gfx_b16 )
 	GFXDECODE_ENTRY( "pcg", 0x0000, b16_charlayout, 0, 1 )
 GFXDECODE_END
 
-READ8_MEMBER(b16_state::memory_read_byte)
+uint8_t b16_state::memory_read_byte(offs_t offset)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM);
 	return prog_space.read_byte(offset);
 }
 
-WRITE8_MEMBER(b16_state::memory_write_byte)
+void b16_state::memory_write_byte(offs_t offset, uint8_t data)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM);
 	return prog_space.write_byte(offset, data);
 }
 
 
-MACHINE_CONFIG_START(b16_state::b16)
+void b16_state::b16(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(m_maincpu, I8086, XTAL(14'318'181)/2) //unknown xtal
-	MCFG_DEVICE_PROGRAM_MAP(b16_map)
-	MCFG_DEVICE_IO_MAP(b16_io)
+	I8086(config, m_maincpu, XTAL(14'318'181)/2); //unknown xtal
+	m_maincpu->set_addrmap(AS_PROGRAM, &b16_state::b16_map);
+	m_maincpu->set_addrmap(AS_IO, &b16_state::b16_io);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DRIVER(b16_state, screen_update)
-	MCFG_SCREEN_SIZE(640, 400)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 400-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_screen_update(FUNC(b16_state::screen_update));
+	screen.set_size(640, 400);
+	screen.set_visarea_full();
+	screen.set_palette(m_palette);
 
-	H46505(config, m_mc6845, XTAL(14'318'181)/5);    /* unknown clock, hand tuned to get ~60 fps */
+	MC6845(config, m_mc6845, XTAL(14'318'181)/5);    /* unknown variant, unknown clock, hand tuned to get ~60 fps */
 	m_mc6845->set_screen("screen");
 	m_mc6845->set_show_border_area(false);
 	m_mc6845->set_char_width(8);
@@ -290,15 +290,14 @@ MACHINE_CONFIG_START(b16_state::b16)
 	m_dma8237->in_memr_callback().set(FUNC(b16_state::memory_read_byte));
 	m_dma8237->out_memw_callback().set(FUNC(b16_state::memory_write_byte));
 
-	MCFG_DEVICE_ADD(m_gfxdecode, GFXDECODE, m_palette, gfx_b16)
-	MCFG_PALETTE_ADD(m_palette, 8)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_b16);
+	PALETTE(config, m_palette).set_entries(8);
 //  MCFG_PALETTE_INIT_STANDARD(black_and_white) // TODO
-
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( b16 )
-	ROM_REGION( 0x4000, "ipl", ROMREGION_ERASEFF )
+	ROM_REGION16_LE( 0x4000, "ipl", ROMREGION_ERASEFF )
 	ROM_LOAD( "ipl.rom", 0x0000, 0x4000, CRC(7c1c93d5) SHA1(2a1e63a689c316ff836f21646166b38714a18e03) )
 
 	ROM_REGION( 0x4000/2, "pcg", ROMREGION_ERASE00 )

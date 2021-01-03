@@ -112,8 +112,8 @@ private:
 	uint8_t m_trigger;
 	uint8_t m_adpcm_data;
 #endif
-	DECLARE_WRITE8_MEMBER(controls_w);
-	DECLARE_READ8_MEMBER(controls_r);
+	void controls_w(uint8_t data);
+	uint8_t controls_r();
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	DECLARE_WRITE_LINE_MEMBER(vblank_w);
@@ -122,7 +122,7 @@ private:
 	void pachifev_map(address_map &map);
 };
 
-WRITE8_MEMBER(pachifev_state::controls_w)
+void pachifev_state::controls_w(uint8_t data)
 {
 	if(!data)
 	{
@@ -137,7 +137,7 @@ WRITE8_MEMBER(pachifev_state::controls_w)
 	}
 }
 
-READ8_MEMBER(pachifev_state::controls_r)
+uint8_t pachifev_state::controls_r()
 {
 	int output_bit=(m_power < m_max_power)?0:1;
 	++m_power;
@@ -155,10 +155,10 @@ void pachifev_state::pachifev_map(address_map &map)
 	map(0xff04, 0xff04).portr("DSW1");
 	map(0xff06, 0xff06).portr("DSW2");
 	map(0xff08, 0xff08).portr("DSW3");
-	map(0xff10, 0xff10).rw("tms9928a", FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0xff12, 0xff12).rw("tms9928a", FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
-	map(0xff20, 0xff20).w("y2404_1", FUNC(y2404_device::command_w));
-	map(0xff30, 0xff30).w("y2404_2", FUNC(y2404_device::command_w));
+	map(0xff10, 0xff10).rw("tms9928a", FUNC(tms9928a_device::vram_read), FUNC(tms9928a_device::vram_write));
+	map(0xff12, 0xff12).rw("tms9928a", FUNC(tms9928a_device::register_read), FUNC(tms9928a_device::register_write));
+	map(0xff20, 0xff20).w("y2404_1", FUNC(y2404_device::write));
+	map(0xff30, 0xff30).w("y2404_2", FUNC(y2404_device::write));
 	map(0xff40, 0xff40).w(FUNC(pachifev_state::controls_w));
 	map(0xff50, 0xff50).nopw(); /* unknown */
 	map(0xfffa, 0xfffb).noprw(); /* decrementer */
@@ -167,7 +167,7 @@ void pachifev_state::pachifev_map(address_map &map)
 
 void pachifev_state::pachifev_cru(address_map &map)
 {
-	map(0x000, 0x000).r(FUNC(pachifev_state::controls_r));
+	map(0x0000, 0x0001).r(FUNC(pachifev_state::controls_r));
 }
 
 
@@ -368,8 +368,8 @@ void pachifev_state::pachifev(machine_config &config)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 #if USE_MSM
-	msm5205_device &adpcm(MSM5205(config, "adpcm", XTAL(384'000)));	/* guess */
-	adpcm.vck_legacy_callback().set(FUNC(pachifev_state::pf_adpcm_int));	/* interrupt function */
+	msm5205_device &adpcm(MSM5205(config, "adpcm", XTAL(384'000))); /* guess */
+	adpcm.vck_legacy_callback().set(FUNC(pachifev_state::pf_adpcm_int));    /* interrupt function */
 	adpcm.set_prescaler_selector(msm5205_device::S48_4B);    /* 8kHz */
 	adpcm.add_route(ALL_OUTPUTS, "mono", 1.00);
 #endif

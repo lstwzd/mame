@@ -26,29 +26,6 @@ DECLARE_DEVICE_TYPE(GBA_LCD, gba_lcd_device)
 
 
 //**************************************************************************
-//  DEVICE CONFIGURATION MACROS
-//**************************************************************************
-
-#define MCFG_GBA_LCD_ADD(_tag) \
-		MCFG_DEVICE_ADD(_tag, GBA_LCD, 0)
-
-#define MCFG_GBA_LCD_INT_HBLANK(_devcb) \
-	downcast<gba_lcd_device &>(*device).set_int_hblank_callback(DEVCB_##_devcb);
-
-#define MCFG_GBA_LCD_INT_VBLANK(_devcb) \
-	downcast<gba_lcd_device &>(*device).set_int_vblank_callback(DEVCB_##_devcb);
-
-#define MCFG_GBA_LCD_INT_VCOUNT(_devcb) \
-	downcast<gba_lcd_device &>(*device).set_int_vcount_callback(DEVCB_##_devcb);
-
-#define MCFG_GBA_LCD_DMA_HBLANK(_devcb) \
-	downcast<gba_lcd_device &>(*device).set_dma_hblank_callback(DEVCB_##_devcb);
-
-#define MCFG_GBA_LCD_DMA_VBLANK(_devcb) \
-	downcast<gba_lcd_device &>(*device).set_dma_vblank_callback(DEVCB_##_devcb);
-
-
-//**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
 
@@ -88,22 +65,22 @@ class gba_lcd_device
 public:
 	gba_lcd_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	DECLARE_READ32_MEMBER(video_r);
-	DECLARE_WRITE32_MEMBER(video_w);
-	DECLARE_READ32_MEMBER(gba_pram_r);
-	DECLARE_WRITE32_MEMBER(gba_pram_w);
-	DECLARE_READ32_MEMBER(gba_vram_r);
-	DECLARE_WRITE32_MEMBER(gba_vram_w);
-	DECLARE_READ32_MEMBER(gba_oam_r);
-	DECLARE_WRITE32_MEMBER(gba_oam_w);
+	uint32_t video_r(offs_t offset, uint32_t mem_mask = ~0);
+	void video_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t gba_pram_r(offs_t offset);
+	void gba_pram_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t gba_vram_r(offs_t offset);
+	void gba_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t gba_oam_r(offs_t offset);
+	void gba_oam_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	TIMER_CALLBACK_MEMBER(perform_hbl);
 	TIMER_CALLBACK_MEMBER(perform_scan);
 
-	template <class Object> devcb_base &set_int_hblank_callback(Object &&cb) { return m_int_hblank_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_int_vblank_callback(Object &&cb) { return m_int_vblank_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_int_vcount_callback(Object &&cb) { return m_int_vcount_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_dma_hblank_callback(Object &&cb) { return m_dma_hblank_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_dma_vblank_callback(Object &&cb) { return m_dma_vblank_cb.set_callback(std::forward<Object>(cb)); }
+	auto int_hblank_callback() { return m_int_hblank_cb.bind(); }
+	auto int_vblank_callback() { return m_int_vblank_cb.bind(); }
+	auto int_vcount_callback() { return m_int_vcount_cb.bind(); }
+	auto dma_hblank_callback() { return m_dma_hblank_cb.bind(); }
+	auto dma_vblank_callback() { return m_dma_vblank_cb.bind(); }
 
 protected:
 	// device-level overrides

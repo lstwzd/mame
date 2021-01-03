@@ -74,23 +74,23 @@ public:
 	uint8_t m_keyb_c0_c7;
 	uint8_t m_keyb_c8_c9;
 
-	DECLARE_READ8_MEMBER(vic4567_dummy_r);
-	DECLARE_WRITE8_MEMBER(vic4567_dummy_w);
-	DECLARE_WRITE8_MEMBER(PalRed_w);
-	DECLARE_WRITE8_MEMBER(PalGreen_w);
-	DECLARE_WRITE8_MEMBER(PalBlue_w);
-	DECLARE_READ8_MEMBER(uart_r);
-	DECLARE_WRITE8_MEMBER(uart_w);
-	DECLARE_WRITE8_MEMBER(DMAgic_w);
-	DECLARE_READ8_MEMBER(CIASelect_r);
-	DECLARE_WRITE8_MEMBER(CIASelect_w);
-	DECLARE_READ8_MEMBER(cia0_porta_r);
-	DECLARE_WRITE8_MEMBER(cia0_porta_w);
-	DECLARE_READ8_MEMBER(cia0_portb_r);
-	DECLARE_WRITE8_MEMBER(cia0_portb_w);
+	uint8_t vic4567_dummy_r(offs_t offset);
+	void vic4567_dummy_w(offs_t offset, uint8_t data);
+	void PalRed_w(offs_t offset, uint8_t data);
+	void PalGreen_w(offs_t offset, uint8_t data);
+	void PalBlue_w(offs_t offset, uint8_t data);
+	uint8_t uart_r(offs_t offset);
+	void uart_w(offs_t offset, uint8_t data);
+	void DMAgic_w(address_space &space, offs_t offset, uint8_t data);
+	uint8_t CIASelect_r(offs_t offset);
+	void CIASelect_w(offs_t offset, uint8_t data);
+	uint8_t cia0_porta_r();
+	void cia0_porta_w(uint8_t data);
+	uint8_t cia0_portb_r();
+	void cia0_portb_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(cia0_irq);
 
-	DECLARE_READ8_MEMBER(dummy_r);
+	uint8_t dummy_r();
 
 	// screen updates
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -178,7 +178,7 @@ uint32_t c65_state::screen_update( screen_device &screen, bitmap_ind16 &bitmap, 
 			if (attr & 0x10) enable_dot = 0;
 
 			//if(cliprect.contains(x, y))
-			bitmap.pix16(y, x) = m_palette->pen(highlight_color + ((enable_dot) ? foreground_color : background_color));
+			bitmap.pix(y, x) = m_palette->pen(highlight_color + ((enable_dot) ? foreground_color : background_color));
 
 
 			//gfx->opaque(bitmap,cliprect,tile,0,0,0,x*8,y*8);
@@ -188,7 +188,7 @@ uint32_t c65_state::screen_update( screen_device &screen, bitmap_ind16 &bitmap, 
 	return 0;
 }
 
-READ8_MEMBER(c65_state::vic4567_dummy_r)
+uint8_t c65_state::vic4567_dummy_r(offs_t offset)
 {
 	uint8_t res;
 
@@ -230,7 +230,7 @@ READ8_MEMBER(c65_state::vic4567_dummy_r)
 	return res;
 }
 
-WRITE8_MEMBER(c65_state::vic4567_dummy_w)
+void c65_state::vic4567_dummy_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -267,7 +267,7 @@ WRITE8_MEMBER(c65_state::vic4567_dummy_w)
 			m_VIC3_ControlB = data;
 			break;
 		default:
-			printf("%02x %02x\n",offset,data);
+			printf("%02x %02x\n", offset, data);
 			break;
 	}
 
@@ -278,25 +278,25 @@ void c65_state::PalEntryFlush(uint8_t offset)
 	m_palette->set_pen_color(offset, pal4bit(m_palred[offset]), pal4bit(m_palgreen[offset]), pal4bit(m_palblue[offset]));
 }
 
-WRITE8_MEMBER(c65_state::PalRed_w)
+void c65_state::PalRed_w(offs_t offset, uint8_t data)
 {
 	m_palred[offset] = data;
 	PalEntryFlush(offset);
 }
 
-WRITE8_MEMBER(c65_state::PalGreen_w)
+void c65_state::PalGreen_w(offs_t offset, uint8_t data)
 {
 	m_palgreen[offset] = data;
 	PalEntryFlush(offset);
 }
 
-WRITE8_MEMBER(c65_state::PalBlue_w)
+void c65_state::PalBlue_w(offs_t offset, uint8_t data)
 {
 	m_palblue[offset] = data;
 	PalEntryFlush(offset);
 }
 
-READ8_MEMBER(c65_state::uart_r)
+uint8_t c65_state::uart_r(offs_t offset)
 {
 	switch (offset)
 	{
@@ -306,7 +306,7 @@ READ8_MEMBER(c65_state::uart_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(c65_state::uart_w)
+void c65_state::uart_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -385,14 +385,14 @@ void c65_state::DMAgicExecute(address_space &space,uint32_t address)
 }
 
 
-WRITE8_MEMBER(c65_state::DMAgic_w)
+void c65_state::DMAgic_w(address_space &space, offs_t offset, uint8_t data)
 {
 	m_dmalist[offset] = data;
 	if(offset == 0)
 		DMAgicExecute(space,(m_dmalist[0])|(m_dmalist[1]<<8)|(m_dmalist[2]<<16));
 }
 
-READ8_MEMBER(c65_state::CIASelect_r)
+uint8_t c65_state::CIASelect_r(offs_t offset)
 {
 	if(m_VIC3_ControlA & 1)
 		return m_cram[offset];
@@ -402,9 +402,9 @@ READ8_MEMBER(c65_state::CIASelect_r)
 		switch((offset & 0x700) | 0x800)
 		{
 			case 0xc00:
-				return m_cia0->read(space,offset);
+				return m_cia0->read(offset);
 			case 0xd00:
-				return m_cia1->read(space,offset);
+				return m_cia1->read(offset);
 			default:
 				printf("Unknown I/O access read to offset %04x\n",offset);
 				break;
@@ -415,7 +415,7 @@ READ8_MEMBER(c65_state::CIASelect_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(c65_state::CIASelect_w)
+void c65_state::CIASelect_w(offs_t offset, uint8_t data)
 {
 	if(m_VIC3_ControlA & 1)
 		m_cram[offset] = data;
@@ -425,26 +425,26 @@ WRITE8_MEMBER(c65_state::CIASelect_w)
 		switch((offset & 0x700) | 0x800)
 		{
 			case 0xc00:
-				m_cia0->write(space,offset,data);
+				m_cia0->write(offset, data);
 				break;
 
 			case 0xd00:
-				m_cia1->write(space,offset,data);
+				m_cia1->write(offset, data);
 				break;
 			default:
-				printf("Unknown I/O access write to offset %04x data = %02x\n",offset,data);
+				printf("Unknown I/O access write to offset %04x data = %02x\n", offset, data);
 				break;
 		}
 	}
 
 }
 
-READ8_MEMBER(c65_state::cia0_porta_r)
+uint8_t c65_state::cia0_porta_r()
 {
 	return 0xff;
 }
 
-READ8_MEMBER(c65_state::cia0_portb_r)
+uint8_t c65_state::cia0_portb_r()
 {
 	static const char *const c64ports[] = { "C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7" };
 	static const char *const c65ports[] = { "C8", "C9" };
@@ -470,17 +470,17 @@ READ8_MEMBER(c65_state::cia0_portb_r)
 	return res;
 }
 
-WRITE8_MEMBER(c65_state::cia0_porta_w)
+void c65_state::cia0_porta_w(uint8_t data)
 {
 	m_keyb_c0_c7 = ~data;
 //  printf("%02x\n",m_keyb_c0_c7);
 }
 
-WRITE8_MEMBER(c65_state::cia0_portb_w)
+void c65_state::cia0_portb_w(uint8_t data)
 {
 }
 
-READ8_MEMBER(c65_state::dummy_r)
+uint8_t c65_state::dummy_r()
 {
 	return 0;
 }
@@ -499,7 +499,7 @@ void c65_state::c65_map(address_map &map)
 	// 0x0d440, 0x0d4*f Left  SID
 	map(0x0d600, 0x0d6ff).rw(FUNC(c65_state::uart_r), FUNC(c65_state::uart_w));
 	map(0x0d700, 0x0d702).w(FUNC(c65_state::DMAgic_w)).share("dmalist"); // 0x0d700, 0x0d7** DMAgic
-	//AM_RANGE(0x0d703, 0x0d703) AM_READ(DMAgic_r)
+	//map(0x0d703, 0x0d703).r(FUNC(c65_state::DMAgic_r));
 	// 0x0d800, 0x0d8** Color matrix
 	map(0x0d800, 0x0dfff).rw(FUNC(c65_state::CIASelect_r), FUNC(c65_state::CIASelect_w)).share("cram");
 	// 0x0dc00, 0x0dc** CIA-1
@@ -684,39 +684,39 @@ WRITE_LINE_MEMBER(c65_state::cia0_irq)
 //  c65_irq(state || m_vicirq);
 }
 
-MACHINE_CONFIG_START(c65_state::c65)
-
+void c65_state::c65(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M4510, MAIN_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(c65_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", c65_state, vic3_vblank_irq)
+	M4510(config, m_maincpu, MAIN_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &c65_state::c65_map);
+	m_maincpu->set_vblank_int("screen", FUNC(c65_state::vic3_vblank_irq));
 
-	MCFG_DEVICE_ADD("cia_0", MOS6526, MAIN_CLOCK)
-	MCFG_MOS6526_TOD(60)
-	MCFG_MOS6526_IRQ_CALLBACK(WRITELINE(*this, c65_state, cia0_irq))
-	MCFG_MOS6526_PA_INPUT_CALLBACK(READ8(*this, c65_state, cia0_porta_r))
-	MCFG_MOS6526_PA_OUTPUT_CALLBACK(WRITE8(*this, c65_state, cia0_porta_w))
-	MCFG_MOS6526_PB_INPUT_CALLBACK(READ8(*this, c65_state, cia0_portb_r))
-	MCFG_MOS6526_PB_OUTPUT_CALLBACK(WRITE8(*this, c65_state, cia0_portb_w))
+	MOS6526(config, m_cia0, MAIN_CLOCK);
+	m_cia0->set_tod_clock(60);
+	m_cia0->irq_wr_callback().set(FUNC(c65_state::cia0_irq));
+	m_cia0->pa_rd_callback().set(FUNC(c65_state::cia0_porta_r));
+	m_cia0->pa_wr_callback().set(FUNC(c65_state::cia0_porta_w));
+	m_cia0->pb_rd_callback().set(FUNC(c65_state::cia0_portb_r));
+	m_cia0->pb_wr_callback().set(FUNC(c65_state::cia0_portb_w));
 
-	MCFG_DEVICE_ADD("cia_1", MOS6526, MAIN_CLOCK)
-	MCFG_MOS6526_TOD(60)
-//  MCFG_MOS6526_IRQ_CALLBACK(WRITELINE(*this, c65_state, c65_cia1_interrupt))
-//  MCFG_MOS6526_PA_INPUT_CALLBACK(READ8(*this, c65_state, c65_cia1_port_a_r))
-//  MCFG_MOS6526_PA_OUTPUT_CALLBACK(WRITE8(*this, c65_state, c65_cia1_port_a_w))
+	MOS6526(config, m_cia1, MAIN_CLOCK);
+	m_cia1->set_tod_clock(60);
+//  m_cia1->irq_wr_callback().set(FUNC(c65_state::c65_cia1_interrupt));
+//  m_cia1->pa_rd_callback().set(FUNC(c65_state::c65_cia1_port_a_r));
+//  m_cia1->pa_wr_callback().set(FUNC(c65_state::c65_cia1_port_a_w));
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-//  MCFG_SCREEN_REFRESH_RATE(60)
-//  MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_UPDATE_DRIVER(c65_state, screen_update)
-//  MCFG_SCREEN_SIZE(32*8, 32*8)
-//  MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_RAW_PARAMS(MAIN_CLOCK*4, 910, 0, 640, 262, 0, 200) // mods needed
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+//  m_screen->set_refresh_hz(60);
+//  m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	m_screen->set_screen_update(FUNC(c65_state::screen_update));
+//  m_screen->set_size(32*8, 32*8);
+//  m_screen->set_visarea(0*8, 32*8-1, 0*8, 32*8-1);
+	m_screen->set_raw(MAIN_CLOCK*4, 910, 0, 640, 262, 0, 200); // mods needed
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_c65)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_c65);
 
 	PALETTE(config, m_palette, FUNC(c65_state::c65_palette), 0x100);
 
@@ -726,8 +726,8 @@ MACHINE_CONFIG_START(c65_state::c65)
 	// 2x 8580 SID
 
 	// software list
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "c65_flop")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "flop_list").set_original("c65_flop");
+}
 
 
 /***************************************************************************

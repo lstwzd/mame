@@ -35,10 +35,10 @@ void m52_state::init_palette()
 	const uint8_t *char_pal = memregion("tx_pal")->base();
 	for (int i = 0; i < 512; i++)
 	{
-		uint8_t promval = char_pal[i];
-		int r = combine_3_weights(weights_r, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
-		int g = combine_3_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
-		int b = combine_2_weights(weights_b, BIT(promval, 6), BIT(promval, 7));
+		uint8_t const promval = char_pal[i];
+		int const r = combine_weights(weights_r, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
+		int const g = combine_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
+		int const b = combine_weights(weights_b, BIT(promval, 6), BIT(promval, 7));
 
 		m_tx_palette->set_pen_color(i, rgb_t(r, g, b));
 	}
@@ -48,9 +48,9 @@ void m52_state::init_palette()
 	for (int i = 0; i < 32; i++)
 	{
 		uint8_t promval = back_pal[i];
-		int r = combine_3_weights(weights_r, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
-		int g = combine_3_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
-		int b = combine_2_weights(weights_b, BIT(promval, 6), BIT(promval, 7));
+		int r = combine_weights(weights_r, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
+		int g = combine_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
+		int b = combine_weights(weights_b, BIT(promval, 6), BIT(promval, 7));
 
 		m_bg_palette->set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -81,7 +81,8 @@ void m52_state::init_palette()
 	init_sprite_palette(resistances_3, resistances_2, weights_r, weights_g, weights_b, scale);
 }
 
-void m52_state::init_sprite_palette(const int *resistances_3, const int *resistances_2, double *weights_r, double *weights_g, double *weights_b, double scale)
+template <size_t N, size_t O, size_t P>
+void m52_state::init_sprite_palette(const int *resistances_3, const int *resistances_2, double (&weights_r)[N], double (&weights_g)[O], double (&weights_b)[P], double scale)
 {
 	const uint8_t *sprite_pal = memregion("spr_pal")->base();
 	const uint8_t *sprite_table = memregion("spr_clut")->base();
@@ -95,10 +96,10 @@ void m52_state::init_sprite_palette(const int *resistances_3, const int *resista
 	/* sprite palette */
 	for (int i = 0; i < 32; i++)
 	{
-		uint8_t promval = sprite_pal[i];
-		int r = combine_2_weights(weights_r, BIT(promval, 6), BIT(promval, 7));
-		int g = combine_3_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
-		int b = combine_3_weights(weights_b, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
+		uint8_t const promval = sprite_pal[i];
+		int const r = combine_weights(weights_r, BIT(promval, 6), BIT(promval, 7));
+		int const g = combine_weights(weights_g, BIT(promval, 3), BIT(promval, 4), BIT(promval, 5));
+		int const b = combine_weights(weights_b, BIT(promval, 0), BIT(promval, 1), BIT(promval, 2));
 
 		m_sp_palette->set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -138,7 +139,7 @@ TILE_GET_INFO_MEMBER(m52_state::get_tile_info)
 		flag |= TILE_FORCE_LAYER0; /* lines 0 to 6 are opaqe? */
 	}
 
-	SET_TILE_INFO_MEMBER(0, code, color & 0x7f, flag);
+	tileinfo.set(0, code, color & 0x7f, flag);
 }
 
 
@@ -151,7 +152,7 @@ TILE_GET_INFO_MEMBER(m52_state::get_tile_info)
 
 void m52_state::video_start()
 {
-	m_tx_tilemap = &machine().tilemap().create(*m_tx_gfxdecode, tilemap_get_info_delegate(FUNC(m52_state::get_tile_info),this), TILEMAP_SCAN_ROWS,  8, 8, 32, 32);
+	m_tx_tilemap = &machine().tilemap().create(*m_tx_gfxdecode, tilemap_get_info_delegate(*this, FUNC(m52_state::get_tile_info)), TILEMAP_SCAN_ROWS,  8, 8, 32, 32);
 
 	m_tx_tilemap->set_transparent_pen(0);
 	m_tx_tilemap->set_scrolldx(127, 127);
@@ -192,7 +193,7 @@ void m52_alpha1v_state::video_start()
  *
  *************************************/
 
-WRITE8_MEMBER(m52_state::m52_scroll_w)
+void m52_state::m52_scroll_w(uint8_t data)
 {
 /*
     According to the schematics there is only one video register that holds the X scroll value
@@ -207,7 +208,7 @@ WRITE8_MEMBER(m52_state::m52_scroll_w)
 	m_tx_tilemap->set_scrollx(3, -(data + 1));
 }
 
-WRITE8_MEMBER(m52_alpha1v_state::m52_scroll_w)
+void m52_alpha1v_state::m52_scroll_w(uint8_t data)
 {
 /*
    alpha1v must have some board mod to invert scroll register use, as it expects only the first block to remain static
@@ -228,14 +229,14 @@ WRITE8_MEMBER(m52_alpha1v_state::m52_scroll_w)
  *
  *************************************/
 
-WRITE8_MEMBER(m52_state::m52_videoram_w)
+void m52_state::m52_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_tx_tilemap->mark_tile_dirty(offset);
 }
 
 
-WRITE8_MEMBER(m52_state::m52_colorram_w)
+void m52_state::m52_colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_tx_tilemap->mark_tile_dirty(offset);
@@ -252,7 +253,7 @@ WRITE8_MEMBER(m52_state::m52_colorram_w)
 /* This looks like some kind of protection implemented by a custom chip on the
    scroll board. It mangles the value written to the port m52_bg1xpos_w, as
    follows: result = popcount(value & 0x7f) ^ (value >> 7) */
-READ8_MEMBER(m52_state::m52_protection_r)
+uint8_t m52_state::m52_protection_r()
 {
 	int popcount = 0;
 	int temp;
@@ -270,27 +271,27 @@ READ8_MEMBER(m52_state::m52_protection_r)
  *
  *************************************/
 
-WRITE8_MEMBER(m52_state::m52_bg1ypos_w)
+void m52_state::m52_bg1ypos_w(uint8_t data)
 {
 	m_bg1ypos = data;
 }
 
-WRITE8_MEMBER(m52_state::m52_bg1xpos_w)
+void m52_state::m52_bg1xpos_w(uint8_t data)
 {
 	m_bg1xpos = data;
 }
 
-WRITE8_MEMBER(m52_state::m52_bg2xpos_w)
+void m52_state::m52_bg2xpos_w(uint8_t data)
 {
 	m_bg2xpos = data;
 }
 
-WRITE8_MEMBER(m52_state::m52_bg2ypos_w)
+void m52_state::m52_bg2ypos_w(uint8_t data)
 {
 	m_bg2ypos = data;
 }
 
-WRITE8_MEMBER(m52_state::m52_bgcontrol_w)
+void m52_state::m52_bgcontrol_w(uint8_t data)
 {
 	m_bgcontrol = data;
 }
@@ -303,7 +304,7 @@ WRITE8_MEMBER(m52_state::m52_bgcontrol_w)
  *
  *************************************/
 
-WRITE8_MEMBER(m52_state::m52_flipscreen_w)
+void m52_state::m52_flipscreen_w(uint8_t data)
 {
 	/* screen flip is handled both by software and hardware */
 	flip_screen_set((data & 0x01) ^ (~ioport("DSW2")->read() & 0x01));
@@ -312,7 +313,7 @@ WRITE8_MEMBER(m52_state::m52_flipscreen_w)
 	machine().bookkeeping().coin_counter_w(1, data & 0x20);
 }
 
-WRITE8_MEMBER(m52_alpha1v_state::alpha1v_flipscreen_w)
+void m52_alpha1v_state::alpha1v_flipscreen_w(uint8_t data)
 {
 	flip_screen_set(data & 0x01);
 }

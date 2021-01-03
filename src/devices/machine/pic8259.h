@@ -31,7 +31,7 @@
 class pic8259_device : public device_t
 {
 public:
-	pic8259_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	pic8259_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	auto out_int_callback() { return m_out_int_func.bind(); } // Interrupt request output to CPU or master 8259 (active high)
 	auto in_sp_callback() { return m_in_sp_func.bind(); } // Slave program select (VCC = master; GND = slave; pin becomes EN output in buffered mode)
@@ -39,7 +39,7 @@ public:
 
 	uint8_t read(offs_t offset);
 	void write(offs_t offset, uint8_t data);
-	uint32_t acknowledge();
+	uint8_t acknowledge();
 
 	DECLARE_WRITE_LINE_MEMBER( ir0_w ) { set_irq_line(0, state); }
 	DECLARE_WRITE_LINE_MEMBER( ir1_w ) { set_irq_line(1, state); }
@@ -113,12 +113,15 @@ private:
 	uint8_t m_mode;
 	uint8_t m_auto_eoi;
 	uint8_t m_is_x86;
+
+	int8_t m_current_level;
+	uint8_t m_inta_sequence;
 };
 
 class v5x_icu_device : public pic8259_device
 {
 public:
-	v5x_icu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	v5x_icu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 protected:
 	virtual bool is_x86() const override { return true; }

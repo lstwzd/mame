@@ -31,23 +31,21 @@ void inder_vid_device::megaphx_tms_map(address_map &map)
 	map(0x04000030, 0x0400003f).w("ramdac", FUNC(ramdac_device::index_r_w)).umask16(0x00ff);
 	map(0x04000090, 0x0400009f).nopw();
 	map(0x7fc00000, 0x7fffffff).ram().mirror(0x80000000);
-	map(0xc0000000, 0xc00001ff).rw(m_tms, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 }
 
 
 TMS340X0_SCANLINE_RGB32_CB_MEMBER(inder_vid_device::scanline)
 {
-	uint16_t *vram = &m_vram[(params->rowaddr << 8) & 0x3ff00];
-	uint32_t *dest = &bitmap.pix32(scanline);
+	uint16_t const *const vram = &m_vram[(params->rowaddr << 8) & 0x3ff00];
+	uint32_t *const dest = &bitmap.pix(scanline);
 
 	const pen_t *paldata = m_palette->pens();
 
 	int coladdr = params->coladdr;
-	int x;
 
 	if (m_bpp_mode == 8)
 	{
-		for (x = params->heblnk; x < params->hsblnk; x += 2)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2)
 		{
 			uint16_t pixels = vram[coladdr++ & 0xff];
 			dest[x + 0] = paldata[pixels & 0xff];
@@ -56,7 +54,7 @@ TMS340X0_SCANLINE_RGB32_CB_MEMBER(inder_vid_device::scanline)
 	}
 	else if (m_bpp_mode == 4)
 	{
-		for (x = params->heblnk; x < params->hsblnk; x += 4)
+		for (int x = params->heblnk; x < params->hsblnk; x += 4)
 		{
 			uint16_t pixels = vram[coladdr++ & 0xff];
 			dest[x + 3] = paldata[((pixels & 0xf000) >> 12)];
@@ -97,7 +95,8 @@ void inder_vid_device::ramdac_map(address_map &map)
 	map(0x000, 0x3ff).rw("ramdac", FUNC(ramdac_device::ramdac_pal_r), FUNC(ramdac_device::ramdac_rgb888_w));
 }
 
-MACHINE_CONFIG_START(inder_vid_device::device_add_mconfig)
+void inder_vid_device::device_add_mconfig(machine_config &config)
+{
 	TMS34010(config, m_tms, XTAL(40'000'000));
 	m_tms->set_addrmap(AS_PROGRAM, &inder_vid_device::megaphx_tms_map);
 	m_tms->set_halt_on_reset(true);
@@ -108,17 +107,16 @@ MACHINE_CONFIG_START(inder_vid_device::device_add_mconfig)
 	m_tms->set_shiftreg_in_callback(FUNC(inder_vid_device::to_shiftreg));
 	m_tms->set_shiftreg_out_callback(FUNC(inder_vid_device::from_shiftreg));
 
-	MCFG_SCREEN_ADD("inder_screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(XTAL(40'000'000)/12, 424, 0, 338-1, 262, 0, 246-1)
-	MCFG_SCREEN_UPDATE_DEVICE("tms", tms34010_device, tms340x0_rgb32)
+	screen_device &screen(SCREEN(config, "inder_screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(XTAL(40'000'000)/12, 424, 0, 338-1, 262, 0, 246-1);
+	screen.set_screen_update("tms", FUNC(tms34010_device::tms340x0_rgb32));
 
-	MCFG_PALETTE_ADD(m_palette, 256)
+	PALETTE(config, m_palette).set_entries(256);
 
 	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, m_palette));
 	ramdac.set_addrmap(0, &inder_vid_device::ramdac_map);
 	ramdac.set_split_read(1);
-
-MACHINE_CONFIG_END
+}
 
 
 void inder_vid_device::device_start()

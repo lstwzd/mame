@@ -123,15 +123,15 @@ private:
 	/* memory */
 	std::unique_ptr<uint8_t[]> m_bitmap0[2];
 	std::unique_ptr<uint8_t[]> m_bitmap1[2];
-	DECLARE_WRITE16_MEMBER(pasha2_misc_w);
-	DECLARE_WRITE16_MEMBER(pasha2_palette_w);
-	DECLARE_WRITE16_MEMBER(vbuffer_set_w);
-	DECLARE_WRITE16_MEMBER(vbuffer_clear_w);
-	DECLARE_WRITE8_MEMBER(bitmap_0_w);
-	DECLARE_WRITE8_MEMBER(bitmap_1_w);
-	DECLARE_WRITE16_MEMBER(pasha2_lamps_w);
-	DECLARE_READ16_MEMBER(pasha2_speedup_r);
-	template<int Chip> DECLARE_WRITE16_MEMBER(oki_bank_w);
+	void pasha2_misc_w(offs_t offset, uint16_t data);
+	void pasha2_palette_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void vbuffer_set_w(uint16_t data);
+	void vbuffer_clear_w(uint16_t data);
+	void bitmap_0_w(offs_t offset, uint8_t data, uint8_t mem_mask = ~0);
+	void bitmap_1_w(offs_t offset, uint8_t data, uint8_t mem_mask = ~0);
+	void pasha2_lamps_w(uint16_t data);
+	uint16_t pasha2_speedup_r(offs_t offset);
+	template<int Chip> void oki_bank_w(offs_t offset, uint16_t data);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	virtual void video_start() override;
@@ -145,7 +145,7 @@ private:
 };
 
 
-WRITE16_MEMBER(pasha2_state::pasha2_misc_w)
+void pasha2_state::pasha2_misc_w(offs_t offset, uint16_t data)
 {
 	if (offset)
 	{
@@ -167,7 +167,7 @@ WRITE16_MEMBER(pasha2_state::pasha2_misc_w)
 	}
 }
 
-WRITE16_MEMBER(pasha2_state::pasha2_palette_w)
+void pasha2_state::pasha2_palette_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	int color;
 
@@ -182,22 +182,22 @@ WRITE16_MEMBER(pasha2_state::pasha2_palette_w)
 	m_palette->set_pen_color(offset * 2 + 1, pal5bit(color), pal5bit(color >> 5), pal5bit(color >> 10));
 }
 
-WRITE16_MEMBER(pasha2_state::vbuffer_set_w)
+void pasha2_state::vbuffer_set_w(uint16_t data)
 {
 	m_vbuffer = 1;
 }
 
-WRITE16_MEMBER(pasha2_state::vbuffer_clear_w)
+void pasha2_state::vbuffer_clear_w(uint16_t data)
 {
 	m_vbuffer = 0;
 }
 
-WRITE8_MEMBER(pasha2_state::bitmap_0_w)
+void pasha2_state::bitmap_0_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
 	COMBINE_DATA(&m_bitmap0[m_vbuffer][offset]);
 }
 
-WRITE8_MEMBER(pasha2_state::bitmap_1_w)
+void pasha2_state::bitmap_1_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
 	// handle overlapping pixels without writing them
 	if ((data & 0xff) == 0xff)
@@ -207,13 +207,13 @@ WRITE8_MEMBER(pasha2_state::bitmap_1_w)
 }
 
 template<int Chip>
-WRITE16_MEMBER(pasha2_state::oki_bank_w)
+void pasha2_state::oki_bank_w(offs_t offset, uint16_t data)
 {
 	if (offset)
 		m_oki[Chip]->set_rom_bank(data & 1);
 }
 
-WRITE16_MEMBER(pasha2_state::pasha2_lamps_w)
+void pasha2_state::pasha2_lamps_w(uint16_t data)
 {
 	for (int p = 0; p < 3; p++)
 	{
@@ -356,28 +356,25 @@ void pasha2_state::video_start()
 
 uint32_t pasha2_state::screen_update_pasha2(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int x, y, count;
-	int color;
-
 	/* 2 512x256 bitmaps */
 
-	for (y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
 	{
-		count = cliprect.min_x | (y << 9);
-		for (x = cliprect.min_x; x <= cliprect.max_x; x++)
+		int count = cliprect.min_x | (y << 9);
+		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
 		{
-			bitmap.pix16(y, x) = m_bitmap0[(m_vbuffer ^ 1)][count++] | 0x100;
+			bitmap.pix(y, x) = m_bitmap0[(m_vbuffer ^ 1)][count++] | 0x100;
 		}
 	}
 
-	for (y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
 	{
-		count = cliprect.min_x | (y << 9);
-		for (x = cliprect.min_x; x <= cliprect.max_x; x++)
+		int count = cliprect.min_x | (y << 9);
+		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
 		{
-			color = m_bitmap1[(m_vbuffer ^ 1)][count++];
+			int color = m_bitmap1[(m_vbuffer ^ 1)][count++];
 			if (color != 0)
-				bitmap.pix16(y, x) = color;
+				bitmap.pix(y, x) = color;
 
 		}
 	}
@@ -398,41 +395,39 @@ void pasha2_state::machine_reset()
 	m_vbuffer = 0;
 }
 
-MACHINE_CONFIG_START(pasha2_state::pasha2)
-
+void pasha2_state::pasha2(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", E116XT, 20000000*4)     /* 4x internal multiplier */
-	MCFG_DEVICE_PROGRAM_MAP(pasha2_map)
-	MCFG_DEVICE_IO_MAP(pasha2_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", pasha2_state,  irq0_line_hold)
+	E116XT(config, m_maincpu, 20000000*4);     /* 4x internal multiplier */
+	m_maincpu->set_addrmap(AS_PROGRAM, &pasha2_state::pasha2_map);
+	m_maincpu->set_addrmap(AS_IO, &pasha2_state::pasha2_io);
+	m_maincpu->set_vblank_int("screen", FUNC(pasha2_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("audiocpu", AT89C52, 12000000)     /* clock from docs */
+	AT89C52(config, m_audiocpu, 12000000);     /* clock from docs */
 	/* TODO : ports are unimplemented; P0,P1,P2,P3 and Serial Port Used */
 
 	EEPROM_93C46_16BIT(config, "eeprom");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 383, 0, 239)
-	MCFG_SCREEN_UPDATE_DRIVER(pasha2_state, screen_update_pasha2)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(512, 512);
+	screen.set_visarea(0, 383, 0, 239);
+	screen.set_screen_update(FUNC(pasha2_state::screen_update_pasha2));
+	screen.set_palette(m_palette);
 
 	PALETTE(config, m_palette).set_entries(0x200);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki1", OKIM6295, 1000000, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	OKIM6295(config, m_oki[0], 1000000, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
 
-	MCFG_DEVICE_ADD("oki2", OKIM6295, 1000000, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	OKIM6295(config, m_oki[1], 1000000, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
 
 	//and ATMEL DREAM SAM9773
-MACHINE_CONFIG_END
+}
 
 ROM_START( pasha2 )
 	ROM_REGION16_BE( 0x80000, "maincpu", 0 ) /* Hyperstone CPU Code */
@@ -458,7 +453,7 @@ ROM_START( pasha2 )
 	ROM_LOAD( "pp2.um53",     0x00000, 0x80000, CRC(8a29ad03) SHA1(3e9b0c86d8e3bb0b7691f68ad45431f6f9e8edbd) )
 ROM_END
 
-READ16_MEMBER(pasha2_state::pasha2_speedup_r)
+uint16_t pasha2_state::pasha2_speedup_r(offs_t offset)
 {
 	if(m_maincpu->pc() == 0x8302)
 		m_maincpu->spin_until_interrupt();
@@ -468,7 +463,7 @@ READ16_MEMBER(pasha2_state::pasha2_speedup_r)
 
 void pasha2_state::init_pasha2()
 {
-	m_maincpu->space(AS_PROGRAM).install_read_handler(0x95744, 0x95747, read16_delegate(FUNC(pasha2_state::pasha2_speedup_r), this));
+	m_maincpu->space(AS_PROGRAM).install_read_handler(0x95744, 0x95747, read16sm_delegate(*this, FUNC(pasha2_state::pasha2_speedup_r)));
 
 	m_mainbank->configure_entries(0, 6, memregion("bankeddata")->base(), 0x400000);
 	m_mainbank->set_entry(0);

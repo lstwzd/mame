@@ -103,7 +103,7 @@ void powermate_ide_device::device_start()
 //  adam_bd_r - buffered data read
 //-------------------------------------------------
 
-uint8_t powermate_ide_device::adam_bd_r(address_space &space, offs_t offset, uint8_t data, int bmreq, int biorq, int aux_rom_cs, int cas1, int cas2)
+uint8_t powermate_ide_device::adam_bd_r(offs_t offset, uint8_t data, int bmreq, int biorq, int aux_rom_cs, int cas1, int cas2)
 {
 	if (!biorq)
 	{
@@ -116,7 +116,7 @@ uint8_t powermate_ide_device::adam_bd_r(address_space &space, offs_t offset, uin
 		case 0x05:
 		case 0x06:
 		case 0x07:
-			data = m_ata->read_cs0(offset & 0x07, 0xff);
+			data = m_ata->cs0_r(offset & 0x07, 0xff);
 			break;
 
 		case 0x40: // Printer status
@@ -137,7 +137,7 @@ uint8_t powermate_ide_device::adam_bd_r(address_space &space, offs_t offset, uin
 			break;
 
 		case 0x58:
-			m_ata_data = m_ata->read_cs0(0);
+			m_ata_data = m_ata->cs0_r(0);
 
 			data = m_ata_data & 0xff;
 			break;
@@ -147,7 +147,7 @@ uint8_t powermate_ide_device::adam_bd_r(address_space &space, offs_t offset, uin
 			break;
 
 		case 0x5a:
-			data = m_ata->read_cs1(6, 0xff);
+			data = m_ata->cs1_r(6, 0xff);
 			break;
 
 		case 0x5b: // Digital Input Register
@@ -164,7 +164,7 @@ uint8_t powermate_ide_device::adam_bd_r(address_space &space, offs_t offset, uin
 //  adam_bd_w - buffered data write
 //-------------------------------------------------
 
-void powermate_ide_device::adam_bd_w(address_space &space, offs_t offset, uint8_t data, int bmreq, int biorq, int aux_rom_cs, int cas1, int cas2)
+void powermate_ide_device::adam_bd_w(offs_t offset, uint8_t data, int bmreq, int biorq, int aux_rom_cs, int cas1, int cas2)
 {
 	if (!biorq)
 	{
@@ -176,7 +176,7 @@ void powermate_ide_device::adam_bd_w(address_space &space, offs_t offset, uint8_
 		case 0x05:
 		case 0x06:
 		case 0x07:
-			m_ata->write_cs0(offset & 0x07, data, 0xff);
+			m_ata->cs0_w(offset & 0x07, data, 0xff);
 			break;
 
 		case 0x40:
@@ -188,7 +188,7 @@ void powermate_ide_device::adam_bd_w(address_space &space, offs_t offset, uint8_
 
 		case 0x58:
 			m_ata_data |= data;
-			m_ata->write_cs0(0, m_ata_data);
+			m_ata->cs0_w(0, m_ata_data);
 			break;
 
 		case 0x59:

@@ -51,18 +51,20 @@ INPUT_PORTS_END
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(a2bus_agat7_ports_device::device_add_mconfig)
+void a2bus_agat7_ports_device::device_add_mconfig(machine_config &config)
+{
 	I8255(config, m_d9);
-	m_d9->out_pa_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	m_d9->out_pa_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	m_d9->out_pb_callback().set(FUNC(a2bus_agat7_ports_device::write_portb));
 	m_d9->in_pc_callback().set(FUNC(a2bus_agat7_ports_device::read_portc));
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, a2bus_agat7_ports_device, write_centronics_busy))
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(a2bus_agat7_ports_device::write_centronics_busy));
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	I8251(config, m_d10, 0);
-MACHINE_CONFIG_END
+}
 
 //-------------------------------------------------
 //  input_ports - device-specific input ports
@@ -156,7 +158,7 @@ void a2bus_agat7_ports_device::write_c0nx(uint8_t offset, uint8_t data)
  * 6    /INIT
  * 7    /STROBE
  */
-WRITE8_MEMBER(a2bus_agat7_ports_device::write_portb)
+void a2bus_agat7_ports_device::write_portb(uint8_t data)
 {
 	m_centronics->write_strobe(BIT(data, 5));
 	m_centronics->write_init(BIT(data, 4));
@@ -171,7 +173,7 @@ WRITE8_MEMBER(a2bus_agat7_ports_device::write_portb)
  * 6    dip ABRLEV (0: BUSY, /ACK.  1: READY, ACK)
  * 7    ready signal from device
  */
-READ8_MEMBER(a2bus_agat7_ports_device::read_portc)
+uint8_t a2bus_agat7_ports_device::read_portc()
 {
 	return (m_centronics_busy << 7) | m_printer_cfg->read();
 }

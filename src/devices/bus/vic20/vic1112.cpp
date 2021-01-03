@@ -34,7 +34,7 @@ WRITE_LINE_MEMBER( vic1112_device::via0_irq_w )
 	m_slot->irq_w(m_via0_irq | m_via1_irq);
 }
 
-READ8_MEMBER( vic1112_device::via0_pb_r )
+uint8_t vic1112_device::via0_pb_r()
 {
 	/*
 
@@ -62,7 +62,7 @@ READ8_MEMBER( vic1112_device::via0_pb_r )
 	return data;
 }
 
-WRITE8_MEMBER( vic1112_device::via0_pb_w )
+void vic1112_device::via0_pb_w(uint8_t data)
 {
 	/*
 
@@ -164,7 +164,7 @@ void vic1112_device::device_reset()
 //  vic20_cd_r - cartridge data read
 //-------------------------------------------------
 
-uint8_t vic1112_device::vic20_cd_r(address_space &space, offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
+uint8_t vic1112_device::vic20_cd_r(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
 {
 	if (!io2)
 	{
@@ -184,7 +184,7 @@ uint8_t vic1112_device::vic20_cd_r(address_space &space, offs_t offset, uint8_t 
 //  vic20_cd_w - cartridge data write
 //-------------------------------------------------
 
-void vic1112_device::vic20_cd_w(address_space &space, offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
+void vic1112_device::vic20_cd_w(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
 {
 	if (!io2)
 	{

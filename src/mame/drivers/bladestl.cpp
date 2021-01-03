@@ -57,7 +57,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(bladestl_state::bladestl_scanline)
  *
  *************************************/
 
-READ8_MEMBER(bladestl_state::trackball_r)
+uint8_t bladestl_state::trackball_r(offs_t offset)
 {
 	int curr = m_trackball[offset]->read();
 	int delta = (curr - m_last_track[offset]) & 0xff;
@@ -66,7 +66,7 @@ READ8_MEMBER(bladestl_state::trackball_r)
 	return (delta & 0x80) | (curr >> 1);
 }
 
-WRITE8_MEMBER(bladestl_state::bladestl_bankswitch_w)
+void bladestl_state::bladestl_bankswitch_w(uint8_t data)
 {
 	/* bits 0 & 1 = coin counters */
 	machine().bookkeeping().coin_counter_w(0,data & 0x01);
@@ -86,7 +86,7 @@ WRITE8_MEMBER(bladestl_state::bladestl_bankswitch_w)
 
 }
 
-WRITE8_MEMBER(bladestl_state::bladestl_port_B_w)
+void bladestl_state::bladestl_port_B_w(uint8_t data)
 {
 	// bits 3-5 = ROM bank select
 	m_upd7759->set_rom_bank((data & 0x38) >> 3);
@@ -101,12 +101,12 @@ WRITE8_MEMBER(bladestl_state::bladestl_port_B_w)
 	m_filter1->filter_rc_set_RC(filter_rc_device::LOWPASS, 1000, 2200, 1000, data & 0x01 ? CAP_N(150) : 0); /* YM2203-SSG-A */
 }
 
-READ8_MEMBER(bladestl_state::bladestl_speech_busy_r)
+uint8_t bladestl_state::bladestl_speech_busy_r()
 {
 	return m_upd7759->busy_r() ? 1 : 0;
 }
 
-WRITE8_MEMBER(bladestl_state::bladestl_speech_ctrl_w)
+void bladestl_state::bladestl_speech_ctrl_w(uint8_t data)
 {
 	m_upd7759->reset_w(data & 1);
 	m_upd7759->start_w(data & 2);
@@ -300,43 +300,43 @@ void bladestl_state::machine_reset()
 	for (i = 0; i < 4 ; i++)
 		m_last_track[i] = 0;
 
-	m_soundlatch->acknowledge_w(machine().dummy_space(), 0, 0);
+	m_soundlatch->acknowledge_w();
 }
 
-MACHINE_CONFIG_START(bladestl_state::bladestl)
-
+void bladestl_state::bladestl(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(m_maincpu, HD6309E, XTAL(24'000'000) / 8) // divider not verified (from 007342 custom)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", bladestl_state, bladestl_scanline, "screen", 0, 1)
+	HD6309E(config, m_maincpu, XTAL(24'000'000) / 8); // divider not verified (from 007342 custom)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bladestl_state::main_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(bladestl_state::bladestl_scanline), "screen", 0, 1);
 
-	MCFG_DEVICE_ADD(m_audiocpu, MC6809E, XTAL(24'000'000) / 16)
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	MC6809E(config, m_audiocpu, XTAL(24'000'000) / 16);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &bladestl_state::sound_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	config.set_maximum_quantum(attotime::from_hz(600));
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(bladestl_state, screen_update_bladestl)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(bladestl_state::screen_update_bladestl));
+	screen.set_palette("palette");
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_bladestl);
 	PALETTE(config, "palette", FUNC(bladestl_state::bladestl_palette)).set_format(palette_device::xBGR_555, 32 + 16*16, 32+16);
 
 	K007342(config, m_k007342, 0);
 	m_k007342->set_gfxnum(0);
-	m_k007342->set_tile_callback(FUNC(bladestl_state::bladestl_tile_callback), this);
+	m_k007342->set_tile_callback(FUNC(bladestl_state::bladestl_tile_callback));
 	m_k007342->set_gfxdecode_tag(m_gfxdecode);
 
 	K007420(config, m_k007420, 0);
 	m_k007420->set_bank_limit(0x3ff);
-	m_k007420->set_sprite_callback(FUNC(bladestl_state::bladestl_sprite_callback), this);
+	m_k007420->set_sprite_callback(FUNC(bladestl_state::bladestl_sprite_callback));
 	m_k007420->set_palette_tag("palette");
 
 	K051733(config, "k051733", 0);
@@ -360,13 +360,10 @@ MACHINE_CONFIG_START(bladestl_state::bladestl)
 	ymsnd.add_route(2, "filter3", 0.45);
 	ymsnd.add_route(3, "mono", 0.45);
 
-	MCFG_DEVICE_ADD(m_filter1, FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-	MCFG_DEVICE_ADD(m_filter2, FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-	MCFG_DEVICE_ADD(m_filter3, FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	FILTER_RC(config, m_filter1).add_route(ALL_OUTPUTS, "mono", 1.0);
+	FILTER_RC(config, m_filter2).add_route(ALL_OUTPUTS, "mono", 1.0);
+	FILTER_RC(config, m_filter3).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
 /*************************************

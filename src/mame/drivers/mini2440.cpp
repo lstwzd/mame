@@ -11,7 +11,6 @@
 #include "machine/s3c2440.h"
 #include "machine/smartmed.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "screen.h"
 #include "speaker.h"
 
@@ -50,15 +49,15 @@ private:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	inline void verboselog(int n_level, const char *s_fmt, ...) ATTR_PRINTF(3,4);
-	DECLARE_READ32_MEMBER(s3c2440_gpio_port_r);
-	DECLARE_WRITE32_MEMBER(s3c2440_gpio_port_w);
-	DECLARE_READ32_MEMBER(s3c2440_core_pin_r);
-	DECLARE_WRITE8_MEMBER(s3c2440_nand_command_w );
-	DECLARE_WRITE8_MEMBER(s3c2440_nand_address_w );
-	DECLARE_READ8_MEMBER(s3c2440_nand_data_r );
-	DECLARE_WRITE8_MEMBER(s3c2440_nand_data_w );
-	DECLARE_WRITE16_MEMBER(s3c2440_i2s_data_w );
-	DECLARE_READ32_MEMBER(s3c2440_adc_data_r );
+	uint32_t s3c2440_gpio_port_r(offs_t offset);
+	void s3c2440_gpio_port_w(offs_t offset, uint32_t data);
+	uint32_t s3c2440_core_pin_r(offs_t offset);
+	void s3c2440_nand_command_w(uint8_t data);
+	void s3c2440_nand_address_w(uint8_t data);
+	uint8_t s3c2440_nand_data_r();
+	void s3c2440_nand_data_w(uint8_t data);
+	void s3c2440_i2s_data_w(offs_t offset, uint16_t data);
+	uint32_t s3c2440_adc_data_r(offs_t offset);
 
 	void mini2440_map(address_map &map);
 };
@@ -82,7 +81,7 @@ inline void mini2440_state::verboselog(int n_level, const char *s_fmt, ...)
 
 // GPIO
 
-READ32_MEMBER(mini2440_state::s3c2440_gpio_port_r)
+uint32_t mini2440_state::s3c2440_gpio_port_r(offs_t offset)
 {
 	uint32_t data = m_port[offset];
 	switch (offset)
@@ -99,7 +98,7 @@ READ32_MEMBER(mini2440_state::s3c2440_gpio_port_r)
 	return data;
 }
 
-WRITE32_MEMBER(mini2440_state::s3c2440_gpio_port_w)
+void mini2440_state::s3c2440_gpio_port_w(offs_t offset, uint32_t data)
 {
 	// tout2/gb2 -> uda1341ts l3mode
 	// tout3/gb3 -> uda1341ts l3data
@@ -128,7 +127,7 @@ NCON: NAND flash memory selection (Normal / Advance)
 
 */
 
-READ32_MEMBER(mini2440_state::s3c2440_core_pin_r)
+uint32_t mini2440_state::s3c2440_core_pin_r(offs_t offset)
 {
 	int data = 0;
 	switch (offset)
@@ -142,29 +141,29 @@ READ32_MEMBER(mini2440_state::s3c2440_core_pin_r)
 
 // NAND
 
-WRITE8_MEMBER(mini2440_state::s3c2440_nand_command_w )
+void mini2440_state::s3c2440_nand_command_w(uint8_t data)
 {
 	m_nand->command_w(data);
 }
 
-WRITE8_MEMBER(mini2440_state::s3c2440_nand_address_w )
+void mini2440_state::s3c2440_nand_address_w(uint8_t data)
 {
 	m_nand->address_w(data);
 }
 
-READ8_MEMBER(mini2440_state::s3c2440_nand_data_r )
+uint8_t mini2440_state::s3c2440_nand_data_r()
 {
 	return m_nand->data_r();
 }
 
-WRITE8_MEMBER(mini2440_state::s3c2440_nand_data_w )
+void mini2440_state::s3c2440_nand_data_w(uint8_t data)
 {
 	m_nand->data_w(data);
 }
 
 // I2S
 
-WRITE16_MEMBER(mini2440_state::s3c2440_i2s_data_w )
+void mini2440_state::s3c2440_i2s_data_w(offs_t offset, uint16_t data)
 {
 	if ( offset )
 		m_ldac->write(data);
@@ -174,7 +173,7 @@ WRITE16_MEMBER(mini2440_state::s3c2440_i2s_data_w )
 
 // ADC
 
-READ32_MEMBER(mini2440_state::s3c2440_adc_data_r )
+uint32_t mini2440_state::s3c2440_adc_data_r(offs_t offset)
 {
 	uint32_t data = 0;
 	switch (offset)
@@ -212,7 +211,7 @@ void mini2440_state::machine_reset()
 
 void mini2440_state::mini2440_map(address_map &map)
 {
-//  AM_RANGE(0x00000000, 0x001fffff) AM_ROM
+//  map(0x00000000, 0x001fffff).rom();
 	map(0x30000000, 0x37ffffff).ram();
 }
 
@@ -225,27 +224,24 @@ void mini2440_state::init_mini2440()
 	// do nothing
 }
 
-MACHINE_CONFIG_START(mini2440_state::mini2440)
-	MCFG_DEVICE_ADD("maincpu", ARM920T, 400000000)
-	MCFG_DEVICE_PROGRAM_MAP(mini2440_map)
+void mini2440_state::mini2440(machine_config &config)
+{
+	ARM920T(config, m_maincpu, 400000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &mini2440_state::mini2440_map);
 
-	MCFG_PALETTE_ADD("palette", 32768)
+	PALETTE(config, "palette").set_entries(32768);
 
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(1024, 768)
-	MCFG_SCREEN_VISIBLE_AREA(0, 239, 0, 319)
-
-	MCFG_SCREEN_UPDATE_DEVICE("s3c2440", s3c2440_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(1024, 768);
+	screen.set_visarea(0, 239, 0, 319);
+	screen.set_screen_update("s3c2440", FUNC(s3c2440_device::screen_update));
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-	MCFG_DEVICE_ADD("ldac", UDA1341TS, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0) // uda1341ts.u12
-	MCFG_DEVICE_ADD("rdac", UDA1341TS, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0) // uda1341ts.u12
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "ldac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "ldac", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "rdac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "rdac", -1.0, DAC_VREF_NEG_INPUT)
+	UDA1341TS(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 1.0); // uda1341ts.u12
+	UDA1341TS(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 1.0); // uda1341ts.u12
 
 	S3C2440(config, m_s3c2440, 12000000);
 	m_s3c2440->set_palette_tag("palette");
@@ -263,11 +259,11 @@ MACHINE_CONFIG_START(mini2440_state::mini2440)
 	NAND(config, m_nand, 0);
 	m_nand->set_nand_type(nand_device::chip::K9F1G08U0B);
 	m_nand->rnb_wr_callback().set(m_s3c2440, FUNC(s3c2440_device::frnb_w));
-MACHINE_CONFIG_END
+}
 
 static INPUT_PORTS_START( mini2440 )
 	PORT_START( "PENB" )
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Pen Button") PORT_CHANGED_MEMBER(DEVICE_SELF, mini2440_state, mini2440_input_changed, nullptr) PORT_PLAYER(1)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Pen Button") PORT_CHANGED_MEMBER(DEVICE_SELF, mini2440_state, mini2440_input_changed, 0) PORT_PLAYER(1)
 	PORT_START( "PENX" )
 	PORT_BIT( 0x3ff, 0x200, IPT_LIGHTGUN_X ) PORT_NAME("Pen X") PORT_MINMAX(80, 950) PORT_SENSITIVITY(50) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_KEYDELTA(30) PORT_PLAYER(1)
 	PORT_START( "PENY" )

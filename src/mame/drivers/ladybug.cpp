@@ -73,7 +73,7 @@ TODO:
 
 
 // Protection?
-READ8_MEMBER(sraider_state::sraider_8005_r)
+uint8_t sraider_state::sraider_8005_r()
 {
 	// This must return X011111X or cpu #1 will hang
 	// see code at rst $10
@@ -81,7 +81,7 @@ READ8_MEMBER(sraider_state::sraider_8005_r)
 }
 
 // Unknown IO
-WRITE8_MEMBER(sraider_state::sraider_misc_w)
+void sraider_state::sraider_misc_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -122,8 +122,8 @@ void ladybug_state::ladybug_map(address_map &map)
 	map(0x9002, 0x9002).portr("DSW0");
 	map(0x9003, 0x9003).portr("DSW1");
 	map(0xa000, 0xa007).w("videolatch", FUNC(ls259_device::write_d0));
-	map(0xb000, 0xbfff).w("sn1", FUNC(sn76489_device::command_w));
-	map(0xc000, 0xcfff).w("sn2", FUNC(sn76489_device::command_w));
+	map(0xb000, 0xbfff).w("sn1", FUNC(sn76489_device::write));
+	map(0xc000, 0xcfff).w("sn2", FUNC(sn76489_device::write));
 	map(0xd000, 0xd7ff).rw(m_video, FUNC(ladybug_video_device::bg_r), FUNC(ladybug_video_device::bg_w));
 	map(0xe000, 0xe000).portr("IN2");
 }
@@ -165,11 +165,11 @@ void sraider_state::sraider_cpu2_map(address_map &map)
 void sraider_state::sraider_cpu2_io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x00, 0x00).w("sn1", FUNC(sn76489_device::command_w));
-	map(0x08, 0x08).w("sn2", FUNC(sn76489_device::command_w));
-	map(0x10, 0x10).w("sn3", FUNC(sn76489_device::command_w));
-	map(0x18, 0x18).w("sn4", FUNC(sn76489_device::command_w));
-	map(0x20, 0x20).w("sn5", FUNC(sn76489_device::command_w));
+	map(0x00, 0x00).w("sn1", FUNC(sn76489_device::write));
+	map(0x08, 0x08).w("sn2", FUNC(sn76489_device::write));
+	map(0x10, 0x10).w("sn3", FUNC(sn76489_device::write));
+	map(0x18, 0x18).w("sn4", FUNC(sn76489_device::write));
+	map(0x20, 0x20).w("sn5", FUNC(sn76489_device::write));
 	map(0x28, 0x3f).w(FUNC(sraider_state::sraider_misc_w));  // lots unknown
 }
 
@@ -202,13 +202,13 @@ CUSTOM_INPUT_MEMBER(ladybug_state::ladybug_p2_control_r)
 
 static INPUT_PORTS_START( ladybug )
 	PORT_START("IN0")
-	PORT_BIT( 0x1f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, ladybug_state, ladybug_p1_control_r, nullptr)
+	PORT_BIT( 0x1f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(ladybug_state, ladybug_p1_control_r)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_TILT )
 
 	PORT_START("IN1")
-	PORT_BIT( 0x1f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, ladybug_state, ladybug_p2_control_r, nullptr)
+	PORT_BIT( 0x1f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(ladybug_state, ladybug_p2_control_r)
 	// This should be connected to the 4V clock. I don't think the game uses it.
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	// Note that there are TWO VBlank inputs, one is active low, the other active
@@ -721,20 +721,20 @@ void sraider_state::machine_reset()
 }
 
 
-MACHINE_CONFIG_START(ladybug_state::ladybug)
-
+void ladybug_state::ladybug(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 4000000)   /* 4 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(ladybug_map)
+	Z80(config, m_maincpu, 4000000);   /* 4 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &ladybug_state::ladybug_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 4*8, 28*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(ladybug_state, screen_update_ladybug)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(1*8, 31*8-1, 4*8, 28*8-1);
+	screen.set_screen_update(FUNC(ladybug_state::screen_update_ladybug));
+	screen.set_palette("palette");
 
 	GFXDECODE(config, "gfxdecode", "palette", gfx_ladybug);
 	PALETTE(config, "palette", FUNC(ladybug_state::ladybug_palette), 4*8 + 4*16, 32);
@@ -749,36 +749,36 @@ MACHINE_CONFIG_START(ladybug_state::ladybug)
 
 	SN76489(config, "sn1", 4000000).add_route(ALL_OUTPUTS, "mono", 1.0);
 	SN76489(config, "sn2", 4000000).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(dorodon_state::dorodon)
+void dorodon_state::dorodon(machine_config &config)
+{
 	ladybug(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_OPCODES_MAP(decrypted_opcodes_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_OPCODES, &dorodon_state::decrypted_opcodes_map);
+}
 
-MACHINE_CONFIG_START(sraider_state::sraider)
-
+void sraider_state::sraider(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 4000000)   /* 4 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(sraider_cpu1_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sraider_state,  irq0_line_hold)
+	z80_device &maincpu(Z80(config, "maincpu", 4000000));   /* 4 MHz */
+	maincpu.set_addrmap(AS_PROGRAM, &sraider_state::sraider_cpu1_map);
+	maincpu.set_vblank_int("screen", FUNC(sraider_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("sub", Z80, 4000000)   /* 4 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(sraider_cpu2_map)
-	MCFG_DEVICE_IO_MAP(sraider_cpu2_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sraider_state,  irq0_line_hold)
+	z80_device &sub(Z80(config, "sub", 4000000));   /* 4 MHz */
+	sub.set_addrmap(AS_PROGRAM, &sraider_state::sraider_cpu2_map);
+	sub.set_addrmap(AS_IO, &sraider_state::sraider_cpu2_io_map);
+	sub.set_vblank_int("screen", FUNC(sraider_state::irq0_line_hold));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 4*8, 28*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(sraider_state, screen_update_sraider)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, sraider_state, screen_vblank_sraider))
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(1*8, 31*8-1, 4*8, 28*8-1);
+	screen.set_screen_update(FUNC(sraider_state::screen_update_sraider));
+	screen.screen_vblank().set(FUNC(sraider_state::screen_vblank_sraider));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_sraider);
 	PALETTE(config, m_palette, FUNC(sraider_state::sraider_palette), 4*8 + 4*16 + 32 + 2, 32 + 32 + 1);
@@ -794,7 +794,7 @@ MACHINE_CONFIG_START(sraider_state::sraider)
 	SN76489(config, "sn3", 4000000).add_route(ALL_OUTPUTS, "mono", 1.0);
 	SN76489(config, "sn4", 4000000).add_route(ALL_OUTPUTS, "mono", 1.0);
 	SN76489(config, "sn5", 4000000).add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
 /***************************************************************************
@@ -1016,7 +1016,7 @@ GAME( 1981, cavenger,  0,       ladybug, cavenger, ladybug_state, empty_init,   
 GAME( 1981, ladybug,   0,       ladybug, ladybug,  ladybug_state, empty_init,   ROT270, "Universal",              "Lady Bug",                                MACHINE_SUPPORTS_SAVE )
 GAME( 1981, ladybugb,  ladybug, ladybug, ladybug,  ladybug_state, empty_init,   ROT270, "bootleg",                "Lady Bug (bootleg set 1)",                MACHINE_SUPPORTS_SAVE )
 GAME( 1981, ladybugb2, ladybug, ladybug, ladybug,  ladybug_state, empty_init,   ROT270, "bootleg (Model Racing)", "Coccinelle (bootleg of Lady Bug, set 2)", MACHINE_SUPPORTS_SAVE ) // title removed, but manual names it Coccinelle
+GAME( 1981, snapjack,  0,       ladybug, snapjack, ladybug_state, empty_init,   ROT0,   "Universal",              "Snap Jack",                               MACHINE_SUPPORTS_SAVE )
 GAME( 1982, dorodon,   0,       dorodon, dorodon,  dorodon_state, init_dorodon, ROT270, "UPL (Falcon license?)",  "Dorodon (set 1)",                         MACHINE_SUPPORTS_SAVE ) // license or bootleg?
 GAME( 1982, dorodon2,  dorodon, dorodon, dorodon,  dorodon_state, init_dorodon, ROT270, "UPL (Falcon license?)",  "Dorodon (set 2)",                         MACHINE_SUPPORTS_SAVE ) // "
-GAME( 1982, snapjack,  0,       ladybug, snapjack, ladybug_state, empty_init,   ROT0,   "Universal",              "Snap Jack",                               MACHINE_SUPPORTS_SAVE )
 GAME( 1982, sraider,   0,       sraider, sraider,  sraider_state, empty_init,   ROT270, "Universal",              "Space Raider",                            MACHINE_SUPPORTS_SAVE )

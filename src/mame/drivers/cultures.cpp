@@ -17,14 +17,15 @@
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 #define MCLK 16000000
 
 class cultures_state : public driver_device
 {
 public:
-	cultures_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	cultures_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_vrambank(*this, "vrambank"),
@@ -67,10 +68,10 @@ public:
 	int      m_irq_enable;
 	int      m_bg1_bank;
 	int      m_bg2_bank;
-	DECLARE_WRITE8_MEMBER(cpu_bankswitch_w);
-	DECLARE_WRITE8_MEMBER(bg0_videoram_w);
-	DECLARE_WRITE8_MEMBER(misc_w);
-	DECLARE_WRITE8_MEMBER(bg_bank_w);
+	void cpu_bankswitch_w(uint8_t data);
+	void bg0_videoram_w(offs_t offset, uint8_t data);
+	void misc_w(uint8_t data);
+	void bg_bank_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_bg1_tile_info);
 	TILE_GET_INFO_MEMBER(get_bg2_tile_info);
 	TILE_GET_INFO_MEMBER(get_bg0_tile_info);
@@ -91,26 +92,26 @@ public:
 TILE_GET_INFO_MEMBER(cultures_state::get_bg1_tile_info)
 {
 	int const code = m_bg1_rom[0x200000/2 + m_bg1_bank * 0x80000/2 + tile_index];
-	SET_TILE_INFO_MEMBER(1, code, code >> 12, 0);
+	tileinfo.set(1, code, code >> 12, 0);
 }
 
 TILE_GET_INFO_MEMBER(cultures_state::get_bg2_tile_info)
 {
 	int const code = m_bg2_rom[0x200000/2 + m_bg2_bank * 0x80000/2 + tile_index];
-	SET_TILE_INFO_MEMBER(2, code, code >> 12, 0);
+	tileinfo.set(2, code, code >> 12, 0);
 }
 
 TILE_GET_INFO_MEMBER(cultures_state::get_bg0_tile_info)
 {
 	int const code = m_bg0_videoram[tile_index * 2] + (m_bg0_videoram[tile_index * 2 + 1] << 8);
-	SET_TILE_INFO_MEMBER(0, code, code >> 12, 0);
+	tileinfo.set(0, code, code >> 12, 0);
 }
 
 void cultures_state::video_start()
 {
-	m_bg0_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(cultures_state::get_bg0_tile_info),this),TILEMAP_SCAN_ROWS, 8, 8, 64, 128);
-	m_bg1_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(cultures_state::get_bg1_tile_info),this),TILEMAP_SCAN_ROWS, 8, 8, 512, 512);
-	m_bg2_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(cultures_state::get_bg2_tile_info),this),TILEMAP_SCAN_ROWS, 8, 8, 512, 512);
+	m_bg0_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(cultures_state::get_bg0_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 128);
+	m_bg1_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(cultures_state::get_bg1_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 512, 512);
+	m_bg2_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(cultures_state::get_bg2_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 512, 512);
 
 	m_bg1_tilemap->set_transparent_pen(0);
 	m_bg0_tilemap->set_transparent_pen(0);
@@ -153,26 +154,26 @@ uint32_t cultures_state::screen_update_cultures(screen_device &screen, bitmap_in
 	return 0;
 }
 
-WRITE8_MEMBER(cultures_state::cpu_bankswitch_w)
+void cultures_state::cpu_bankswitch_w(uint8_t data)
 {
 	m_prgbank->set_entry(data & 0x0f);
 	m_vrambank->set_bank((data & 0x20)>>5);
 }
 
 
-WRITE8_MEMBER(cultures_state::bg0_videoram_w)
+void cultures_state::bg0_videoram_w(offs_t offset, uint8_t data)
 {
 	m_bg0_videoram[offset] = data;
 	m_bg0_tilemap->mark_tile_dirty(offset >> 1);
 }
 
-WRITE8_MEMBER(cultures_state::misc_w)
+void cultures_state::misc_w(uint8_t data)
 {
 	m_okibank->set_entry(data&0x0f);
 	m_irq_enable = data & 0x80;
 }
 
-WRITE8_MEMBER(cultures_state::bg_bank_w)
+void cultures_state::bg_bank_w(uint8_t data)
 {
 	if (m_bg1_bank != (data & 3))
 	{
@@ -404,37 +405,35 @@ void cultures_state::machine_reset()
 
 
 
-MACHINE_CONFIG_START(cultures_state::cultures)
-
+void cultures_state::cultures(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, MCLK/2) /* 8.000 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(cultures_map)
-	MCFG_DEVICE_IO_MAP(cultures_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", cultures_state,  cultures_interrupt)
+	Z80(config, m_maincpu, MCLK/2); /* 8.000 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &cultures_state::cultures_map);
+	m_maincpu->set_addrmap(AS_IO, &cultures_state::cultures_io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(cultures_state::cultures_interrupt));
 
 	ADDRESS_MAP_BANK(config, "vrambank").set_map(&cultures_state::vrambank_map).set_options(ENDIANNESS_LITTLE, 8, 15, 0x4000);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 48*8-1, 0*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(cultures_state, screen_update_cultures)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0*8, 48*8-1, 0*8, 30*8-1);
+	screen.set_screen_update(FUNC(cultures_state::screen_update_cultures));
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_cultures)
-	MCFG_PALETTE_ADD("palette", 0x3000/2)
-	MCFG_PALETTE_FORMAT(xRGBRRRRGGGGBBBB_bit0)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_cultures);
+	PALETTE(config, "palette").set_format(palette_device::xRGBRRRRGGGGBBBB_bit0, 0x3000/2);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, MCLK/8, okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-	MCFG_DEVICE_ADDRESS_MAP(0, oki_map)
-
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", MCLK/8, okim6295_device::PIN7_HIGH)); // clock frequency & pin 7 not verified
+	oki.add_route(ALL_OUTPUTS, "mono", 0.30);
+	oki.set_addrmap(0, &cultures_state::oki_map);
+}
 
 /*
 

@@ -33,9 +33,9 @@ public:
 	void set_type(int type) { m_adpcm_type = type; }
 	void set_outbits(int outbit) { m_output_bits = outbit; }
 
-	DECLARE_READ8_MEMBER( status_r );
-	DECLARE_WRITE8_MEMBER( data_w );
-	DECLARE_WRITE8_MEMBER( ctrl_w );
+	uint8_t status_r();
+	void data_w(uint8_t data);
+	void ctrl_w(uint8_t data);
 
 	void set_divider(int val);
 	int get_vclk();
@@ -47,7 +47,7 @@ protected:
 	virtual void device_clock_changed() override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 
 private:
 	void state_save_register();

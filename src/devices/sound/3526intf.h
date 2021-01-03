@@ -12,16 +12,15 @@ public:
 	ym3526_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 	// configuration helpers
-	template <class Object> devcb_base &set_irq_handler(Object &&cb) { return m_irq_handler.set_callback(std::forward<Object>(cb)); }
 	auto irq_handler() { return m_irq_handler.bind(); }
 
-	DECLARE_READ8_MEMBER( read );
-	DECLARE_WRITE8_MEMBER( write );
+	u8 read(offs_t offset);
+	void write(offs_t offset, u8 data);
 
-	DECLARE_READ8_MEMBER( status_port_r );
-	DECLARE_READ8_MEMBER( read_port_r );
-	DECLARE_WRITE8_MEMBER( control_port_w );
-	DECLARE_WRITE8_MEMBER( write_port_w );
+	u8 status_port_r();
+	u8 read_port_r();
+	void control_port_w(u8 data);
+	void write_port_w(u8 data);
 
 protected:
 	// device-level overrides
@@ -33,7 +32,7 @@ protected:
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 
 private:
 	void irq_handler(int irq);

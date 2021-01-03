@@ -57,15 +57,15 @@ public:
 
 private:
 	// IOX
-	DECLARE_READ8_MEMBER(iox_r);
-	DECLARE_WRITE8_MEMBER(iox_w);
-	DECLARE_READ8_MEMBER(iox_status_r);
+	uint8_t iox_r();
+	void iox_w(uint8_t data);
+	uint8_t iox_status_r();
 	uint8_t m_iox_cmd, m_iox_ret, m_iox_status, m_iox_leds, m_iox_coins;
 	void iox_reset();
 
 	// memory map
-	DECLARE_READ8_MEMBER(irq_ack_r);
-	DECLARE_WRITE8_MEMBER(unk_w);
+	uint8_t irq_ack_r();
+	void unk_w(uint8_t data);
 
 	// machine
 	TIMER_DEVICE_CALLBACK_MEMBER(thedealr_interrupt);
@@ -75,7 +75,7 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	DECLARE_WRITE_LINE_MEMBER(screen_vblank);
 
-	void thedealr(address_map &map);
+	void thedealr_main(address_map &map);
 	void thedealr_sub(address_map &map);
 
 	virtual void machine_start() override;
@@ -110,9 +110,6 @@ void thedealr_state::thedealr_palette(palette_device &palette) const
 uint32_t thedealr_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	bitmap.fill(0x1f0, cliprect);
-
-	m_seta001->set_bg_yoffsets(  0x11+1, -0x10 );   // + is up (down with flip)
-	m_seta001->set_fg_yoffsets( -0x12+1, -0x01 );
 
 	m_seta001->draw_sprites(screen, bitmap, cliprect, 0x1000);
 	return 0;
@@ -150,7 +147,7 @@ void thedealr_state::machine_reset()
 }
 
 // 3400
-READ8_MEMBER(thedealr_state::iox_r)
+uint8_t thedealr_state::iox_r()
 {
 	uint8_t ret = m_iox_ret;
 	m_iox_status &= ~IOX_OUT_FULL;
@@ -158,7 +155,7 @@ READ8_MEMBER(thedealr_state::iox_r)
 	logerror("%s: IOX read %02X\n", machine().describe_context(), ret);
 	return ret;
 }
-WRITE8_MEMBER(thedealr_state::iox_w)
+void thedealr_state::iox_w(uint8_t data)
 {
 	if (m_iox_status & IOX_WAITDATA)
 	{
@@ -253,7 +250,7 @@ WRITE8_MEMBER(thedealr_state::iox_w)
 }
 
 // 3401
-READ8_MEMBER(thedealr_state::iox_status_r)
+uint8_t thedealr_state::iox_status_r()
 {
 	// bit 0 - Out buff full?
 	// bit 1 - In  buff full?
@@ -267,13 +264,13 @@ READ8_MEMBER(thedealr_state::iox_status_r)
 
 ***************************************************************************/
 
-READ8_MEMBER(thedealr_state::irq_ack_r)
+uint8_t thedealr_state::irq_ack_r()
 {
 	m_maincpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
 	return 0;
 }
 
-WRITE8_MEMBER(thedealr_state::unk_w)
+void thedealr_state::unk_w(uint8_t data)
 {
 	// bit 1 - ? 1 during game
 	// bit 2 - ? 0 during game
@@ -282,7 +279,7 @@ WRITE8_MEMBER(thedealr_state::unk_w)
 //  popmessage("UNK %02x", data);
 }
 
-void thedealr_state::thedealr(address_map &map)
+void thedealr_state::thedealr_main(address_map &map)
 {
 	map(0x0000, 0x07ff).ram().share("nvram");
 
@@ -352,7 +349,7 @@ static INPUT_PORTS_START( thedealr )
 	PORT_BIT( 0x0008, IP_ACTIVE_HIGH, IPT_SERVICE1      ) PORT_NAME("Reset") // RST (reset)
 	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_GAMBLE_KEYOUT ) // PAY
 	PORT_BIT( 0x0020, IP_ACTIVE_HIGH, IPT_SERVICE2      ) // (unused?)
-	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_POKER_BET     ) // BET (bet)
+	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_GAMBLE_BET    ) // BET (bet)
 	PORT_BIT( 0x0080, IP_ACTIVE_HIGH, IPT_POKER_CANCEL  ) // MET (cancel? keep pressed to show stats)
 	PORT_BIT( 0x0100, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH   ) PORT_NAME("Big") // BIG (big)
 	PORT_BIT( 0x0200, IP_ACTIVE_HIGH, IPT_GAMBLE_D_UP   ) // D.U (double up?)
@@ -540,22 +537,24 @@ TIMER_DEVICE_CALLBACK_MEMBER(thedealr_state::thedealr_interrupt)
 		m_maincpu->set_input_line(INPUT_LINE_IRQ0, ASSERT_LINE);
 }
 
-MACHINE_CONFIG_START(thedealr_state::thedealr)
-
+void thedealr_state::thedealr(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", R65C02, XTAL(16'000'000)/8)   // 2 MHz?
-	MCFG_DEVICE_PROGRAM_MAP(thedealr)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", thedealr_state, thedealr_interrupt, "screen", 0, 1)
+	R65C02(config, m_maincpu, XTAL(16'000'000)/8);   // 2 MHz?
+	m_maincpu->set_addrmap(AS_PROGRAM, &thedealr_state::thedealr_main);
 
-	MCFG_DEVICE_ADD("subcpu", R65C02, XTAL(16'000'000)/8)    // 2 MHz?
-	MCFG_DEVICE_PROGRAM_MAP(thedealr_sub)
+	TIMER(config, "scantimer").configure_scanline(FUNC(thedealr_state::thedealr_interrupt), "screen", 0, 1);
+
+	R65C02(config, m_subcpu, XTAL(16'000'000)/8);    // 2 MHz?
+	m_subcpu->set_addrmap(AS_PROGRAM, &thedealr_state::thedealr_sub);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
-	SETA001_SPRITE(config, m_seta001, 0);
-	m_seta001->set_gfxdecode_tag("gfxdecode");
+	SETA001_SPRITE(config, m_seta001, 16'000'000, m_palette, gfx_thedealr);
+	m_seta001->set_bg_yoffsets(  0x11+1, -0x10 );   // + is up (down with flip)
+	m_seta001->set_fg_yoffsets( -0x12+1, -0x01 );
 
 	// video hardware
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
@@ -568,7 +567,6 @@ MACHINE_CONFIG_START(thedealr_state::thedealr)
 	screen.screen_vblank().append_inputline(m_subcpu, INPUT_LINE_NMI);
 	screen.set_palette(m_palette);
 
-	GFXDECODE(config, "gfxdecode", m_palette, gfx_thedealr);
 	PALETTE(config, m_palette, FUNC(thedealr_state::thedealr_palette), 512);
 
 	// sound hardware
@@ -577,7 +575,7 @@ MACHINE_CONFIG_START(thedealr_state::thedealr)
 	aysnd.port_a_read_callback().set_ioport("DSW2");
 	aysnd.port_b_read_callback().set_ioport("DSW1");
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 /***************************************************************************
 

@@ -34,6 +34,16 @@ RAM switch
 - Basic will work with 8K or 16K.
 
 
+The monitor
+-----------
+From Basic, do CALL 28672 to enter the monitor - you get a * prompt. Commands:
+D nnnn  - display memory
+G nnnn  - goto an address
+M nnnn  - modify memory
+Type the command letter, then all 4 digits, no need to hit Enter.
+To exit back to Basic, do G 8894 (Basic has no prompt).
+
+
 Status of cart-based games
 --------------------------
 backgammon - works, needs offset of 0x120, bottom line is coming from 0x3E0, should be 0x380
@@ -78,7 +88,6 @@ ToDo:
 #include "machine/ram.h"
 #include "machine/wd_fdc.h"
 #include "sound/spkrdev.h"
-#include "sound/wave.h"
 #include "video/mc6847.h"
 
 #include "bus/apf/slot.h"
@@ -115,16 +124,16 @@ public:
 	void apfimag(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(videoram_r);
-	DECLARE_READ8_MEMBER(pia0_porta_r);
-	DECLARE_WRITE8_MEMBER(pia0_portb_w);
+	uint8_t videoram_r(offs_t offset);
+	uint8_t pia0_porta_r();
+	void pia0_portb_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(pia0_ca2_w);
-	DECLARE_READ8_MEMBER(pia1_porta_r);
-	DECLARE_READ8_MEMBER(pia1_portb_r);
-	DECLARE_WRITE8_MEMBER(pia1_portb_w);
-	DECLARE_WRITE8_MEMBER(apf_dischw_w);
-	DECLARE_READ8_MEMBER(serial_r);
-	DECLARE_WRITE8_MEMBER(serial_w);
+	uint8_t pia1_porta_r();
+	uint8_t pia1_portb_r();
+	void pia1_portb_w(uint8_t data);
+	void apf_dischw_w(offs_t offset, uint8_t data);
+	uint8_t serial_r(offs_t offset);
+	void serial_w(offs_t offset, uint8_t data);
 
 	void apfimag_map(address_map &map);
 	void apfm1000_map(address_map &map);
@@ -154,7 +163,7 @@ private:
 };
 
 
-READ8_MEMBER( apf_state::videoram_r )
+uint8_t apf_state::videoram_r(offs_t offset)
 {
 	if (BIT(m_pad_data, 7)) // AG line
 	{
@@ -185,7 +194,7 @@ READ8_MEMBER( apf_state::videoram_r )
 	}
 }
 
-READ8_MEMBER( apf_state::pia0_porta_r )
+uint8_t apf_state::pia0_porta_r()
 {
 	uint8_t data = 0xff;
 
@@ -196,7 +205,7 @@ READ8_MEMBER( apf_state::pia0_porta_r )
 	return data;
 }
 
-WRITE8_MEMBER( apf_state::pia0_portb_w )
+void apf_state::pia0_portb_w(uint8_t data)
 {
 	/* bit 7..6 video control */
 	m_crtc->ag_w(BIT(data, 7));
@@ -211,12 +220,12 @@ WRITE_LINE_MEMBER( apf_state::pia0_ca2_w )
 	m_ca2 = state;
 }
 
-READ8_MEMBER( apf_state::pia1_porta_r )
+uint8_t apf_state::pia1_porta_r()
 {
 	return m_key[m_keyboard_data]->read();
 }
 
-READ8_MEMBER( apf_state::pia1_portb_r )
+uint8_t apf_state::pia1_portb_r()
 {
 	uint8_t data = m_portb;
 
@@ -227,7 +236,7 @@ READ8_MEMBER( apf_state::pia1_portb_r )
 }
 
 
-WRITE8_MEMBER( apf_state::pia1_portb_w )
+void apf_state::pia1_portb_w(uint8_t data)
 {
 	/* bits 2..0 = keyboard line */
 	/* bit 3 = cass audio enable */
@@ -253,17 +262,24 @@ void apf_state::machine_start()
 		switch (m_cart->get_type())
 		{
 			case APF_BASIC:
-				m_maincpu->space(AS_PROGRAM).install_read_handler(0x6800, 0x7fff, read8_delegate(FUNC(apf_cart_slot_device::extra_rom),(apf_cart_slot_device*)m_cart));
+				m_maincpu->space(AS_PROGRAM).install_read_handler(0x6800, 0x7fff, read8sm_delegate(*m_cart, FUNC(apf_cart_slot_device::extra_rom)));
 				break;
 			case APF_SPACEDST:
 				m_maincpu->space(AS_PROGRAM).unmap_readwrite(0x9800, 0x9fff);
-				m_maincpu->space(AS_PROGRAM).install_readwrite_handler(0x9800, 0x9bff, read8_delegate(FUNC(apf_cart_slot_device::read_ram),(apf_cart_slot_device*)m_cart), write8_delegate(FUNC(apf_cart_slot_device::write_ram),(apf_cart_slot_device*)m_cart));
+				m_maincpu->space(AS_PROGRAM).install_readwrite_handler(0x9800, 0x9bff, read8sm_delegate(*m_cart, FUNC(apf_cart_slot_device::read_ram)), write8sm_delegate(*m_cart, FUNC(apf_cart_slot_device::write_ram)));
 				m_has_cart_ram = true;
 				break;
 		}
 
 		m_cart->save_ram();
 	}
+
+	save_item(NAME(m_latch));
+	save_item(NAME(m_keyboard_data));
+	save_item(NAME(m_pad_data));
+	save_item(NAME(m_portb));
+	save_item(NAME(m_ca2));
+	save_item(NAME(m_has_cart_ram));
 }
 
 
@@ -285,7 +301,7 @@ void apf_state::machine_reset()
 	}
 }
 
-WRITE8_MEMBER( apf_state::apf_dischw_w)
+void apf_state::apf_dischw_w(offs_t offset, uint8_t data)
 {
 	/* bit 3 is index of drive to select */
 	uint8_t drive = BIT(data, 3);
@@ -306,13 +322,13 @@ WRITE8_MEMBER( apf_state::apf_dischw_w)
 	logerror("disc w %04x %04x\n",offset,data);
 }
 
-READ8_MEMBER( apf_state::serial_r)
+uint8_t apf_state::serial_r(offs_t offset)
 {
 	logerror("serial r %04x\n",offset);
 	return 0;
 }
 
-WRITE8_MEMBER( apf_state::serial_w)
+void apf_state::serial_w(offs_t offset, uint8_t data)
 {
 	logerror("serial w %04x %04x\n",offset,data);
 }
@@ -519,70 +535,67 @@ static void apf_cart(device_slot_interface &device)
 }
 
 
-MACHINE_CONFIG_START(apf_state::apfm1000)
-
+void apf_state::apfm1000(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6800, 3.579545_MHz_XTAL / 4)  // divided by 4 in external clock circuit
-	MCFG_DEVICE_PROGRAM_MAP(apfm1000_map)
+	M6800(config, m_maincpu, 3.579545_MHz_XTAL / 4);  // divided by 4 in external clock circuit
+	m_maincpu->set_addrmap(AS_PROGRAM, &apf_state::apfm1000_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MC6847_NTSC_ADD("screen", "mc6847")
+	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
 
-	MCFG_DEVICE_ADD("mc6847", MC6847_NTSC, 3.579545_MHz_XTAL)
-	MCFG_MC6847_FSYNC_CALLBACK(WRITELINE("pia0", pia6821_device, cb1_w))
-	MCFG_MC6847_INPUT_CALLBACK(READ8(*this, apf_state, videoram_r))
-	MCFG_MC6847_FIXED_MODE(mc6847_ntsc_device::MODE_GM2 | mc6847_ntsc_device::MODE_GM1)
+	MC6847_NTSC(config, m_crtc, 3.579545_MHz_XTAL);
+	m_crtc->fsync_wr_callback().set(m_pia0, FUNC(pia6821_device::cb1_w));
+	m_crtc->input_callback().set(FUNC(apf_state::videoram_r));
+	m_crtc->set_get_fixed_mode(mc6847_ntsc_device::MODE_GM2 | mc6847_ntsc_device::MODE_GM1);
+	m_crtc->set_screen("screen");
 	// INTEXT = GND
 	// other lines not connected
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	/* Devices */
 	PIA6821(config, m_pia0, 0);
 	m_pia0->readpa_handler().set(FUNC(apf_state::pia0_porta_r));
 	m_pia0->writepb_handler().set(FUNC(apf_state::pia0_portb_w));
 	m_pia0->ca2_handler().set(FUNC(apf_state::pia0_ca2_w));
-	m_pia0->cb2_handler().set("speaker", FUNC(speaker_sound_device::level_w));
-	m_pia0->irqa_handler().set_inputline("maincpu", M6800_IRQ_LINE);
-	m_pia0->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
+	m_pia0->cb2_handler().set(m_speaker, FUNC(speaker_sound_device::level_w));
+	m_pia0->irqa_handler().set_inputline(m_maincpu, M6800_IRQ_LINE);
+	m_pia0->irqb_handler().set_inputline(m_maincpu, M6800_IRQ_LINE);
 
-	MCFG_APF_CARTRIDGE_ADD("cartslot", apf_cart, nullptr)
+	APF_CART_SLOT(config, m_cart, apf_cart, nullptr);
 
 	/* software lists */
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "apfm1000")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("apfm1000");
+}
 
-MACHINE_CONFIG_START(apf_state::apfimag)
+void apf_state::apfimag(machine_config &config)
+{
 	apfm1000(config);
-	MCFG_DEVICE_MODIFY( "maincpu" )
-	MCFG_DEVICE_PROGRAM_MAP( apfimag_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &apf_state::apfimag_map);
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("8K").set_extra_options("16K");
-
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.15);
 
 	PIA6821(config, m_pia1, 0);
 	m_pia1->readpa_handler().set(FUNC(apf_state::pia1_porta_r));
 	m_pia1->readpb_handler().set(FUNC(apf_state::pia1_portb_r));
 	m_pia1->writepb_handler().set(FUNC(apf_state::pia1_portb_w));
 
-	MCFG_CASSETTE_ADD("cassette")
-	MCFG_CASSETTE_FORMATS(apf_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_SPEAKER_ENABLED | CASSETTE_MOTOR_DISABLED)
-	MCFG_CASSETTE_INTERFACE("apf_cass")
+	CASSETTE(config, m_cass);
+	m_cass->set_formats(apf_cassette_formats);
+	m_cass->set_default_state(CASSETTE_STOPPED | CASSETTE_SPEAKER_ENABLED | CASSETTE_MOTOR_DISABLED);
+	m_cass->add_route(ALL_OUTPUTS, "mono", 0.15);
+	m_cass->set_interface("apf_cass");
 
 	FD1771(config, m_fdc, 1000000); // guess
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", apf_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", apf_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
+	FLOPPY_CONNECTOR(config, "fdc:0", apf_floppies, "525dd", floppy_image_device::default_floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:1", apf_floppies, "525dd", floppy_image_device::default_floppy_formats).enable_sound(true);
 
-	MCFG_SOFTWARE_LIST_ADD("cass_list", "apfimag_cass")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cass_list").set_original("apfimag_cass");
+}
 
 
 /***************************************************************************
@@ -616,5 +629,5 @@ ROM_END
 ***************************************************************************/
 
 //    YEAR  NAME      PARENT    COMPAT  MACHINE   INPUT     CLASS      INIT        COMPANY                 FULLNAME
-COMP( 1979, apfimag,  apfm1000, 0,      apfimag,  apfimag,  apf_state, empty_init, "APF Electronics Inc.", "APF Imagination Machine", 0 )
-CONS( 1978, apfm1000, 0,        0,      apfm1000, apfm1000, apf_state, empty_init, "APF Electronics Inc.", "APF M-1000", 0 )
+COMP( 1979, apfimag,  apfm1000, 0,      apfimag,  apfimag,  apf_state, empty_init, "APF Electronics Inc.", "APF Imagination Machine", MACHINE_SUPPORTS_SAVE )
+CONS( 1978, apfm1000, 0,        0,      apfm1000, apfm1000, apf_state, empty_init, "APF Electronics Inc.", "APF M-1000", MACHINE_SUPPORTS_SAVE )

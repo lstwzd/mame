@@ -3,7 +3,7 @@
 /****************************************************************************
 
     TI-99/4(A) databus multiplexer circuit
-    See datamux.c for documentation
+    See datamux.cpp for documentation
 
     Michael Zapf
 
@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "bus/ti99/ti99defs.h"
 #include "machine/tmc0430.h"
 #include "bus/ti99/gromport/gromport.h"
 #include "bus/ti99/internal/ioport.h"
@@ -24,7 +23,17 @@
 #include "video/tms9928a.h"
 #include "machine/ram.h"
 
-namespace bus { namespace ti99 { namespace internal {
+#define TI99_DATAMUX_TAG     "datamux_16_8"
+#define TI99_GROM0_TAG       "console_grom_0"
+#define TI99_GROM1_TAG       "console_grom_1"
+#define TI99_GROM2_TAG       "console_grom_2"
+#define TI99_PADRAM_TAG      "scratchpad"
+#define TI99_EXPRAM_TAG      "internal_32k_mod"
+#define TI99_CONSOLEROM      "console_rom"
+#define TI99_SOUNDCHIP_TAG   "soundchip"
+#define TI99_VDP_TAG         "vdp"
+
+namespace bus::ti99::internal {
 
 /*
     Main class
@@ -33,9 +42,9 @@ class datamux_device : public device_t
 {
 public:
 	datamux_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
-	DECLARE_READ16_MEMBER( read );
-	DECLARE_WRITE16_MEMBER( write );
-	DECLARE_READ8_MEMBER( setoffset );
+	uint16_t read(offs_t offset);
+	void write(offs_t offset, uint16_t data);
+	void setaddress(offs_t offset, uint16_t busctrl);
 
 	DECLARE_WRITE_LINE_MEMBER( clock_in );
 	DECLARE_WRITE_LINE_MEMBER( dbin_in );
@@ -50,7 +59,6 @@ protected:
 	void device_start() override;
 	void device_stop() override;
 	void device_reset() override;
-	void device_config_complete() override;
 	ioport_constructor device_input_ports() const override;
 
 private:
@@ -75,27 +83,26 @@ private:
 	// Link to the CPU
 	required_device<cpu_device> m_cpu;
 
-	// Keeps the address space pointer
-	address_space* m_spacep;
-
 	// Console ROM
 	uint16_t* m_consolerom;
 
 	// Console GROMs
-	tmc0430_device* m_grom[3];
+	required_device<tmc0430_device> m_grom0;
+	required_device<tmc0430_device> m_grom1;
+	required_device<tmc0430_device> m_grom2;
 
 	// Common read routine
-	void read_all(address_space& space, uint16_t addr, uint8_t *target);
+	void read_all(uint16_t addr, uint8_t *target);
 
 	// Common write routine
-	void write_all(address_space& space, uint16_t addr, uint8_t value);
+	void write_all(uint16_t addr, uint8_t value);
 
 	// Common set address method
-	void setaddress_all(address_space& space, uint16_t addr);
+	void setaddress_all(uint16_t addr);
 
 	// Debugger access
-	uint16_t debugger_read(address_space& space, uint16_t addr);
-	void debugger_write(address_space& space, uint16_t addr, uint16_t data);
+	uint16_t debugger_read(uint16_t addr);
+	void debugger_write(uint16_t addr, uint16_t data);
 
 	// Join own READY and external READY
 	void ready_join();
@@ -140,7 +147,7 @@ private:
 
 /******************************************************************************/
 
-} } } // end namespace bus::ti99::internal
+} // end namespace bus::ti99::internal
 
 DECLARE_DEVICE_TYPE_NS(TI99_DATAMUX, bus::ti99::internal, datamux_device)
 

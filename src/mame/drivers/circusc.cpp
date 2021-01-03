@@ -61,7 +61,6 @@ This bug is due to 380_r02.6h, it differs from 380_q02.6h by 2 bytes, at
 #include "machine/konami1.h"
 #include "machine/watchdog.h"
 #include "sound/discrete.h"
-#include "sound/volt_reg.h"
 
 #include "screen.h"
 #include "speaker.h"
@@ -78,7 +77,7 @@ void circusc_state::machine_reset()
 	m_sn_latch = 0;
 }
 
-READ8_MEMBER(circusc_state::circusc_sh_timer_r)
+uint8_t circusc_state::circusc_sh_timer_r()
 {
 	/* This port reads the output of a counter clocked from the CPU clock.
 	 * The CPU XTAL is 14.31818MHz divided by 4.  It then goes through 10
@@ -91,16 +90,14 @@ READ8_MEMBER(circusc_state::circusc_sh_timer_r)
 	 * Can be shortened to:
 	 */
 
-	int clock;
-
-	clock = m_audiocpu->total_cycles() >> 9;
+	int clock = m_audiocpu->total_cycles() >> 9;
 
 	return clock & 0x1e;
 }
 
-WRITE8_MEMBER(circusc_state::circusc_sh_irqtrigger_w)
+void circusc_state::circusc_sh_irqtrigger_w(uint8_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff);
+	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
 }
 
 WRITE_LINE_MEMBER(circusc_state::coin_counter_1_w)
@@ -113,7 +110,7 @@ WRITE_LINE_MEMBER(circusc_state::coin_counter_2_w)
 	machine().bookkeeping().coin_counter_w(1, state);
 }
 
-WRITE8_MEMBER(circusc_state::circusc_sound_w)
+void circusc_state::circusc_sound_w(offs_t offset, uint8_t data)
 {
 	switch (offset & 7)
 	{
@@ -344,11 +341,11 @@ WRITE_LINE_MEMBER(circusc_state::vblank_irq)
 		m_maincpu->set_input_line(M6809_IRQ_LINE, ASSERT_LINE);
 }
 
-MACHINE_CONFIG_START(circusc_state::circusc)
-
+void circusc_state::circusc(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", KONAMI1, 2048000)        /* 2 MHz? */
-	MCFG_DEVICE_PROGRAM_MAP(circusc_map)
+	KONAMI1(config, m_maincpu, 2048000);        /* 2 MHz? */
+	m_maincpu->set_addrmap(AS_PROGRAM, &circusc_state::circusc_map);
 
 	ls259_device &mainlatch(LS259(config, "mainlatch")); // 2C
 	mainlatch.q_out_cb<0>().set(FUNC(circusc_state::flipscreen_w)); // FLIP
@@ -360,18 +357,18 @@ MACHINE_CONFIG_START(circusc_state::circusc)
 
 	WATCHDOG_TIMER(config, "watchdog").set_vblank_count("screen", 8);
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, XTAL(14'318'181)/4)
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	Z80(config, m_audiocpu, XTAL(14'318'181)/4);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &circusc_state::sound_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(circusc_state, screen_update_circusc)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, circusc_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(circusc_state::screen_update_circusc));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(circusc_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_circusc);
 	PALETTE(config, m_palette, FUNC(circusc_state::circusc_palette), 16*16 + 16*16, 32);
@@ -381,20 +378,14 @@ MACHINE_CONFIG_START(circusc_state::circusc)
 
 	GENERIC_LATCH_8(config, "soundlatch");
 
-	MCFG_DEVICE_ADD("sn1", SN76496, XTAL(14'318'181)/8)
-	MCFG_SOUND_ROUTE(0, "fltdisc", 1.0, 0)
+	SN76496(config, m_sn_1, XTAL(14'318'181)/8).add_route(0, "fltdisc", 1.0, 0);
 
-	MCFG_DEVICE_ADD("sn2", SN76496, XTAL(14'318'181)/8)
-	MCFG_SOUND_ROUTE(0, "fltdisc", 1.0, 1)
+	SN76496(config, m_sn_2, XTAL(14'318'181)/8).add_route(0, "fltdisc", 1.0, 1);
 
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(0, "fltdisc", 1.0, 2) // ls374.7g + r44+r45+r47+r48+r50+r56+r57+r58+r59 (20k) + r46+r49+r51+r52+r53+r54+r55 (10k) + upc324.3h
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT)
+	DAC_8BIT_R2R(config, "dac", 0).set_output_range(0, 1).add_route(0, "fltdisc", 1.0, 2); // ls374.7g + r44+r45+r47+r48+r50+r56+r57+r58+r59 (20k) + r46+r49+r51+r52+r53+r54+r55 (10k) + upc324.3h
 
-	MCFG_DEVICE_ADD("fltdisc", DISCRETE, circusc_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, circusc_discrete).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
 

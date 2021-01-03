@@ -28,7 +28,6 @@ Notes:
 #include "machine/nvram.h"
 #include "sound/3812intf.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 
@@ -42,12 +41,12 @@ void nbmj9195_state::machine_start()
 	save_item(NAME(m_mscoutm_inputport));
 }
 
-WRITE8_MEMBER(nbmj9195_state::soundbank_w)
+void nbmj9195_state::soundbank_w(uint8_t data)
 {
 	membank("soundbank")->set_entry(data & 0x03);
 }
 
-WRITE8_MEMBER(nbmj9195_state::outcoin_flag_w)
+void nbmj9195_state::outcoin_flag_w(uint8_t data)
 {
 	// bit0: coin in counter
 	// bit1: coin out counter
@@ -58,7 +57,7 @@ WRITE8_MEMBER(nbmj9195_state::outcoin_flag_w)
 	else m_outcoin_flag = 1;
 }
 
-WRITE8_MEMBER(nbmj9195_state::inputportsel_w)
+void nbmj9195_state::inputportsel_w(uint8_t data)
 {
 	m_inputport = (data ^ 0xff);
 }
@@ -68,7 +67,7 @@ int nbmj9195_state::dipsw_r()
 	return (((ioport("DSWA")->read() & 0xff) | ((ioport("DSWB")->read() & 0xff) << 8)) >> m_dipswbitsel) & 0x01;
 }
 
-WRITE8_MEMBER(nbmj9195_state::dipswbitsel_w)
+void nbmj9195_state::dipswbitsel_w(uint8_t data)
 {
 	switch (data & 0xc0)
 	{
@@ -87,12 +86,12 @@ WRITE8_MEMBER(nbmj9195_state::dipswbitsel_w)
 	}
 }
 
-WRITE8_MEMBER(nbmj9195_state::mscoutm_inputportsel_w)
+void nbmj9195_state::mscoutm_inputportsel_w(uint8_t data)
 {
 	m_mscoutm_inputport = (data ^ 0x1f);
 }
 
-READ8_MEMBER(nbmj9195_state::mscoutm_dipsw_0_r)
+uint8_t nbmj9195_state::mscoutm_dipsw_0_r()
 {
 	// DIPSW A
 	return (((ioport("DSWA")->read() & 0x01) << 7) | ((ioport("DSWA")->read() & 0x02) << 5) |
@@ -101,7 +100,7 @@ READ8_MEMBER(nbmj9195_state::mscoutm_dipsw_0_r)
 			((ioport("DSWA")->read() & 0x40) >> 5) | ((ioport("DSWA")->read() & 0x80) >> 7));
 }
 
-READ8_MEMBER(nbmj9195_state::mscoutm_dipsw_1_r)
+uint8_t nbmj9195_state::mscoutm_dipsw_1_r()
 {
 	// DIPSW B
 	return (((ioport("DSWB")->read() & 0x01) << 7) | ((ioport("DSWB")->read() & 0x02) << 5) |
@@ -113,7 +112,7 @@ READ8_MEMBER(nbmj9195_state::mscoutm_dipsw_1_r)
 
 /* TMPZ84C011 PIO emulation */
 
-READ8_MEMBER(nbmj9195_state::mscoutm_cpu_portb_r)
+uint8_t nbmj9195_state::mscoutm_cpu_portb_r()
 {
 	// PLAYER1 KEY, DIPSW A/B
 	switch (m_mscoutm_inputport)
@@ -134,7 +133,7 @@ READ8_MEMBER(nbmj9195_state::mscoutm_cpu_portb_r)
 	}
 }
 
-READ8_MEMBER(nbmj9195_state::mscoutm_cpu_portc_r)
+uint8_t nbmj9195_state::mscoutm_cpu_portc_r()
 {
 	// PLAYER2 KEY
 	switch (m_mscoutm_inputport)
@@ -157,13 +156,13 @@ READ8_MEMBER(nbmj9195_state::mscoutm_cpu_portc_r)
 
 // other games
 
-READ8_MEMBER(nbmj9195_state::others_cpu_porta_r)
+uint8_t nbmj9195_state::others_cpu_porta_r()
 {
 	// COIN IN, ETC...
 	return ((ioport("SYSTEM")->read() & 0xfe) | m_outcoin_flag);
 }
 
-READ8_MEMBER(nbmj9195_state::others_cpu_portb_r)
+uint8_t nbmj9195_state::others_cpu_portb_r()
 {
 	// PLAYER1 KEY, DIPSW A/B
 	switch (m_inputport)
@@ -183,7 +182,7 @@ READ8_MEMBER(nbmj9195_state::others_cpu_portb_r)
 	}
 }
 
-READ8_MEMBER(nbmj9195_state::others_cpu_portc_r)
+uint8_t nbmj9195_state::others_cpu_portc_r()
 {
 	// PLAYER2 KEY
 	switch (m_inputport)
@@ -203,9 +202,9 @@ READ8_MEMBER(nbmj9195_state::others_cpu_portc_r)
 	}
 }
 
-WRITE8_MEMBER(nbmj9195_state::soundcpu_porte_w)
+void nbmj9195_state::soundcpu_porte_w(uint8_t data)
 {
-	if (!(data & 0x01)) m_soundlatch->clear_w(space, 0, 0);
+	if (!(data & 0x01)) m_soundlatch->clear_w();
 }
 
 
@@ -2507,8 +2506,8 @@ static const z80_daisy_config daisy_chain_sound[] =
 	m_maincpu->out_pd_callback().set(FUNC(nbmj9195_state::clutsel_w)); \
 	m_maincpu->out_pe_callback().set(FUNC(nbmj9195_state::outcoin_flag_w));
 
-MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV1_base)
-
+void nbmj9195_state::NBMJDRV1_base(machine_config &config)
+{
 	/* basic machine hardware */
 	TMPZ84C011(config, m_maincpu, 12000000/2); /* TMPZ84C011, 6.00 MHz */
 	m_maincpu->set_daisy_config(daisy_chain_main);
@@ -2536,32 +2535,30 @@ MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV1_base)
 	m_screen->set_palette(m_palette);
 	m_screen->screen_vblank().set(m_maincpu, FUNC(tmpz84c011_device::trg1)).invert();
 
-	MCFG_PALETTE_ADD(m_palette, 256)
+	PALETTE(config, m_palette).set_entries(256);
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
 
 	GENERIC_LATCH_8(config, m_soundlatch);
 
-	MCFG_DEVICE_ADD("ymsnd", YM3812, 4000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.7)
+	YM3812(config, "ymsnd", 4000000).add_route(ALL_OUTPUTS, "speaker", 0.7);
 
-	MCFG_DEVICE_ADD("dac1", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // unknown DAC
-	MCFG_DEVICE_ADD("dac2", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac1", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac1", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac2", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac2", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	DAC_8BIT_R2R(config, "dac1", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // unknown DAC
+	DAC_8BIT_R2R(config, "dac2", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // unknown DAC
+}
 
-MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV1)
+void nbmj9195_state::NBMJDRV1(machine_config &config)
+{
 	NBMJDRV1_base(config);
 
 	/* basic machine hardware */
 	OTHERS_TMZ84C011_MAIN_PORTS
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV2)
+void nbmj9195_state::NBMJDRV2(machine_config &config)
+{
 	NBMJDRV1_base(config);
 
 	/* basic machine hardware */
@@ -2569,59 +2566,64 @@ MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV2)
 
 	/* video hardware */
 	MCFG_VIDEO_START_OVERRIDE(nbmj9195_state,_1layer)
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::NBMJDRV3)
+void nbmj9195_state::NBMJDRV3(machine_config &config)
+{
 	NBMJDRV1_base(config);
 
 	/* basic machine hardware */
 	MSCOUTM_TMZ84C011_MAIN_PORTS
 
 	/* video hardware */
-	MCFG_DEVICE_MODIFY("palette")
-	MCFG_PALETTE_ENTRIES(512)
+	m_palette->set_entries(512);
 
 	MCFG_VIDEO_START_OVERRIDE(nbmj9195_state,nb22090)
-MACHINE_CONFIG_END
+}
 
 
 //-------------------------------------------------------------------------
 
-MACHINE_CONFIG_START(nbmj9195_state::mjuraden)
+void nbmj9195_state::mjuraden(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mjuraden_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjuraden_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::koinomp)
+void nbmj9195_state::koinomp(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::koinomp_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::koinomp_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::patimono)
+void nbmj9195_state::patimono(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::patimono_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::janbari)
+void nbmj9195_state::janbari(machine_config &config)
+{
 	patimono(config);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mmehyou)
+void nbmj9195_state::mmehyou(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
@@ -2629,205 +2631,227 @@ MACHINE_CONFIG_START(nbmj9195_state::mmehyou)
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mmehyou_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::ultramhm)
+void nbmj9195_state::ultramhm(machine_config &config)
+{
 	koinomp(config);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::gal10ren)
+void nbmj9195_state::gal10ren(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::gal10ren_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::renaiclb)
+void nbmj9195_state::renaiclb(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::renaiclb_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mjlaman)
+void nbmj9195_state::mjlaman(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjlaman_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mkeibaou)
+void nbmj9195_state::mkeibaou(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mkeibaou_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::pachiten)
+void nbmj9195_state::pachiten(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::pachiten_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::sailorws)
+void nbmj9195_state::sailorws(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::sailorwr)
+void nbmj9195_state::sailorwr(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::sailorwr_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::psailor1)
+void nbmj9195_state::psailor1(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::psailor1_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::psailor2)
+void nbmj9195_state::psailor2(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::psailor2_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::otatidai)
+void nbmj9195_state::otatidai(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::otatidai_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::yosimoto)
+void nbmj9195_state::yosimoto(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::yosimoto_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::yosimotm)
+void nbmj9195_state::yosimotm(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::yosimotm_io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::jituroku)
+void nbmj9195_state::jituroku(machine_config &config)
+{
 	NBMJDRV1(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::jituroku_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::ngpgal)
+void nbmj9195_state::ngpgal(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::ngpgal_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::ngpgal_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mjgottsu)
+void nbmj9195_state::mjgottsu(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::ngpgal_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjgottsu_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::bakuhatu)
+void nbmj9195_state::bakuhatu(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::ngpgal_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjgottsu_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::cmehyou)
+void nbmj9195_state::cmehyou(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::ngpgal_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::cmehyou_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mjkoiura)
+void nbmj9195_state::mjkoiura(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mjuraden_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjkoiura_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mkoiuraa)
+void nbmj9195_state::mkoiuraa(machine_config &config)
+{
 	NBMJDRV2(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mjuraden_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mkoiuraa_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mscoutm)
+void nbmj9195_state::mscoutm(machine_config &config)
+{
 	NBMJDRV3(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mscoutm_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mscoutm_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::imekura)
+void nbmj9195_state::imekura(machine_config &config)
+{
 	NBMJDRV3(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mjegolf_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::imekura_io_map);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(nbmj9195_state::mjegolf)
+void nbmj9195_state::mjegolf(machine_config &config)
+{
 	NBMJDRV3(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_addrmap(AS_PROGRAM, &nbmj9195_state::mjegolf_map);
 	m_maincpu->set_addrmap(AS_IO, &nbmj9195_state::mjegolf_io_map);
-MACHINE_CONFIG_END
+}
 
 
 

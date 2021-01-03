@@ -50,13 +50,13 @@ public:
 	DECLARE_INPUT_CHANGED_MEMBER(self_test);
 
 private:
-	DECLARE_READ8_MEMBER(u10_a_r);
-	DECLARE_WRITE8_MEMBER(u10_a_w);
-	DECLARE_READ8_MEMBER(u10_b_r);
-	DECLARE_WRITE8_MEMBER(u10_b_w);
-	DECLARE_READ8_MEMBER(u11_a_r);
-	DECLARE_WRITE8_MEMBER(u11_a_w);
-	DECLARE_WRITE8_MEMBER(u11_b_w);
+	uint8_t u10_a_r();
+	void u10_a_w(uint8_t data);
+	uint8_t u10_b_r();
+	void u10_b_w(uint8_t data);
+	uint8_t u11_a_r();
+	void u11_a_w(uint8_t data);
+	void u11_b_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(u10_ca2_w);
 	DECLARE_WRITE_LINE_MEMBER(u10_cb2_w);
 	DECLARE_WRITE_LINE_MEMBER(u11_ca2_w);
@@ -526,12 +526,12 @@ WRITE_LINE_MEMBER( st_mp100_state::u11_cb2_w )
 	m_u11_cb2 = state;
 }
 
-READ8_MEMBER( st_mp100_state::u10_a_r )
+uint8_t st_mp100_state::u10_a_r()
 {
 	return m_u10a;
 }
 
-WRITE8_MEMBER( st_mp100_state::u10_a_w )
+void st_mp100_state::u10_a_w(uint8_t data)
 {
 	m_u10a = data;
 
@@ -556,7 +556,7 @@ WRITE8_MEMBER( st_mp100_state::u10_a_w )
 	}
 }
 
-READ8_MEMBER( st_mp100_state::u10_b_r )
+uint8_t st_mp100_state::u10_b_r()
 {
 	uint8_t data = 0;
 
@@ -590,17 +590,17 @@ READ8_MEMBER( st_mp100_state::u10_b_r )
 	return data;
 }
 
-WRITE8_MEMBER( st_mp100_state::u10_b_w )
+void st_mp100_state::u10_b_w(uint8_t data)
 {
 	m_u10b = data;
 }
 
-READ8_MEMBER( st_mp100_state::u11_a_r )
+uint8_t st_mp100_state::u11_a_r()
 {
 	return m_u11a;
 }
 
-WRITE8_MEMBER( st_mp100_state::u11_a_w )
+void st_mp100_state::u11_a_w(uint8_t data)
 {
 	m_u11a = data;
 
@@ -631,7 +631,7 @@ WRITE8_MEMBER( st_mp100_state::u11_a_w )
 	}
 }
 
-WRITE8_MEMBER( st_mp100_state::u11_b_w )
+void st_mp100_state::u11_b_w(uint8_t data)
 {
 	m_u11b = data;
 	if (!m_u11_cb2)
@@ -709,10 +709,11 @@ TIMER_DEVICE_CALLBACK_MEMBER( st_mp100_state::u11_timer )
 	m_pia_u11->ca1_w(m_u11_timer);
 }
 
-MACHINE_CONFIG_START(st_mp100_state::st_mp100)
+void st_mp100_state::st_mp100(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6800, 1000000) // no xtal, just 2 chips forming a random oscillator
-	MCFG_DEVICE_PROGRAM_MAP(st_mp100_map)
+	M6800(config, m_maincpu, 1000000); // no xtal, just 2 chips forming a random oscillator
+	m_maincpu->set_addrmap(AS_PROGRAM, &st_mp100_state::st_mp100_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
@@ -732,7 +733,7 @@ MACHINE_CONFIG_START(st_mp100_state::st_mp100)
 	m_pia_u10->cb2_handler().set(FUNC(st_mp100_state::u10_cb2_w));
 	m_pia_u10->irqa_handler().set_inputline("maincpu", M6800_IRQ_LINE);
 	m_pia_u10->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_x", st_mp100_state, timer_x, attotime::from_hz(120)) // mains freq*2
+	TIMER(config, "timer_x").configure_periodic(FUNC(st_mp100_state::timer_x), attotime::from_hz(120)); // mains freq*2
 
 	PIA6821(config, m_pia_u11, 0);
 	m_pia_u11->readpa_handler().set(FUNC(st_mp100_state::u11_a_r));
@@ -742,8 +743,8 @@ MACHINE_CONFIG_START(st_mp100_state::st_mp100)
 	m_pia_u11->cb2_handler().set(FUNC(st_mp100_state::u11_cb2_w));
 	m_pia_u11->irqa_handler().set_inputline("maincpu", M6800_IRQ_LINE);
 	m_pia_u11->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_d", st_mp100_state, u11_timer, attotime::from_hz(634)) // 555 timer*2
-MACHINE_CONFIG_END
+	TIMER(config, "timer_d").configure_periodic(FUNC(st_mp100_state::u11_timer), attotime::from_hz(634)); // 555 timer*2
+}
 
 
 /*--------------------------------

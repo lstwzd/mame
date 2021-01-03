@@ -113,9 +113,9 @@ private:
 	required_device<address_map_bank_device> m_flashbank;
 	required_ioport_array<16> m_inputs;
 
-	DECLARE_WRITE32_MEMBER( flash_w );
-//  DECLARE_WRITE8_MEMBER( bios_ram_w );
-	DECLARE_READ8_MEMBER( in_r );
+	void flash_w (offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+//  void bios_ram_w(offs_t offset, uint8_t data);
+	uint8_t in_r(offs_t offset);
 
 	uint8_t funkball_config_reg_r();
 	void funkball_config_reg_w(uint8_t data);
@@ -131,11 +131,11 @@ private:
 
 		uint32_t init_enable;
 	} m_voodoo_pci_regs;
-	DECLARE_READ32_MEMBER(biu_ctrl_r);
-	DECLARE_WRITE32_MEMBER(biu_ctrl_w);
-	DECLARE_WRITE8_MEMBER(bios_ram_w);
-	DECLARE_READ8_MEMBER(io20_r);
-	DECLARE_WRITE8_MEMBER(io20_w);
+	uint32_t biu_ctrl_r(offs_t offset);
+	void biu_ctrl_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	void bios_ram_w(offs_t offset, uint8_t data);
+	uint8_t io20_r(offs_t offset);
+	void io20_w(offs_t offset, uint8_t data);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	void flashbank_map(address_map &map);
@@ -229,7 +229,7 @@ void funkball_state::funkball_config_reg_w(uint8_t data)
 	m_funkball_config_regs[m_funkball_config_reg_sel] = data;
 }
 
-READ8_MEMBER(funkball_state::io20_r)
+uint8_t funkball_state::io20_r(offs_t offset)
 {
 	uint8_t r = 0;
 
@@ -244,7 +244,7 @@ READ8_MEMBER(funkball_state::io20_r)
 	return r;
 }
 
-WRITE8_MEMBER(funkball_state::io20_w)
+void funkball_state::io20_w(offs_t offset, uint8_t data)
 {
 	// 0x22, 0x23, Cyrix configuration registers
 	if (offset == 0x00)
@@ -257,7 +257,7 @@ WRITE8_MEMBER(funkball_state::io20_w)
 	}
 }
 
-WRITE32_MEMBER(funkball_state::flash_w)
+void funkball_state::flash_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&flashbank_addr);
 	int tempbank = (flashbank_addr & 0x7fff) | ((flashbank_addr & 0x00800000) >> 8);
@@ -268,7 +268,7 @@ WRITE32_MEMBER(funkball_state::flash_w)
 }
 
 
-READ32_MEMBER(funkball_state::biu_ctrl_r)
+uint32_t funkball_state::biu_ctrl_r(offs_t offset)
 {
 	if (offset == 0)
 	{
@@ -277,7 +277,7 @@ READ32_MEMBER(funkball_state::biu_ctrl_r)
 	return m_biu_ctrl_reg[offset];
 }
 
-WRITE32_MEMBER(funkball_state::biu_ctrl_w)
+void funkball_state::biu_ctrl_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	//osd_printf_debug("biu_ctrl_w %08X, %08X, %08X\n", data, offset, mem_mask);
 	COMBINE_DATA(m_biu_ctrl_reg + offset);
@@ -297,7 +297,7 @@ WRITE32_MEMBER(funkball_state::biu_ctrl_w)
 	}
 }
 
-WRITE8_MEMBER(funkball_state::bios_ram_w)
+void funkball_state::bios_ram_w(offs_t offset, uint8_t data)
 {
 	if(m_biu_ctrl_reg[0x0c/4] & (2 << ((offset & 0x4000)>>14)*4)) // memory is write-able
 	{
@@ -305,7 +305,7 @@ WRITE8_MEMBER(funkball_state::bios_ram_w)
 	}
 }
 
-READ8_MEMBER( funkball_state::in_r )
+uint8_t funkball_state::in_r(offs_t offset)
 {
 	return m_inputs[offset]->read();
 }
@@ -327,7 +327,7 @@ void funkball_state::funkball_map(address_map &map)
 	map(0x000fc000, 0x000fffff).bankr("bios_bank4");
 	map(0x000e0000, 0x000fffff).w(FUNC(funkball_state::bios_ram_w));
 	map(0x00100000, 0x07ffffff).ram();
-//  AM_RANGE(0x08000000, 0x0fffffff) AM_NOP
+//  map(0x08000000, 0x0fffffff).noprw();
 	map(0x40008000, 0x400080ff).rw(FUNC(funkball_state::biu_ctrl_r), FUNC(funkball_state::biu_ctrl_w));
 	map(0x40010e00, 0x40010eff).ram().share("unk_ram");
 	map(0xff000000, 0xfffdffff).rw(m_voodoo, FUNC(voodoo_device::voodoo_r), FUNC(voodoo_device::voodoo_w));
@@ -338,7 +338,7 @@ void funkball_state::flashbank_map(address_map &map)
 {
 	map(0x00000000, 0x003fffff).rw("u29", FUNC(intel_28f320j5_device::read), FUNC(intel_28f320j5_device::write)); // needed to boot
 	map(0x00400000, 0x007fffff).rw("u30", FUNC(intel_28f320j5_device::read), FUNC(intel_28f320j5_device::write)); // i assume it maps directly after
-//  AM_RANGE(0x02000000, 0x023fffff) AM_DEVREADWRITE16("u3", intel_28f320j5_device, read, write, 0xffffffff ) // sound program, don't think it matters where we map it, might not even be visible in this space
+//  map(0x02000000, 0x023fffff).rw("u3", FUNC(intel_28f320j5_device::read), FUNC(intel_28f320j5_device::write)); // sound program, don't think it matters where we map it, might not even be visible in this space
 	/* it checks for 64MBit chips at 0x80000000 the way things are set up, they must return an intel Flash ID of 0x15 */
 }
 
@@ -356,7 +356,7 @@ void funkball_state::funkball_io(address_map &map)
 
 	map(0x0360, 0x0363).w(FUNC(funkball_state::flash_w));
 
-//  AM_RANGE(0x0320, 0x0323) AM_READ(test_r)
+//  map(0x0320, 0x0323).r(FUNC(funkball_state::test_r));
 	map(0x0360, 0x036f).r(FUNC(funkball_state::in_r)); // inputs
 }
 
@@ -763,17 +763,18 @@ static DEVICE_INPUT_DEFAULTS_START( terminal )
 	DEVICE_INPUT_DEFAULTS( "TERM_CONF", 0x080, 0x080 ) // Auto LF on CR
 DEVICE_INPUT_DEFAULTS_END
 
-MACHINE_CONFIG_START(funkball_state::funkball)
-	MCFG_DEVICE_ADD("maincpu", MEDIAGX, 66666666*3.5) // 66,6 MHz x 3.5
-	MCFG_DEVICE_PROGRAM_MAP(funkball_map)
-	MCFG_DEVICE_IO_MAP(funkball_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE("pic8259_1", pic8259_device, inta_cb)
+void funkball_state::funkball(machine_config &config)
+{
+	MEDIAGX(config, m_maincpu, 66666666*3.5); // 66,6 MHz x 3.5
+	m_maincpu->set_addrmap(AS_PROGRAM, &funkball_state::funkball_map);
+	m_maincpu->set_addrmap(AS_IO, &funkball_state::funkball_io);
+	m_maincpu->set_irq_acknowledge_callback("pic8259_1", FUNC(pic8259_device::inta_cb));
 
 	pcat_common(config);
 
-	MCFG_PCI_BUS_LEGACY_ADD("pcibus", 0)
-	MCFG_PCI_BUS_LEGACY_DEVICE(7, DEVICE_SELF, funkball_state, voodoo_0_pci_r, voodoo_0_pci_w)
-	MCFG_PCI_BUS_LEGACY_DEVICE(18, DEVICE_SELF, funkball_state, cx5510_pci_r, cx5510_pci_w)
+	pci_bus_legacy_device &pcibus(PCI_BUS_LEGACY(config, "pcibus", 0, 0));
+	pcibus.set_device(7, FUNC(funkball_state::voodoo_0_pci_r), FUNC(funkball_state::voodoo_0_pci_w));
+	pcibus.set_device(18, FUNC(funkball_state::cx5510_pci_r), FUNC(funkball_state::cx5510_pci_w));
 
 	ide_controller_device &ide(IDE_CONTROLLER(config, "ide").options(ata_devices, "hdd", nullptr, true));
 	ide.irq_handler().set("pic8259_2", FUNC(pic8259_device::ir6_w));
@@ -781,18 +782,18 @@ MACHINE_CONFIG_START(funkball_state::funkball)
 	ADDRESS_MAP_BANK(config, "flashbank").set_map(&funkball_state::flashbank_map).set_options(ENDIANNESS_LITTLE, 32, 32, 0x10000);
 
 	/* video hardware */
-	MCFG_DEVICE_ADD("voodoo_0", VOODOO_1, STD_VOODOO_1_CLOCK)
-	MCFG_VOODOO_FBMEM(2)
-	MCFG_VOODOO_TMUMEM(4,0)
-	MCFG_VOODOO_SCREEN_TAG("screen")
-	MCFG_VOODOO_CPU_TAG("maincpu")
+	VOODOO_1(config, m_voodoo, STD_VOODOO_1_CLOCK);
+	m_voodoo->set_fbmem(2);
+	m_voodoo->set_tmumem(4, 0);
+	m_voodoo->set_screen_tag("screen");
+	m_voodoo->set_cpu_tag(m_maincpu);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_UPDATE_DRIVER(funkball_state, screen_update)
-	MCFG_SCREEN_SIZE(1024, 1024)
-	MCFG_SCREEN_VISIBLE_AREA(0, 511, 16, 447)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_screen_update(FUNC(funkball_state::screen_update));
+	screen.set_size(1024, 1024);
+	screen.set_visarea(0, 511, 16, 447);
 
 	ns16550_device &uart(NS16550(config, "uart", 1843200)); // exact type unknown
 	uart.out_tx_callback().set("rs232", FUNC(rs232_port_device::write_txd));
@@ -809,7 +810,7 @@ MACHINE_CONFIG_START(funkball_state::funkball)
 	INTEL_28F320J5(config, "u29");
 	INTEL_28F320J5(config, "u30");
 	INTEL_28F320J5(config, "u3");
-MACHINE_CONFIG_END
+}
 
 ROM_START( funkball )
 	ROM_REGION32_LE(0x20000, "bios", ROMREGION_ERASEFF)

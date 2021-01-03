@@ -146,22 +146,22 @@ private:
 	uint8_t m_videoram[0x4000];
 	uint8_t m_screenram[0x800];
 
-	DECLARE_READ16_MEMBER(buserror_r);
-	DECLARE_WRITE16_MEMBER(buserror_w);
+	uint16_t buserror_r();
+	void buserror_w(uint16_t data);
 
-	DECLARE_READ16_MEMBER(hp9k_videoram_r);
-	DECLARE_WRITE16_MEMBER(hp9k_videoram_w);
+	uint16_t hp9k_videoram_r(offs_t offset, uint16_t mem_mask = ~0);
+	void hp9k_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_READ16_MEMBER(hp9k_prom_r);
-	DECLARE_WRITE16_MEMBER(hp9k_prom_w);
+	uint16_t hp9k_prom_r(offs_t offset, uint16_t mem_mask = ~0);
+	void hp9k_prom_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_READ16_MEMBER(keyboard_r);
-	DECLARE_WRITE16_MEMBER(keyboard_w);
+	uint16_t keyboard_r(offs_t offset, uint16_t mem_mask = ~0);
+	void keyboard_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_READ16_MEMBER(leds_r);
-	DECLARE_WRITE16_MEMBER(leds_w);
+	uint16_t leds_r(offs_t offset, uint16_t mem_mask = ~0);
+	void leds_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_WRITE8_MEMBER(kbd_put);
+	void kbd_put(uint8_t data);
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
@@ -194,29 +194,29 @@ void hp9k_state::calc_prom_crc(uint8_t* prom)
 	}
 }
 
-READ16_MEMBER( hp9k_state::keyboard_r )
+uint16_t hp9k_state::keyboard_r(offs_t offset, uint16_t mem_mask)
 {
 	//printf("keyboard read at [%x] mask [%x]\n",offset,mem_mask);
 	return 0x31;
 }
 
-WRITE16_MEMBER( hp9k_state::keyboard_w )
+void hp9k_state::keyboard_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	//printf("keyboard write of [%x] at [%x]\n",data,offset);
 }
 
-READ16_MEMBER( hp9k_state::leds_r )
+uint16_t hp9k_state::leds_r(offs_t offset, uint16_t mem_mask)
 {
 	//printf("warning: leds read at [%x] mm [%x]\n",offset,mem_mask);
 	return 0;
 }
 
-WRITE16_MEMBER( hp9k_state::leds_w )
+void hp9k_state::leds_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	//printf("warning: leds write of [%x] at [%x] mm [%x]\n",data,offset,mem_mask);
 }
 
-READ16_MEMBER( hp9k_state::hp9k_prom_r )
+uint16_t hp9k_state::hp9k_prom_r(offs_t offset, uint16_t mem_mask)
 {
 	//if (mem_mask!=0xff) printf("read of PROM at [%x] mem_mask [%x]\n",offset,mem_mask);
 	int k=prom16a[offset&0xff];
@@ -225,12 +225,12 @@ READ16_MEMBER( hp9k_state::hp9k_prom_r )
 	//return 0;
 }
 
-WRITE16_MEMBER( hp9k_state::hp9k_prom_w )
+void hp9k_state::hp9k_prom_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	//printf("Error: write to prom\n");
 }
 
-READ16_MEMBER( hp9k_state::hp9k_videoram_r )
+uint16_t hp9k_state::hp9k_videoram_r(offs_t offset, uint16_t mem_mask)
 {
 	offset&=0x3fff;
 
@@ -239,7 +239,7 @@ READ16_MEMBER( hp9k_state::hp9k_videoram_r )
 	if (offset==0x0001)
 	{
 		//printf("m6845 read at [%x] mem_mask [%x]\n",offset,mem_mask);
-		return m_6845->register_r(space,0);
+		return m_6845->register_r();
 	}
 	else
 	{
@@ -254,7 +254,7 @@ READ16_MEMBER( hp9k_state::hp9k_videoram_r )
 	}
 }
 
-WRITE16_MEMBER( hp9k_state::hp9k_videoram_w )
+void hp9k_state::hp9k_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	offset&=0x3fff;
 
@@ -262,13 +262,13 @@ WRITE16_MEMBER( hp9k_state::hp9k_videoram_w )
 	{
 		//printf("6845 address write [%x] at [%x] mask [%x]\n",data,offset,mem_mask);
 		data&=0x1f;
-		m_6845->address_w( space, 0, data );
+		m_6845->address_w(data);
 		crtc_curreg=data;
 	}
 	else if (offset==0x0001)
 	{
 		//printf("6845 register write [%x] at [%x] mask [%x]\n",data,offset,mem_mask);
-		m_6845->register_w( space, 0, data );
+		m_6845->register_w(data);
 		if (crtc_curreg==0x0c) crtc_addrStartHi=data;
 		if (crtc_curreg==0x0d) crtc_addrStartLow=data;
 	}
@@ -292,14 +292,14 @@ WRITE16_MEMBER( hp9k_state::hp9k_videoram_w )
 	}
 }
 
-READ16_MEMBER(hp9k_state::buserror_r)
+uint16_t hp9k_state::buserror_r()
 {
 	m_maincpu->set_input_line(M68K_LINE_BUSERROR, ASSERT_LINE);
 	m_maincpu->set_input_line(M68K_LINE_BUSERROR, CLEAR_LINE);
 	return 0;
 }
 
-WRITE16_MEMBER(hp9k_state::buserror_w)
+void hp9k_state::buserror_w(uint16_t data)
 {
 	m_maincpu->set_input_line(M68K_LINE_BUSERROR, ASSERT_LINE);
 	m_maincpu->set_input_line(M68K_LINE_BUSERROR, CLEAR_LINE);
@@ -319,7 +319,7 @@ void hp9k_state::hp9k_mem(address_map &map)
 	map(0x530000, 0x53ffff).ram(); // graphic memory
 	map(0x540000, 0x5effff).rw(FUNC(hp9k_state::buserror_r), FUNC(hp9k_state::buserror_w));
 	map(0x5f0000, 0x5f3fff).rw(FUNC(hp9k_state::hp9k_prom_r), FUNC(hp9k_state::hp9k_prom_w));
-	//AM_RANGE(0x5f0000, 0x5f3fff) AM_READWRITE(buserror_r,buserror_w)
+	//map(0x5f0000, 0x5f3fff).rw(FUNC(hp9k_state::buserror_r), FUNC(hp9k_state::buserror_w));
 	map(0x5f4000, 0xfbffff).rw(FUNC(hp9k_state::buserror_r), FUNC(hp9k_state::buserror_w));
 	map(0xFC0000, 0xffffff).ram(); // system ram
 }
@@ -353,14 +353,13 @@ GFXDECODE_END
 
 void hp9k_state::putChar(uint8_t thec,int x,int y,bitmap_ind16 &bitmap)
 {
-	const uint8_t* pchar=m_gfxdecode->gfx(0)->get_data(thec);
+	uint8_t const *const pchar=m_gfxdecode->gfx(0)->get_data(thec);
 
 	for (int py=0;py<HP9816_CHDIMY;py++)
 	{
 		for (int px=0;px<HP9816_CHDIMX;px++)
 		{
-			uint16_t *dest=&bitmap.pix16((y*(HP9816_CHDIMY))+py,(x*(HP9816_CHDIMX))+px);
-			*dest=pchar[px+(py*8)];
+			bitmap.pix((y*(HP9816_CHDIMY))+py,(x*(HP9816_CHDIMX))+px) = pchar[px+(py*8)];
 		}
 	}
 }
@@ -388,35 +387,36 @@ uint32_t hp9k_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, 
 	return 0;
 }
 
-WRITE8_MEMBER( hp9k_state::kbd_put )
+void hp9k_state::kbd_put(uint8_t data)
 {
 	kbdBit=data;
 }
 
 
-MACHINE_CONFIG_START(hp9k_state::hp9k)
+void hp9k_state::hp9k(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",M68000, XTAL(8'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(hp9k_mem)
+	M68000(config, m_maincpu, XTAL(8'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &hp9k_state::hp9k_mem);
 
 	/* video hardware */
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(HP9816_ROWX*HP9816_CHDIMX, HP9816_ROWY*HP9816_CHDIMY)
-	MCFG_SCREEN_VISIBLE_AREA(0, (HP9816_ROWX*HP9816_CHDIMX)-1, 0, (HP9816_ROWY*HP9816_CHDIMY)-1)
-	MCFG_SCREEN_UPDATE_DRIVER(hp9k_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(HP9816_ROWX*HP9816_CHDIMX, HP9816_ROWY*HP9816_CHDIMY);
+	screen.set_visarea(0, (HP9816_ROWX*HP9816_CHDIMX)-1, 0, (HP9816_ROWY*HP9816_CHDIMY)-1);
+	screen.set_screen_update(FUNC(hp9k_state::screen_update));
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_hp9k)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_hp9k);
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	MC6845(config, m_6845, XTAL(16'000'000) / 16);
 	m_6845->set_screen("screen");
 	m_6845->set_show_border_area(false);
 	m_6845->set_char_width(8);
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( hp9816 )

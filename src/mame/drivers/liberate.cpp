@@ -33,7 +33,7 @@
  *
  *************************************/
 
-READ8_MEMBER(liberate_state::deco16_bank_r)
+uint8_t liberate_state::deco16_bank_r(offs_t offset)
 {
 	const uint8_t *ROM = memregion("user1")->base();
 
@@ -60,7 +60,7 @@ READ8_MEMBER(liberate_state::deco16_bank_r)
 	return 0;
 }
 
-READ8_MEMBER(liberate_state::deco16_io_r)
+uint8_t liberate_state::deco16_io_r(offs_t offset)
 {
 	if (offset == 0) return ioport("IN1")->read(); /* Player 1 controls */
 	if (offset == 1) return ioport("IN2")->read(); /* Player 2 controls */
@@ -72,17 +72,17 @@ READ8_MEMBER(liberate_state::deco16_io_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(liberate_state::deco16_bank_w)
+void liberate_state::deco16_bank_w(uint8_t data)
 {
 	m_bank = data;
 
 	if (m_bank)
-		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8_delegate(FUNC(liberate_state::deco16_io_r),this));
+		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8sm_delegate(*this, FUNC(liberate_state::deco16_io_r)));
 	else
-		m_maincpu->space(AS_PROGRAM).install_read_bank(0x8000, 0x800f, "bank1");
+		m_maincpu->space(AS_PROGRAM).install_rom(0x8000, 0x800f, memregion("maincpu")->base());
 }
 
-READ8_MEMBER(liberate_state::prosoccr_bank_r)
+uint8_t liberate_state::prosoccr_bank_r(offs_t offset)
 {
 	const uint8_t *ROM = memregion("user1")->base();
 
@@ -111,7 +111,7 @@ READ8_MEMBER(liberate_state::prosoccr_bank_r)
 	return 0;
 }
 
-READ8_MEMBER(liberate_state::prosoccr_charram_r)
+uint8_t liberate_state::prosoccr_charram_r(offs_t offset)
 {
 	uint8_t *SRC_GFX = memregion("shared_gfx")->base();
 
@@ -132,11 +132,11 @@ READ8_MEMBER(liberate_state::prosoccr_charram_r)
 	return m_charram[offset + m_gfx_rom_readback * 0x1800];
 }
 
-WRITE8_MEMBER(liberate_state::prosoccr_charram_w)
+void liberate_state::prosoccr_charram_w(offs_t offset, uint8_t data)
 {
 	if (m_bank)
 	{
-		prosoccr_io_w(space, offset & 0x0f, data);
+		prosoccr_io_w(offset & 0x0f, data);
 	}
 	else
 	{
@@ -167,7 +167,7 @@ WRITE8_MEMBER(liberate_state::prosoccr_charram_w)
 //  m_gfxdecode->gfx(0)->mark_dirty((offset | 0x1800) >> 3);
 }
 
-WRITE8_MEMBER(liberate_state::prosoccr_char_bank_w)
+void liberate_state::prosoccr_char_bank_w(uint8_t data)
 {
 	m_gfx_rom_readback = data & 1; //enable GFX rom read-back
 
@@ -175,18 +175,18 @@ WRITE8_MEMBER(liberate_state::prosoccr_char_bank_w)
 		printf("%02x\n", data);
 }
 
-WRITE8_MEMBER(liberate_state::prosoccr_io_bank_w)
+void liberate_state::prosoccr_io_bank_w(uint8_t data)
 {
 	m_bank = data & 1;
 
 	if (m_bank)
-		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8_delegate(FUNC(liberate_state::deco16_io_r),this));
+		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8sm_delegate(*this, FUNC(liberate_state::deco16_io_r)));
 	else
-		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8_delegate(FUNC(liberate_state::prosoccr_charram_r),this));
+		m_maincpu->space(AS_PROGRAM).install_read_handler(0x8000, 0x800f, read8sm_delegate(*this, FUNC(liberate_state::prosoccr_charram_r)));
 
 }
 
-READ8_MEMBER(liberate_state::prosport_charram_r)
+uint8_t liberate_state::prosport_charram_r(offs_t offset)
 {
 	uint8_t *FG_GFX = memregion("progolf_fg_gfx")->base();
 
@@ -206,7 +206,7 @@ READ8_MEMBER(liberate_state::prosport_charram_r)
 	return 0;
 }
 
-WRITE8_MEMBER(liberate_state::prosport_charram_w)
+void liberate_state::prosport_charram_w(offs_t offset, uint8_t data)
 {
 	uint8_t *FG_GFX = memregion("progolf_fg_gfx")->base();
 
@@ -242,8 +242,9 @@ WRITE8_MEMBER(liberate_state::prosport_charram_w)
 
 void liberate_state::prosport_map(address_map &map)
 {
-	map(0x0000, 0x03ff).mirror(0x2000).ram();
-	map(0x0200, 0x021f).ram().w(m_palette, FUNC(palette_device::write8)).share("palette");
+	map(0x0000, 0x01ff).mirror(0x2000).ram();
+	map(0x0200, 0x021f).mirror(0x2000).ram().w(m_palette, FUNC(palette_device::write8)).share("palette");
+	map(0x0220, 0x03ff).mirror(0x2000).ram();
 	map(0x0400, 0x07ff).ram().w(FUNC(liberate_state::prosport_bg_vram_w)).share("bg_vram");
 	map(0x0800, 0x1fff).rw(FUNC(liberate_state::prosport_charram_r), FUNC(liberate_state::prosport_charram_w)); //0x1e00-0x1fff isn't charram!
 	map(0x2400, 0x2fff).ram();
@@ -252,7 +253,7 @@ void liberate_state::prosport_map(address_map &map)
 	map(0x3800, 0x3fff).ram().share("spriteram");
 	map(0x4000, 0xffff).rom();
 	map(0x8000, 0x800f).w(FUNC(liberate_state::prosport_io_w));
-	map(0x8000, 0x800f).bankr("bank1");
+	map(0x8000, 0x800f).rom().share("bank1");
 }
 
 void liberate_state::liberate_map(address_map &map)
@@ -266,7 +267,7 @@ void liberate_state::liberate_map(address_map &map)
 	map(0x6200, 0x67ff).writeonly().share("scratchram");
 	map(0x8000, 0xffff).rom();
 	map(0x8000, 0x800f).w(FUNC(liberate_state::deco16_io_w));
-	map(0x8000, 0x800f).bankr("bank1");
+	map(0x8000, 0x800f).rom().share("bank1");
 }
 
 void liberate_state::decrypted_opcodes_map(address_map &map)
@@ -297,7 +298,7 @@ void liberate_state::deco16_io_map(address_map &map)
 void liberate_state::prosoccr_io_map(address_map &map)
 {
 	map(0x00, 0x00).portr("IN0").w(FUNC(liberate_state::prosoccr_io_bank_w));
-	//AM_RANGE(0x01, 0x01) AM_READ_PORT("TILT")
+	//map(0x01, 0x01).portr("TILT");
 }
 
 void liberate_state::liberatb_map(address_map &map)
@@ -741,33 +742,33 @@ MACHINE_RESET_MEMBER(liberate_state,liberate)
 	m_bank = 0;
 }
 
-MACHINE_CONFIG_START(liberate_state::liberate_base)
-
+void liberate_state::liberate_base(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",DECO16, 2000000)
-	MCFG_DEVICE_PROGRAM_MAP(liberate_map)
-	MCFG_DEVICE_IO_MAP(deco16_io_map)
+	DECO16(config, m_maincpu, 2000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &liberate_state::liberate_map);
+	m_maincpu->set_addrmap(AS_IO, &liberate_state::deco16_io_map);
 
-	MCFG_DEVICE_ADD("audiocpu",DECO_222, 1500000) /* is it a real 222 (M6502 with bitswapped opcodes), or the same thing in external logic? */
-	MCFG_DEVICE_PROGRAM_MAP(liberate_sound_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(liberate_state, nmi_line_pulse, 16*60) /* ??? */
+	DECO_222(config, m_audiocpu, 1500000); /* is it a real 222 (M6502 with bitswapped opcodes), or the same thing in external logic? */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &liberate_state::liberate_sound_map);
+	m_audiocpu->set_periodic_int(FUNC(liberate_state::nmi_line_pulse), attotime::from_hz(16*60)); /* ??? */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(12000))
+	config.set_maximum_quantum(attotime::from_hz(12000));
 
 	MCFG_MACHINE_START_OVERRIDE(liberate_state,liberate)
 	MCFG_MACHINE_RESET_OVERRIDE(liberate_state,liberate)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(529) /* 529ms Vblank duration?? */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(liberate_state, screen_update_liberate)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, liberate_state, deco16_interrupt))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(529) /* 529ms Vblank duration?? */);
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 1*8, 31*8-1);
+	screen.set_screen_update(FUNC(liberate_state::screen_update_liberate));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(liberate_state::deco16_interrupt));
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_liberate)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_liberate);
 	PALETTE(config, m_palette, FUNC(liberate_state::liberate_palette), 33);
 
 	MCFG_VIDEO_START_OVERRIDE(liberate_state,liberate)
@@ -780,81 +781,80 @@ MACHINE_CONFIG_START(liberate_state::liberate_base)
 	AY8912(config, "ay1", 1500000).add_route(ALL_OUTPUTS, "mono", 0.30);
 
 	AY8912(config, "ay2", 1500000).add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(liberate_state::liberate)
+void liberate_state::liberate(machine_config &config)
+{
 	liberate_base(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_OPCODES_MAP(decrypted_opcodes_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_OPCODES, &liberate_state::decrypted_opcodes_map);
+}
 
-MACHINE_CONFIG_START(liberate_state::liberatb)
+void liberate_state::liberatb(machine_config &config)
+{
 	liberate_base(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_REPLACE("maincpu", M6502, 2000000)
-	MCFG_DEVICE_PROGRAM_MAP(liberatb_map)
-MACHINE_CONFIG_END
+	M6502(config.replace(), m_maincpu, 2000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &liberate_state::liberatb_map);
+}
 
-MACHINE_CONFIG_START(liberate_state::boomrang)
+void liberate_state::boomrang(machine_config &config)
+{
 	liberate_base(config);
 
 	MCFG_VIDEO_START_OVERRIDE(liberate_state,boomrang)
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(liberate_state, screen_update_boomrang)
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(liberate_state::screen_update_boomrang));
+}
 
-MACHINE_CONFIG_START(liberate_state::prosoccr)
+void liberate_state::prosoccr(machine_config &config)
+{
 	liberate_base(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(10000000/8) //xtal is unknown?
-	MCFG_DEVICE_PROGRAM_MAP(prosoccr_map)
-	MCFG_DEVICE_IO_MAP(prosoccr_io_map)
+	m_maincpu->set_clock(10000000/8); //xtal is unknown?
+	m_maincpu->set_addrmap(AS_PROGRAM, &liberate_state::prosoccr_map);
+	m_maincpu->set_addrmap(AS_IO, &liberate_state::prosoccr_io_map);
 
-	MCFG_DEVICE_MODIFY("audiocpu")
-	MCFG_DEVICE_CLOCK(10000000/8) //xtal is 12 Mhz, divider is unknown
-	MCFG_DEVICE_PROGRAM_MAP(prosoccr_sound_map)
+	m_audiocpu->set_clock(10000000/8); //xtal is 12 Mhz, divider is unknown
+	m_audiocpu->set_addrmap(AS_PROGRAM, &liberate_state::prosoccr_sound_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(12000))
+	config.set_maximum_quantum(attotime::from_hz(12000));
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(liberate_state, screen_update_prosoccr)
+	subdevice<screen_device>("screen")->set_visarea(1*8, 31*8-1, 0*8, 32*8-1);
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(liberate_state::screen_update_prosoccr));
 
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_prosoccr)
+	m_gfxdecode->set_info(gfx_prosoccr);
 
 	MCFG_VIDEO_START_OVERRIDE(liberate_state,prosoccr)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(liberate_state::prosport)
-
+void liberate_state::prosport(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", DECO16, 2000000)
-	MCFG_DEVICE_PROGRAM_MAP(prosport_map)
-	MCFG_DEVICE_IO_MAP(deco16_io_map)
+	DECO16(config, m_maincpu, 2000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &liberate_state::prosport_map);
+	m_maincpu->set_addrmap(AS_IO, &liberate_state::deco16_io_map);
 
-	MCFG_DEVICE_ADD("audiocpu", DECO_222, 1500000/2) /* is it a real 222 (M6502 with bitswapped opcodes), or the same thing in external logic? */
-	MCFG_DEVICE_PROGRAM_MAP(liberate_sound_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(liberate_state, nmi_line_pulse, 16*60) /* ??? */
+	DECO_222(config, m_audiocpu, 1500000/2); /* is it a real 222 (M6502 with bitswapped opcodes), or the same thing in external logic? */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &liberate_state::liberate_sound_map);
+	m_audiocpu->set_periodic_int(FUNC(liberate_state::nmi_line_pulse), attotime::from_hz(16*60)); /* ??? */
 
-//  MCFG_QUANTUM_TIME(attotime::from_hz(12000))
+//  config.set_maximum_quantum(attotime::from_hz(12000));
 
 	MCFG_MACHINE_START_OVERRIDE(liberate_state,liberate)
 	MCFG_MACHINE_RESET_OVERRIDE(liberate_state,liberate)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(1529) /* 529ms Vblank duration?? */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(liberate_state, screen_update_prosport)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, liberate_state, deco16_interrupt))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(1529) /* 529ms Vblank duration?? */);
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 1*8, 31*8-1);
+	screen.set_screen_update(FUNC(liberate_state::screen_update_prosport));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(liberate_state::deco16_interrupt));
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_prosport)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_prosport);
 	PALETTE(config, m_palette).set_format(palette_device::BGR_233_inverted, 256);
 
 	MCFG_VIDEO_START_OVERRIDE(liberate_state,prosport)
@@ -867,7 +867,7 @@ MACHINE_CONFIG_START(liberate_state::prosport)
 	AY8912(config, "ay1", 1500000).add_route(ALL_OUTPUTS, "mono", 0.30);
 
 	AY8912(config, "ay2", 1500000).add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
 /*************************************

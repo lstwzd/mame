@@ -8,10 +8,8 @@
 
 #include "emu.h"
 #include "includes/harddriv.h"
-#include "machine/atarigen.h"
 
 #include "cpu/tms32010/tms32010.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 
@@ -88,7 +86,7 @@ void harddriv_sound_board_device::update_68k_interrupts()
  *
  *************************************/
 
-READ16_MEMBER(harddriv_sound_board_device::hd68k_snd_data_r)
+uint16_t harddriv_sound_board_device::hd68k_snd_data_r()
 {
 	m_soundflag = 0;
 	logerror("%s:main read from sound=%04X\n", machine().describe_context(), m_sounddata);
@@ -96,7 +94,7 @@ READ16_MEMBER(harddriv_sound_board_device::hd68k_snd_data_r)
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hd68k_snd_status_r)
+uint16_t harddriv_sound_board_device::hd68k_snd_status_r()
 {
 	return (m_mainflag << 15) | (m_soundflag << 14) | 0x1fff;
 }
@@ -110,14 +108,14 @@ TIMER_CALLBACK_MEMBER( harddriv_sound_board_device::delayed_68k_w )
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hd68k_snd_data_w)
+void harddriv_sound_board_device::hd68k_snd_data_w(uint16_t data)
 {
 	machine().scheduler().synchronize(timer_expired_delegate(FUNC(harddriv_sound_board_device::delayed_68k_w), this), data);
 	logerror("%s:main write to sound=%04X\n", machine().describe_context(), data);
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hd68k_snd_reset_w)
+void harddriv_sound_board_device::hd68k_snd_reset_w(uint16_t data)
 {
 	m_soundcpu->set_input_line(INPUT_LINE_RESET, ASSERT_LINE);
 	m_soundcpu->set_input_line(INPUT_LINE_RESET, CLEAR_LINE);
@@ -134,7 +132,7 @@ WRITE16_MEMBER(harddriv_sound_board_device::hd68k_snd_reset_w)
  *
  *************************************/
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_data_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_data_r()
 {
 	m_mainflag = 0;
 	update_68k_interrupts();
@@ -143,7 +141,7 @@ READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_data_r)
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_data_w)
+void harddriv_sound_board_device::hdsnd68k_data_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_sounddata);
 	m_soundflag = 1;
@@ -158,28 +156,28 @@ WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_data_w)
  *
  *************************************/
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_switches_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_switches_r(offs_t offset)
 {
 	logerror("%s:hdsnd68k_switches_r(%04X)\n", machine().describe_context(), offset);
 	return 0;
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_320port_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_320port_r(offs_t offset)
 {
 	logerror("%s:hdsnd68k_320port_r(%04X)\n", machine().describe_context(), offset);
 	return 0;
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_status_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_status_r()
 {
 //FFFF 3000 R   READSTAT    Read Status
 //            D15 = 'Main Flag'
 //            D14 = 'Sound Flag'
 //            D13 = Test Switch
 //            D12 = 5220 Ready Flag (0=Ready)
-	logerror("%s:hdsnd68k_status_r(%04X)\n", machine().describe_context(), offset);
+	//logerror("%s:hdsnd68k_status_r(%04X)\n", machine().describe_context(), offset);
 	return (m_mainflag << 15) | (m_soundflag << 14) | 0x2000 | 0;//((ioport("IN0")->read() & 0x0020) << 8) | 0;
 }
 
@@ -191,7 +189,7 @@ READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_status_r)
  *
  *************************************/
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_latches_w)
+void harddriv_sound_board_device::hdsnd68k_latches_w(offs_t offset, uint16_t data)
 {
 	// bit 3 selects the value; data is ignored
 	// low 3 bits select the function
@@ -232,13 +230,13 @@ WRITE_LINE_MEMBER(harddriv_sound_board_device::led_w)
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_speech_w)
+void harddriv_sound_board_device::hdsnd68k_speech_w(offs_t offset, uint16_t data)
 {
 	logerror("%s:hdsnd68k_speech_w(%04X)=%04X\n", machine().describe_context(), offset, data);
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_irqclr_w)
+void harddriv_sound_board_device::hdsnd68k_irqclr_w(uint16_t data)
 {
 	m_irq68k = 0;
 	update_68k_interrupts();
@@ -252,31 +250,31 @@ WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_irqclr_w)
  *
  *************************************/
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_320ram_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_320ram_r(offs_t offset)
 {
 	return m_sounddsp_ram[offset & 0xfff];
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_320ram_w)
+void harddriv_sound_board_device::hdsnd68k_320ram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_sounddsp_ram[offset & 0xfff]);
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_320ports_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_320ports_r(offs_t offset)
 {
 	return m_sounddsp->space(AS_IO).read_word(offset & 7);
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_320ports_w)
+void harddriv_sound_board_device::hdsnd68k_320ports_w(offs_t offset, uint16_t data)
 {
 	m_sounddsp->space(AS_IO).write_word(offset & 7, data);
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_320com_r)
+uint16_t harddriv_sound_board_device::hdsnd68k_320com_r(offs_t offset)
 {
 	if (m_cramen)
 		return m_comram[offset & 0x1ff];
@@ -286,7 +284,7 @@ READ16_MEMBER(harddriv_sound_board_device::hdsnd68k_320com_r)
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnd68k_320com_w)
+void harddriv_sound_board_device::hdsnd68k_320com_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (m_cramen)
 		COMBINE_DATA(&m_comram[offset & 0x1ff]);
@@ -326,28 +324,28 @@ READ_LINE_MEMBER(harddriv_sound_board_device::hdsnddsp_get_bio)
  *
  *************************************/
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_dac_w)
+void harddriv_sound_board_device::hdsnddsp_dac_w(uint16_t data)
 {
 	/* /DACL */
 	m_dac->write((data >> 4) ^ 0x800); // schematics show d0-3 are ignored & the msb is inverted
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_comport_w)
+void harddriv_sound_board_device::hdsnddsp_comport_w(uint16_t data)
 {
 	/* COM port TD0-7 */
 	logerror("%s:hdsnddsp_comport_w=%d\n", machine().describe_context(), data);
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_mute_w)
+void harddriv_sound_board_device::hdsnddsp_mute_w(uint16_t data)
 {
 	/* mute DAC audio, D0=1 */
 	logerror("%s:mute DAC=%d\n", machine().describe_context(), data);
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_gen68kirq_w)
+void harddriv_sound_board_device::hdsnddsp_gen68kirq_w(uint16_t data)
 {
 	/* generate 68k IRQ */
 	m_irq68k = 1;
@@ -355,7 +353,7 @@ WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_gen68kirq_w)
 }
 
 
-WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_soundaddr_w)
+void harddriv_sound_board_device::hdsnddsp_soundaddr_w(offs_t offset, uint16_t data)
 {
 	if (offset == 0)
 	{
@@ -370,7 +368,7 @@ WRITE16_MEMBER(harddriv_sound_board_device::hdsnddsp_soundaddr_w)
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnddsp_rom_r)
+uint16_t harddriv_sound_board_device::hdsnddsp_rom_r()
 {
 	if (m_sound_rom_offs < m_sound_rom.length())
 		return m_sound_rom[m_sound_rom_offs++] << 7;
@@ -379,13 +377,13 @@ READ16_MEMBER(harddriv_sound_board_device::hdsnddsp_rom_r)
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnddsp_comram_r)
+uint16_t harddriv_sound_board_device::hdsnddsp_comram_r()
 {
 	return m_comram[m_sound_rom_offs++ & 0x1ff];
 }
 
 
-READ16_MEMBER(harddriv_sound_board_device::hdsnddsp_compare_r)
+uint16_t harddriv_sound_board_device::hdsnddsp_compare_r(offs_t offset)
 {
 	logerror("%s:hdsnddsp_compare_r(%04X)\n", machine().describe_context(), offset);
 	return 0;
@@ -432,8 +430,8 @@ void harddriv_sound_board_device::driversnd_dsp_io_map(address_map &map)
 // device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(harddriv_sound_board_device::device_add_mconfig)
-
+void harddriv_sound_board_device::device_add_mconfig(machine_config &config)
+{
 	/* basic machine hardware */
 	M68000(config, m_soundcpu, 16_MHz_XTAL/2);
 	m_soundcpu->set_addrmap(AS_PROGRAM, &harddriv_sound_board_device::driversnd_68k_map);
@@ -455,7 +453,5 @@ MACHINE_CONFIG_START(harddriv_sound_board_device::device_add_mconfig)
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
 
-	MCFG_DEVICE_ADD("dac", AM6012, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.5) // ls374d.75e + ls374d.90e + am6012
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	AM6012(config, m_dac, 0).add_route(ALL_OUTPUTS, "speaker", 0.5); // ls374d.75e + ls374d.90e + am6012
+}

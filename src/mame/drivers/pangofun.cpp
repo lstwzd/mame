@@ -141,71 +141,40 @@ void pangofun_state::pcat_io(address_map &map)
 	map(0x03d0, 0x03df).rw("vga", FUNC(vga_device::port_03d0_r), FUNC(vga_device::port_03d0_w));
 }
 
-#define AT_KEYB_HELPER(bit, text, key1) \
-	PORT_BIT( bit, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME(text) PORT_CODE(key1)
-
 static INPUT_PORTS_START( pangofun )
-	PORT_START("pc_keyboard_0")
-	PORT_BIT ( 0x0001, 0x0000, IPT_UNUSED )     /* unused scancode 0 */
-	AT_KEYB_HELPER( 0x0002, "Esc",          KEYCODE_Q           ) /* Esc                         01  81 */
-
-	PORT_START("pc_keyboard_1")
-	AT_KEYB_HELPER( 0x0020, "Y",            KEYCODE_Y           ) /* Y                           15  95 */
-	AT_KEYB_HELPER( 0x1000, "Enter",        KEYCODE_ENTER       ) /* Enter                       1C  9C */
-
-	PORT_START("pc_keyboard_2")
-
-	PORT_START("pc_keyboard_3")
-	AT_KEYB_HELPER( 0x0002, "N",            KEYCODE_N           ) /* N                           31  B1 */
-	AT_KEYB_HELPER( 0x0800, "F1",           KEYCODE_S           ) /* F1                          3B  BB */
-
-	PORT_START("pc_keyboard_4")
-
-	PORT_START("pc_keyboard_5")
-
-	PORT_START("pc_keyboard_6")
-	AT_KEYB_HELPER( 0x0040, "(MF2)Cursor Up",       KEYCODE_UP          ) /* Up                          67  e7 */
-	AT_KEYB_HELPER( 0x0080, "(MF2)Page Up",         KEYCODE_PGUP        ) /* Page Up                     68  e8 */
-	AT_KEYB_HELPER( 0x0100, "(MF2)Cursor Left",     KEYCODE_LEFT        ) /* Left                        69  e9 */
-	AT_KEYB_HELPER( 0x0200, "(MF2)Cursor Right",    KEYCODE_RIGHT       ) /* Right                       6a  ea */
-	AT_KEYB_HELPER( 0x0800, "(MF2)Cursor Down",     KEYCODE_DOWN        ) /* Down                        6c  ec */
-	AT_KEYB_HELPER( 0x1000, "(MF2)Page Down",       KEYCODE_PGDN        ) /* Page Down                   6d  ed */
-	AT_KEYB_HELPER( 0x4000, "Del",                  KEYCODE_A           ) /* Delete                      6f  ef */
-
-	PORT_START("pc_keyboard_7")
 INPUT_PORTS_END
 
 void pangofun_state::machine_start()
 {
 }
 
-MACHINE_CONFIG_START(pangofun_state::pangofun)
+void pangofun_state::pangofun(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I486, 25000000 )    /* I486 ?? Mhz (25 according to POST) */
-	MCFG_DEVICE_PROGRAM_MAP(pcat_map)
-	MCFG_DEVICE_IO_MAP(pcat_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE("pic8259_1", pic8259_device, inta_cb)
+	I486(config, m_maincpu, 25000000);    /* I486 ?? Mhz (25 according to POST) */
+	m_maincpu->set_addrmap(AS_PROGRAM, &pangofun_state::pcat_map);
+	m_maincpu->set_addrmap(AS_IO, &pangofun_state::pcat_io);
+	m_maincpu->set_irq_acknowledge_callback("pic8259_1", FUNC(pic8259_device::inta_cb));
 
 	/* video hardware */
 	pcvideo_vga(config);
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
+	subdevice<screen_device>("screen")->set_refresh_hz(60);
+	subdevice<screen_device>("screen")->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 
 	pcat_common(config);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START(pangofun)
 	ROM_REGION32_LE(0x20000, "bios", 0) /* motherboard bios */
 	ROM_LOAD("bios.bin", 0x000000, 0x10000, CRC(e70168ff) SHA1(4a0d985c218209b7db2b2d33f606068aae539020) )
 
-	ROM_REGION(0x20000, "video_bios", 0)    /* Trident TVGA9000 BIOS */
+	ROM_REGION32_LE(0x20000, "video_bios", 0)    /* Trident TVGA9000 BIOS */
 	ROM_LOAD16_BYTE("prom.vid", 0x00000, 0x04000, CRC(ad7eadaf) SHA1(ab379187914a832284944e81e7652046c7d938cc) )
 	ROM_CONTINUE(               0x00001, 0x04000 )
 
 	/* this is what was on the rom board, mapping unknown */
-	ROM_REGION(0xa00000, "game_prg", 0)    /* rom board */
+	ROM_REGION32_LE(0xa00000, "game_prg", 0)    /* rom board */
 	ROM_LOAD("bank8.u39", 0x000000, 0x20000, CRC(72422c66) SHA1(40b8cca3f99925cf019053921165f6a4a30d784d) )
 	ROM_LOAD16_BYTE("bank0.u11", 0x100001, 0x80000, CRC(6ce951d7) SHA1(1dd09491c651920a8a507bdc6584400367e5a292) )
 	ROM_LOAD16_BYTE("bank0.u31", 0x100000, 0x80000, CRC(b6c06baf) SHA1(79074b086d24737d629272d98f17de6e1e650485) )

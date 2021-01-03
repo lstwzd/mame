@@ -43,7 +43,7 @@ public:
 	{
 	}
 
-	DECLARE_READ8_MEMBER( sam_read );
+	uint8_t sam_read(offs_t offset);
 
 	DECLARE_WRITE_LINE_MEMBER( horizontal_sync );
 	DECLARE_WRITE_LINE_MEMBER( field_sync );
@@ -61,7 +61,6 @@ public:
 	void coco(machine_config &config);
 protected:
 	virtual void device_start() override;
-	virtual void update_cart_base(uint8_t *cart_base) override;
 
 	// PIA1
 	virtual void pia1_pb_changed(uint8_t data) override;
@@ -69,9 +68,20 @@ protected:
 	sam6883_device &sam() { return *m_sam; }
 	required_device<sam6883_device> m_sam;
 
+	void coco_mem(address_map &map);
+	void coco_ram(address_map &map);
+	void coco_rom0(address_map &map);
+	void coco_rom1(address_map &map);
+	void coco_rom2(address_map &map);
+	void coco_io0(address_map &map);
+	void coco_io1(address_map &map);
+	void coco_io2(address_map &map);
+	void coco_ff60(address_map &map);
+
 private:
 	void configure_sam(void);
 
+protected:
 	required_device<mc6847_base_device> m_vdg;
 };
 

@@ -128,12 +128,12 @@ void arabian_state::arabian_palette(palette_device &palette) const
 		/* convert an RGB color -
 		   there are effectively 6 bits of color: 2 red, 2 green, 2 blue */
 		int const r = ( rhi * (int)(((153.0 * 192) / 255) + 0.5)) +
-			          ( rlo * int(((102.0 * 192) / 255) + 0.5)) +
-			          ((rhi | rlo) ? 63 : 0);
+					  ( rlo * int(((102.0 * 192) / 255) + 0.5)) +
+					  ((rhi | rlo) ? 63 : 0);
 
 		int const g = ( ghi * (int)(((156.0 * 192) / 255) + 0.5)) +
-			          ( glo * int((( 99.0 * 192) / 255) + 0.5)) +
-			          ((ghi | glo) ? 63 : 0);
+					  ( glo * int((( 99.0 * 192) / 255) + 0.5)) +
+					  ((ghi | glo) ? 63 : 0);
 
 		int const b = (bhi * 192) + (bbase * 63);
 
@@ -263,7 +263,7 @@ void arabian_state::blit_area( uint8_t plane, uint16_t src, uint8_t x, uint8_t y
  *
  *************************************/
 
-WRITE8_MEMBER(arabian_state::arabian_blitter_w)
+void arabian_state::arabian_blitter_w(offs_t offset, uint8_t data)
 {
 	/* write the data */
 	m_blitter[offset] = data;
@@ -292,7 +292,7 @@ WRITE8_MEMBER(arabian_state::arabian_blitter_w)
  *
  *************************************/
 
-WRITE8_MEMBER(arabian_state::arabian_videoram_w)
+void arabian_state::arabian_videoram_w(offs_t offset, uint8_t data)
 {
 	uint8_t *base;
 	uint8_t x, y;

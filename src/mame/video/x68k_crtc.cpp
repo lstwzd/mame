@@ -22,6 +22,8 @@ x68k_crtc_device::x68k_crtc_device(const machine_config &mconfig, device_type ty
 	, m_gvram_read_callback(*this)
 	, m_tvram_write_callback(*this)
 	, m_gvram_write_callback(*this)
+	, m_clock_69m(0)
+	, m_clock_50m(0)
 	, m_operation(0)
 	, m_vblank(false)
 	, m_hblank(false)
@@ -134,7 +136,7 @@ void x68k_crtc_device::text_copy(unsigned src, unsigned dest, u8 planes)
 	// update RAM in each plane
 	for (int words = 256; words > 0; words--, src_ram++, dest_ram++)
 	{
-		for (u8 plane = 0; plane < 3; plane++)
+		for (u8 plane = 0; plane <= 3; plane++)
 			if (BIT(planes, plane))
 				m_tvram_write_callback(dest_ram + 0x10000 * plane, m_tvram_read_callback(src_ram + 0x10000 * plane, 0xffff), 0xffff);
 	}
@@ -203,7 +205,7 @@ void x68k_crtc_device::refresh_mode()
 		div = BIT(m_reg[20], 0) ? 3 : 6;
 	if ((m_reg[20] & 0x0c) == 0)
 		div *= 2;
-	attotime refresh = attotime::from_hz((BIT(m_reg[20], 4) ? 69.55199_MHz_XTAL : 38.86363_MHz_XTAL) / div) * (scr.max_x * scr.max_y);
+	attotime refresh = attotime::from_hz((BIT(m_reg[20], 4) ? clock_69m() : clock_39m()) / div) * (scr.max_x * scr.max_y);
 	LOG("screen().configure(%i,%i,[%i,%i,%i,%i],%f)\n", scr.max_x, scr.max_y, visiblescr.min_x, visiblescr.min_y, visiblescr.max_x, visiblescr.max_y, refresh.as_hz());
 	screen().configure(scr.max_x, scr.max_y, visiblescr, refresh.as_attoseconds());
 }
@@ -385,7 +387,7 @@ TIMER_CALLBACK_MEMBER(x68k_crtc_device::vblank_irq)
  *    Operation Port bits are cleared automatically when the requested
  *    operation is completed.
  */
-WRITE16_MEMBER(x68k_crtc_device::crtc_w)
+void x68k_crtc_device::crtc_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (offset < 0x24)
 		COMBINE_DATA(&m_reg[offset]);
@@ -470,7 +472,7 @@ WRITE16_MEMBER(x68k_crtc_device::crtc_w)
 //  LOG("%s CRTC: Wrote %04x to CRTC register %i\n",machine().describe_context(), data, offset);
 }
 
-READ16_MEMBER(x68k_crtc_device::crtc_r)
+u16 x68k_crtc_device::crtc_r(offs_t offset)
 {
 	if (offset < 24)
 	{
@@ -501,7 +503,7 @@ READ16_MEMBER(x68k_crtc_device::crtc_r)
 	return 0xffff;
 }
 
-WRITE16_MEMBER(x68k_crtc_device::gvram_w)
+void x68k_crtc_device::gvram_w(offs_t offset, u16 data, u16 mem_mask)
 {
 //  int xloc,yloc,pageoffset;
 	/*
@@ -567,7 +569,7 @@ WRITE16_MEMBER(x68k_crtc_device::gvram_w)
 	}
 }
 
-WRITE16_MEMBER(x68k_crtc_device::tvram_w)
+void x68k_crtc_device::tvram_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 text_mask = ~(m_reg[23]) & mem_mask;
 
@@ -595,7 +597,7 @@ WRITE16_MEMBER(x68k_crtc_device::tvram_w)
 	}
 }
 
-READ16_MEMBER(x68k_crtc_device::gvram_r)
+u16 x68k_crtc_device::gvram_r(offs_t offset)
 {
 	u16 ret = 0;
 
@@ -636,7 +638,7 @@ READ16_MEMBER(x68k_crtc_device::gvram_r)
 	return ret;
 }
 
-READ16_MEMBER(x68k_crtc_device::tvram_r)
+u16 x68k_crtc_device::tvram_r(offs_t offset)
 {
-	return m_tvram_read_callback(offset, mem_mask);
+	return m_tvram_read_callback(offset);
 }

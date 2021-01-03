@@ -207,7 +207,7 @@ TILE_GET_INFO_MEMBER(efdt_state::get_tile_info_0)
 	//int code = data + (xtra << 8);
 	int code = data + m_tilebank;
 
-	SET_TILE_INFO_MEMBER(0, code, pal, 0);
+	tileinfo.set(0, code, pal, 0);
 }
 
 TILE_GET_INFO_MEMBER(efdt_state::get_tile_info_1)
@@ -216,13 +216,13 @@ TILE_GET_INFO_MEMBER(efdt_state::get_tile_info_1)
 
 	int code = data;
 
-	SET_TILE_INFO_MEMBER(1, code, 0x1c, 0);
+	tileinfo.set(1, code, 0x1c, 0);
 }
 
 void efdt_state::video_start()
 {
-	m_tilemap[0] = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(efdt_state::get_tile_info_0), this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
-	m_tilemap[1] = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(efdt_state::get_tile_info_1), this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_tilemap[0] = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(efdt_state::get_tile_info_0)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_tilemap[1] = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(efdt_state::get_tile_info_1)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 
 	m_tilemap[0]->set_transparent_pen(0);
 	m_tilemap[1]->set_transparent_pen(0);
@@ -362,7 +362,6 @@ void efdt_state::efdt_map(address_map &map)
 
 void efdt_state::efdt_snd_map(address_map &map)
 {
-	map(0x0000, 0x007f).ram();
 	map(0x6000, 0x6000).nopw();
 	map(0x7000, 0x7000).nopw();
 	map(0x8000, 0x83ff).ram();
@@ -432,12 +431,12 @@ void efdt_state::machine_reset()
 *               Sound Latches                *
 *********************************************/
 
-READ8_MEMBER(efdt_state::main_soundlatch_r)
+uint8_t efdt_state::main_soundlatch_r(offs_t offset)
 {
 	return m_soundlatch[offset];
 }
 
-WRITE8_MEMBER(efdt_state::main_soundlatch_w)
+void efdt_state::main_soundlatch_w(offs_t offset, uint8_t data)
 {
 	m_soundlatch[offset] = data;
 	switch (offset)
@@ -453,22 +452,22 @@ WRITE8_MEMBER(efdt_state::main_soundlatch_w)
 	}
 }
 
-READ8_MEMBER(efdt_state::soundlatch_0_r)
+uint8_t efdt_state::soundlatch_0_r()
 {
 	return m_soundCommand;
 }
 
-READ8_MEMBER(efdt_state::soundlatch_1_r)
+uint8_t efdt_state::soundlatch_1_r()
 {
 	return m_soundControl;
 }
 
-WRITE8_MEMBER(efdt_state::soundlatch_0_w)
+void efdt_state::soundlatch_0_w(uint8_t data)
 {
 	//m_soundCommand;
 }
 
-WRITE8_MEMBER(efdt_state::soundlatch_1_w)
+void efdt_state::soundlatch_1_w(uint8_t data)
 {
 	if (!(data == 0xfd || data == 0xf5))
 	{
@@ -482,22 +481,22 @@ WRITE8_MEMBER(efdt_state::soundlatch_1_w)
 	//  m_soundControl &= ~1;
 }
 
-READ8_MEMBER(efdt_state::soundlatch_2_r)
+uint8_t efdt_state::soundlatch_2_r()
 {
 	return m_soundControl;
 }
 
-READ8_MEMBER(efdt_state::soundlatch_3_r)
+uint8_t efdt_state::soundlatch_3_r()
 {
 	return m_soundControl;
 }
 
-WRITE8_MEMBER(efdt_state::soundlatch_2_w)
+void efdt_state::soundlatch_2_w(uint8_t data)
 {
 	//m_soundCommand;
 }
 
-WRITE8_MEMBER(efdt_state::soundlatch_3_w)
+void efdt_state::soundlatch_3_w(uint8_t data)
 {
 	m_soundControl = data;
 }
@@ -544,15 +543,15 @@ GFXDECODE_END
 *              Machine Driver                *
 *********************************************/
 
-MACHINE_CONFIG_START( efdt_state::efdt )
-
+void efdt_state::efdt(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, Z80_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(efdt_map)
+	Z80(config, m_maincpu, Z80_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &efdt_state::efdt_map);
 
-	MCFG_DEVICE_ADD("audiocpu", M6802, F6802_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(efdt_snd_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(efdt_state, irq0_line_hold, F6802_CLOCK / 8192)
+	M6802(config, m_audiocpu, F6802_CLOCK);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &efdt_state::efdt_snd_map);
+	m_audiocpu->set_periodic_int(FUNC(efdt_state::irq0_line_hold), attotime::from_hz(F6802_CLOCK / 8192));
 
 	LS259(config, m_vlatch[0]);
 	m_vlatch[0]->q_out_cb<0>().set(FUNC(efdt_state::nmi_clear_w));
@@ -562,14 +561,14 @@ MACHINE_CONFIG_START( efdt_state::efdt )
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_VISIBLE_AREA(0, 32*8 - 1, 16, 30*8 - 1)
-	MCFG_SCREEN_UPDATE_DRIVER(efdt_state, screen_update_efdt)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, efdt_state, vblank_nmi_w))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_size(32*8, 32*8);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_visarea(0, 32*8 - 1, 16, 30*8 - 1);
+	screen.set_screen_update(FUNC(efdt_state::screen_update_efdt));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(efdt_state::vblank_nmi_w));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_efdt);
 	PALETTE(config, m_palette, FUNC(efdt_state::efdt_palette), 256);
@@ -590,8 +589,7 @@ MACHINE_CONFIG_START( efdt_state::efdt )
 	ay2.port_b_read_callback().set(FUNC(efdt_state::soundlatch_3_r));
 	ay2.port_a_write_callback().set(FUNC(efdt_state::soundlatch_2_w));
 	ay2.port_b_write_callback().set(FUNC(efdt_state::soundlatch_3_w));
-
-MACHINE_CONFIG_END
+}
 
 
 /*********************************************

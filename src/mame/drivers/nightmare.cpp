@@ -240,8 +240,8 @@ protected:
 	DECLARE_READ_LINE_MEMBER( ef1_r );
 	DECLARE_READ_LINE_MEMBER( ef2_r );
 	DECLARE_WRITE_LINE_MEMBER( q_w );
-	DECLARE_WRITE8_MEMBER( ic10_w );
-	DECLARE_WRITE8_MEMBER( unkout_w );
+	void ic10_w(uint8_t data);
+	void unkout_w(uint8_t data);
 
 	void nightmare_map(address_map &map);
 	void nightmare_io_map(address_map &map);
@@ -271,7 +271,7 @@ void nightmare_state::device_timer(emu_timer &timer, device_timer_id id, int par
 		m_reset = 1;
 		break;
 	default:
-		assert_always(false, "Unknown id in nightmare_state::device_timer");
+		throw emu_fatalerror("Unknown id in nightmare_state::device_timer");
 	}
 }
 
@@ -316,7 +316,7 @@ READ_LINE_MEMBER( nightmare_state::ef2_r )
 }
 
 
-WRITE8_MEMBER( nightmare_state::ic10_w )
+void nightmare_state::ic10_w(uint8_t data)
 {
   /*
     7 - EEPROM Di
@@ -334,7 +334,7 @@ WRITE8_MEMBER( nightmare_state::ic10_w )
 }
 
 
-WRITE8_MEMBER( nightmare_state::unkout_w )
+void nightmare_state::unkout_w(uint8_t data)
 {
   // J3
 }
@@ -347,13 +347,11 @@ void nightmare_state::nightmare_map(address_map &map)
 
 void nightmare_state::nightmare_io_map(address_map &map)
 {
-	map(0x0001, 0x0001).r("ic8", FUNC(cdp1852_device::read)).w(FUNC(nightmare_state::unkout_w));
-	map(0x0002, 0x0002).r("ic9", FUNC(cdp1852_device::read)).w("ic10", FUNC(cdp1852_device::write));
+	map(1, 1).r("ic8", FUNC(cdp1852_device::read)).w(FUNC(nightmare_state::unkout_w));
+	map(2, 2).r("ic9", FUNC(cdp1852_device::read)).w("ic10", FUNC(cdp1852_device::write));
 
-	map(0x0004, 0x0004).rw(m_vdc, FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x0005, 0x0005).rw(m_vdc, FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
-	map(0x0006, 0x0006).rw(m_vdc2, FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x0007, 0x0007).rw(m_vdc2, FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
+	map(4, 5).rw(m_vdc, FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
+	map(6, 7).rw(m_vdc2, FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
 }
 
 void nightmare_state::nightmare_sound_map(address_map &map)
@@ -371,9 +369,9 @@ uint32_t nightmare_state::screen_update_nightmare(screen_device &screen, bitmap_
 	// combine two buffers (additive?)
 	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
-		uint32_t *const bitmap1 = &m_vdc2->get_bitmap().pix32(y);
-		uint32_t *const bitmap2 = &m_vdc->get_bitmap().pix32(y);
-		uint32_t *dst = &bitmap.pix32(y);
+		uint32_t const *const bitmap1 = &m_vdc2->get_bitmap().pix(y);
+		uint32_t const *const bitmap2 = &m_vdc->get_bitmap().pix(y);
+		uint32_t *const dst = &bitmap.pix(y);
 
 		for (int x = cliprect.left(); x <= cliprect.right(); x++)
 		{
@@ -381,9 +379,9 @@ uint32_t nightmare_state::screen_update_nightmare(screen_device &screen, bitmap_
 			uint32_t p2 = bitmap2[x];
 			uint32_t result = 0;
 
-			for(int shift=0; shift<32;shift+=8)
+			for (int shift=0; shift<32;shift+=8)
 			{
-				uint32_t data = ((p2>>shift)&0xff)+((p1>>shift)&0xff);
+				uint32_t const data = ((p2>>shift)&0xff)+((p1>>shift)&0xff);
 				result|=((data>0xff)?0xff:data)<<shift;
 			}
 			dst[x]=result;

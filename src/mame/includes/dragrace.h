@@ -15,6 +15,7 @@
 #include "sound/discrete.h"
 #include "emupal.h"
 #include "screen.h"
+#include "tilemap.h"
 
 /* Discrete Sound Input Nodes */
 #define DRAGRACE_SCREECH1_EN    NODE_01
@@ -50,11 +51,11 @@ public:
 	void dragrace(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(speed1_w);
-	DECLARE_WRITE8_MEMBER(speed2_w);
-	DECLARE_READ8_MEMBER(dragrace_input_r);
-	DECLARE_READ8_MEMBER(dragrace_steering_r);
-	DECLARE_READ8_MEMBER(dragrace_scanline_r);
+	void speed1_w(uint8_t data);
+	void speed2_w(uint8_t data);
+	uint8_t dragrace_input_r(offs_t offset);
+	uint8_t dragrace_steering_r();
+	uint8_t dragrace_scanline_r();
 	TILE_GET_INFO_MEMBER(get_tile_info);
 	void dragrace_palette(palette_device &palette) const;
 	uint32_t screen_update_dragrace(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -77,7 +78,7 @@ private:
 	int       m_gear[2];
 
 	/* devices */
-	required_device<discrete_device> m_discrete;
+	required_device<discrete_sound_device> m_discrete;
 	required_device<cpu_device> m_maincpu;
 	required_device<watchdog_timer_device> m_watchdog;
 	required_device<gfxdecode_device> m_gfxdecode;

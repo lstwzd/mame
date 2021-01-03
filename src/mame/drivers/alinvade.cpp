@@ -41,11 +41,11 @@ public:
 	void alinvade(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(irqmask_r);
-	DECLARE_WRITE8_MEMBER(irqmask_w);
-	DECLARE_WRITE8_MEMBER(sound_w);
-	DECLARE_WRITE8_MEMBER(sounden_w);
-	DECLARE_WRITE_LINE_MEMBER(vblank_irq);
+	uint8_t irqmask_r();
+	void irqmask_w(uint8_t data);
+	void sound_w(uint8_t data);
+	void sounden_w(uint8_t data);
+	void vblank_irq(int state);
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void alinvade_map(address_map &map);
@@ -80,23 +80,23 @@ DISCRETE_SOUND_START(alinvade_discrete)
 
 DISCRETE_SOUND_END
 
-WRITE8_MEMBER( alinvade_state::sound_w )
+void  alinvade_state::sound_w(uint8_t data)
 {
 	m_discrete->write(NODE_01, (data^0x3f)<<2);
 }
 
-WRITE8_MEMBER( alinvade_state::sounden_w )
+void alinvade_state::sounden_w(uint8_t data)
 {
-	machine().sound().system_enable(data == 4);
+	machine().sound().system_mute(data != 4);
 }
 
-READ8_MEMBER(alinvade_state::irqmask_r)
+uint8_t alinvade_state::irqmask_r()
 {
 	return 0; // TODO: might be anything
 }
 
 
-WRITE8_MEMBER(alinvade_state::irqmask_w)
+void alinvade_state::irqmask_w(uint8_t data)
 {
 	if((!(m_irqff & 1)) && (data & 1)) // f/f, active high? If the above actually returns 0xff this could be active low ...
 		m_irqmask^= 1;
@@ -177,23 +177,19 @@ void alinvade_state::machine_reset()
 
 uint32_t alinvade_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	offs_t offs;
-
-	for (offs = 0; offs < m_videoram.bytes(); offs++)
+	for (offs_t offs = 0; offs < m_videoram.bytes(); offs++)
 	{
-		int i;
-
 		uint8_t x = (offs << 3)&0x7f;
 		int y = (offs >> 4)&0x7f;
 		uint8_t data = m_videoram[offs];
 
-		for (i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++)
 		{
 			pen_t pen = (data & 0x01) ? rgb_t::white() : rgb_t::black();
-			bitmap.pix32(y, x) = pen;
+			bitmap.pix(y, x) = pen;
 
-			data = data >> 1;
-			x = x + 1;
+			data >>= 1;
+			x++;
 		}
 	}
 
@@ -201,32 +197,31 @@ uint32_t alinvade_state::screen_update(screen_device &screen, bitmap_rgb32 &bitm
 	return 0;
 }
 
-WRITE_LINE_MEMBER(alinvade_state::vblank_irq)
+void alinvade_state::vblank_irq(int state)
 {
 	if (state && BIT(m_irqmask, 0))
 		m_maincpu->set_input_line(0,HOLD_LINE);
 }
 
-MACHINE_CONFIG_START(alinvade_state::alinvade)
-
+void alinvade_state::alinvade(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502,2000000)         /* ? MHz */
-	MCFG_DEVICE_PROGRAM_MAP(alinvade_map)
+	M6502(config, m_maincpu, 2000000);         /* ? MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &alinvade_state::alinvade_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(128, 128)
-	MCFG_SCREEN_VISIBLE_AREA(0, 128-1, 0, 128-1)
-	MCFG_SCREEN_UPDATE_DRIVER(alinvade_state, screen_update)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, alinvade_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(128, 128);
+	screen.set_visarea_full();
+	screen.set_screen_update(FUNC(alinvade_state::screen_update));
+	screen.screen_vblank().set(FUNC(alinvade_state::vblank_irq));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("discrete", DISCRETE, alinvade_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, alinvade_discrete).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
 

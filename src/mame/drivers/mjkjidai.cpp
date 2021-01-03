@@ -32,7 +32,7 @@ TODO:
 #include "speaker.h"
 
 
-WRITE8_MEMBER(mjkjidai_state::adpcm_w)
+void mjkjidai_state::adpcm_w(uint8_t data)
 {
 	m_adpcm_pos = (data & 0x07) * 0x1000 * 2;
 	m_adpcm_end = m_adpcm_pos + 0x1000 * 2;
@@ -48,7 +48,7 @@ WRITE_LINE_MEMBER(mjkjidai_state::adpcm_int)
 	else
 	{
 		uint8_t const data = m_adpcmrom[m_adpcm_pos / 2];
-		m_msm->write_data(m_adpcm_pos & 1 ? data & 0xf : data >> 4);
+		m_msm->data_w(m_adpcm_pos & 1 ? data & 0xf : data >> 4);
 		m_adpcm_pos++;
 	}
 }
@@ -69,12 +69,12 @@ CUSTOM_INPUT_MEMBER(mjkjidai_state::keyboard_r)
 	return res;
 }
 
-WRITE8_MEMBER(mjkjidai_state::keyboard_select_lo_w)
+void mjkjidai_state::keyboard_select_lo_w(uint8_t data)
 {
 	m_keyb = (m_keyb & 0xff00) | (data);
 }
 
-WRITE8_MEMBER(mjkjidai_state::keyboard_select_hi_w)
+void mjkjidai_state::keyboard_select_hi_w(uint8_t data)
 {
 	m_keyb = (m_keyb & 0x00ff) | (data << 8);
 }
@@ -94,8 +94,8 @@ void mjkjidai_state::mjkjidai_io_map(address_map &map)
 	map.global_mask(0xff);
 	map(0x00, 0x03).rw("ppi1", FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x10, 0x13).rw("ppi2", FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0x20, 0x20).w("sn1", FUNC(sn76489_device::command_w));
-	map(0x30, 0x30).w("sn2", FUNC(sn76489_device::command_w));
+	map(0x20, 0x20).w("sn1", FUNC(sn76489_device::write));
+	map(0x30, 0x30).w("sn2", FUNC(sn76489_device::write));
 	map(0x40, 0x40).w(FUNC(mjkjidai_state::adpcm_w));
 }
 
@@ -162,7 +162,7 @@ static INPUT_PORTS_START( mjkjidai )
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("KEYBOARD")
-	PORT_BIT( 0x3f, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_CUSTOM_MEMBER(DEVICE_SELF, mjkjidai_state, keyboard_r, nullptr)
+	PORT_BIT( 0x3f, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_CUSTOM_MEMBER(mjkjidai_state, keyboard_r)
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_MEMORY_RESET )   // reinitialize NVRAM and reset the game
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )
 
@@ -296,8 +296,8 @@ void mjkjidai_state::machine_reset()
 	m_adpcm_pos = m_adpcm_end = 0;
 }
 
-MACHINE_CONFIG_START(mjkjidai_state::mjkjidai)
-
+void mjkjidai_state::mjkjidai(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, 10000000/2); /* 5 MHz ??? */
 	m_maincpu->set_addrmap(AS_PROGRAM, &mjkjidai_state::mjkjidai_map);
@@ -337,7 +337,7 @@ MACHINE_CONFIG_START(mjkjidai_state::mjkjidai)
 
 	MSM5205(config, m_msm, 384000);
 	m_msm->vck_legacy_callback().set(FUNC(mjkjidai_state::adpcm_int));
-	m_msm->set_prescaler_selector(msm5205_device::S64_4B);	/* 6kHz */
+	m_msm->set_prescaler_selector(msm5205_device::S64_4B);  /* 6kHz */
 	m_msm->add_route(ALL_OUTPUTS, "mono", 1.0);
 }
 

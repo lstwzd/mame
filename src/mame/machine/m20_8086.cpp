@@ -18,9 +18,8 @@ m20_8086_device::m20_8086_device(const machine_config &mconfig, const char *tag,
 void m20_8086_device::device_start()
 {
 	uint8_t* ram = m_ram->pointer();
-	m_8086->space(AS_PROGRAM).install_readwrite_bank(0x00000,  m_ram->size() - 0x4001, "mainram");
+	m_8086->space(AS_PROGRAM).install_ram(0x00000,  m_ram->size() - 0x4001, &ram[0x4000]);
 	membank("highram")->set_base(ram);
-	membank("mainram")->set_base(&ram[0x4000]);
 	membank("vram")->set_base(memshare(":videoram")->ptr());
 	membank("vram2")->set_base(memshare(":videoram")->ptr());
 }
@@ -57,19 +56,20 @@ void m20_8086_device::i86_io(address_map &map)
 	map(0x7ffa, 0x7ffd).w(FUNC(m20_8086_device::handshake_w));
 }
 
-MACHINE_CONFIG_START(m20_8086_device::device_add_mconfig)
-	MCFG_DEVICE_ADD("8086", I8086, XTAL(24'000'000)/3)
-	MCFG_DEVICE_PROGRAM_MAP(i86_prog)
-	MCFG_DEVICE_IO_MAP(i86_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(m20_8086_device, int_cb)
-MACHINE_CONFIG_END
+void m20_8086_device::device_add_mconfig(machine_config &config)
+{
+	I8086(config, m_8086, XTAL(24'000'000)/3);
+	m_8086->set_addrmap(AS_PROGRAM, &m20_8086_device::i86_prog);
+	m_8086->set_addrmap(AS_IO, &m20_8086_device::i86_io);
+	m_8086->set_irq_acknowledge_callback(FUNC(m20_8086_device::int_cb));
+}
 
-READ16_MEMBER(m20_8086_device::z8000_io_r)
+uint16_t m20_8086_device::z8000_io_r(offs_t offset, uint16_t mem_mask)
 {
 	return m_maincpu->space(AS_IO).read_word(offset << 1, mem_mask);
 }
 
-WRITE16_MEMBER(m20_8086_device::z8000_io_w)
+void m20_8086_device::z8000_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	m_maincpu->space(AS_IO).write_word(offset << 1, data, mem_mask);
 }
@@ -98,7 +98,7 @@ WRITE_LINE_MEMBER(m20_8086_device::vi_w)
 	m_8086->set_input_line(INPUT_LINE_IRQ0, (state || m_nvi) ? ASSERT_LINE : CLEAR_LINE);
 }
 
-WRITE16_MEMBER(m20_8086_device::handshake_w)
+void m20_8086_device::handshake_w(offs_t offset, uint16_t data)
 {
 	if(!offset)
 	{

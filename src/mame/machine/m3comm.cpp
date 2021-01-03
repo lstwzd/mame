@@ -118,12 +118,13 @@ DEFINE_DEVICE_TYPE(M3COMM, m3comm_device, "m3comm", "Model 3 Communication Board
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(m3comm_device::device_add_mconfig)
-	MCFG_DEVICE_ADD(M68K_TAG, M68000, 10000000) // random
-	MCFG_DEVICE_PROGRAM_MAP(m3comm_mem)
+void m3comm_device::device_add_mconfig(machine_config &config)
+{
+	M68000(config, m_commcpu, 10000000); // random
+	m_commcpu->set_addrmap(AS_PROGRAM, &m3comm_device::m3comm_mem);
 
 	RAM(config, RAM_TAG).set_default_size("128K");
-MACHINE_CONFIG_END
+}
 
 //**************************************************************************
 //  LIVE DEVICE
@@ -204,7 +205,7 @@ void m3comm_device::device_timer(emu_timer &timer, device_timer_id id, int param
 
 ///////////// Internal MMIO
 
-READ16_MEMBER(m3comm_device::ctrl_r)
+uint16_t m3comm_device::ctrl_r(offs_t offset, uint16_t mem_mask)
 {
 	switch (offset) {
 	case 0x00 / 2:
@@ -214,7 +215,7 @@ READ16_MEMBER(m3comm_device::ctrl_r)
 		return 0;
 	}
 }
-WRITE16_MEMBER(m3comm_device::ctrl_w)
+void m3comm_device::ctrl_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	switch (offset) {
 	case 0x00 / 2:      // Communication RAM bank switch (flipped in IRQ2 and IRQ5 handlers)
@@ -236,7 +237,7 @@ WRITE16_MEMBER(m3comm_device::ctrl_w)
 	}
 }
 
-READ16_MEMBER(m3comm_device::ioregs_r)
+uint16_t m3comm_device::ioregs_r(offs_t offset, uint16_t mem_mask)
 {
 	switch (offset) {
 	case 0x00 / 2:  // UNK, Model3 host wait it to be NZ then write 0
@@ -257,7 +258,7 @@ READ16_MEMBER(m3comm_device::ioregs_r)
 		return 0;
 	}
 }
-WRITE16_MEMBER(m3comm_device::ioregs_w)
+void m3comm_device::ioregs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	switch (offset) {
 	case 0x14 / 2:  // written 80 at data receive enable, 0 then 1 at IRQ6 handler
@@ -331,43 +332,43 @@ WRITE16_MEMBER(m3comm_device::ioregs_w)
 
 ////////////// Model3 interface
 
-READ16_MEMBER(m3comm_device::m3_m68k_ram_r)
+uint16_t m3comm_device::m3_m68k_ram_r(offs_t offset)
 {
 	uint16_t value = m68k_ram[offset];        // FIXME endian
 	return swapb16(value);
 }
-WRITE16_MEMBER(m3comm_device::m3_m68k_ram_w)
+void m3comm_device::m3_m68k_ram_w(offs_t offset, uint16_t data)
 {
 	m68k_ram[offset] = swapb16(data);       // FIXME endian
 }
-READ8_MEMBER(m3comm_device::m3_comm_ram_r)
+uint8_t m3comm_device::m3_comm_ram_r(offs_t offset)
 {
 	uint8_t *commram = (uint8_t*)membank("comm_ram")->base();
 	return commram[offset ^ 3];
 }
-WRITE8_MEMBER(m3comm_device::m3_comm_ram_w)
+void m3comm_device::m3_comm_ram_w(offs_t offset, uint8_t data)
 {
 	uint8_t *commram = (uint8_t*)membank("comm_ram")->base();
 	commram[offset ^ 3] = data;
 }
-READ16_MEMBER(m3comm_device::m3_ioregs_r)
+uint16_t m3comm_device::m3_ioregs_r(offs_t offset, uint16_t mem_mask)
 {
-	uint16_t value = ioregs_r(space, offset, swapb16(mem_mask));
+	uint16_t value = ioregs_r(offset, swapb16(mem_mask));
 	return swapb16(value);
 }
-WRITE16_MEMBER(m3comm_device::m3_ioregs_w)
+void m3comm_device::m3_ioregs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint16_t value = swapb16(data);
-	ioregs_w(space, offset, value, swapb16(mem_mask));
+	ioregs_w(offset, value, swapb16(mem_mask));
 
 	// guess, can be asserted at any reg write
 	if (offset == (0x88 / 2))
 		m_commcpu->set_input_line(M68K_IRQ_2, ASSERT_LINE);
 }
 
-////////////// NAOMI inerface
+////////////// NAOMI interface
 
-READ16_MEMBER(m3comm_device::naomi_r)
+uint16_t m3comm_device::naomi_r(offs_t offset)
 {
 	switch (offset)
 	{
@@ -397,7 +398,7 @@ READ16_MEMBER(m3comm_device::naomi_r)
 		return 0;
 	}
 }
-WRITE16_MEMBER(m3comm_device::naomi_w)
+void m3comm_device::naomi_w(offs_t offset, uint16_t data)
 {
 	switch (offset)
 	{

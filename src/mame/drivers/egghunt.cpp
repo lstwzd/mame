@@ -50,6 +50,7 @@ I dumped it with this configuration. In case I'll redump it desoldering pin 16 f
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 class egghunt_state : public driver_device
 {
@@ -83,14 +84,14 @@ private:
 	required_shared_ptr<uint8_t> m_atram;
 	uint8_t     m_bgram[0x1000];
 	uint8_t     m_spram[0x1000];
-	DECLARE_READ8_MEMBER(egghunt_bgram_r);
-	DECLARE_WRITE8_MEMBER(egghunt_bgram_w);
-	DECLARE_WRITE8_MEMBER(egghunt_atram_w);
-	DECLARE_WRITE8_MEMBER(egghunt_gfx_banking_w);
-	DECLARE_WRITE8_MEMBER(egghunt_vidram_bank_w);
-	DECLARE_WRITE8_MEMBER(egghunt_soundlatch_w);
-	DECLARE_READ8_MEMBER(egghunt_okibanking_r);
-	DECLARE_WRITE8_MEMBER(egghunt_okibanking_w);
+	uint8_t egghunt_bgram_r(offs_t offset);
+	void egghunt_bgram_w(offs_t offset, uint8_t data);
+	void egghunt_atram_w(offs_t offset, uint8_t data);
+	void egghunt_gfx_banking_w(uint8_t data);
+	void egghunt_vidram_bank_w(uint8_t data);
+	void egghunt_soundlatch_w(uint8_t data);
+	uint8_t egghunt_okibanking_r();
+	void egghunt_okibanking_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
@@ -161,10 +162,10 @@ TILE_GET_INFO_MEMBER(egghunt_state::get_bg_tile_info)
 //          code += 0;
 	}
 
-	SET_TILE_INFO_MEMBER(0, code, colour, 0);
+	tileinfo.set(0, code, colour, 0);
 }
 
-READ8_MEMBER(egghunt_state::egghunt_bgram_r)
+uint8_t egghunt_state::egghunt_bgram_r(offs_t offset)
 {
 	if (m_vidram_bank)
 	{
@@ -176,7 +177,7 @@ READ8_MEMBER(egghunt_state::egghunt_bgram_r)
 	}
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_bgram_w)
+void egghunt_state::egghunt_bgram_w(offs_t offset, uint8_t data)
 {
 	if (m_vidram_bank)
 	{
@@ -189,7 +190,7 @@ WRITE8_MEMBER(egghunt_state::egghunt_bgram_w)
 	}
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_atram_w)
+void egghunt_state::egghunt_atram_w(offs_t offset, uint8_t data)
 {
 	m_atram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -198,7 +199,7 @@ WRITE8_MEMBER(egghunt_state::egghunt_atram_w)
 
 void egghunt_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(egghunt_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(egghunt_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
 
 	save_item(NAME(m_bgram));
 	save_item(NAME(m_spram));
@@ -211,7 +212,7 @@ uint32_t egghunt_state::screen_update_egghunt(screen_device &screen, bitmap_ind1
 	return 0;
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_gfx_banking_w)
+void egghunt_state::egghunt_gfx_banking_w(uint8_t data)
 {
 	// data & 0x03 is used for tile banking
 	// data & 0x30 is used for sprites banking
@@ -220,23 +221,23 @@ WRITE8_MEMBER(egghunt_state::egghunt_gfx_banking_w)
 	m_bg_tilemap->mark_all_dirty();
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_vidram_bank_w)
+void egghunt_state::egghunt_vidram_bank_w(uint8_t data)
 {
 	m_vidram_bank = data & 1;
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_soundlatch_w)
+void egghunt_state::egghunt_soundlatch_w(uint8_t data)
 {
-	m_soundlatch->write(space, 0, data);
+	m_soundlatch->write(data);
 	m_audiocpu->set_input_line(0, HOLD_LINE);
 }
 
-READ8_MEMBER(egghunt_state::egghunt_okibanking_r)
+uint8_t egghunt_state::egghunt_okibanking_r()
 {
 	return m_okibanking;
 }
 
-WRITE8_MEMBER(egghunt_state::egghunt_okibanking_w)
+void egghunt_state::egghunt_okibanking_w(uint8_t data)
 {
 	m_okibanking = data;
 	m_oki->set_rom_bank((data >> 4) & 1);
@@ -428,28 +429,28 @@ void egghunt_state::machine_reset()
 	m_vidram_bank = 0;
 }
 
-MACHINE_CONFIG_START(egghunt_state::egghunt)
-
+void egghunt_state::egghunt(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,12000000/2)      /* 6 MHz ?*/
-	MCFG_DEVICE_PROGRAM_MAP(egghunt_map)
-	MCFG_DEVICE_IO_MAP(io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", egghunt_state,  irq0_line_hold) // or 2 like mitchell.c?
+	Z80(config, m_maincpu, 12000000/2);      /* 6 MHz ?*/
+	m_maincpu->set_addrmap(AS_PROGRAM, &egghunt_state::egghunt_map);
+	m_maincpu->set_addrmap(AS_IO, &egghunt_state::io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(egghunt_state::irq0_line_hold)); // or 2 like mitchell.cpp?
 
-	MCFG_DEVICE_ADD("audiocpu", Z80,12000000/2)         /* 6 MHz ?*/
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	Z80(config, m_audiocpu, 12000000/2);         /* 6 MHz ?*/
+	m_audiocpu->set_addrmap(AS_PROGRAM, &egghunt_state::sound_map);
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, 56*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(egghunt_state, screen_update_egghunt)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(8*8, 56*8-1, 1*8, 31*8-1);
+	screen.set_screen_update(FUNC(egghunt_state::screen_update_egghunt));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_egghunt)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_egghunt);
 
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 0x400);
 
@@ -458,9 +459,8 @@ MACHINE_CONFIG_START(egghunt_state::egghunt)
 
 	GENERIC_LATCH_8(config, m_soundlatch);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 1056000, okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, 1056000, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0); // clock frequency & pin 7 not verified
+}
 
 ROM_START( egghunt )
 	ROM_REGION( 0x20000, "maincpu", 0 )

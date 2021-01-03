@@ -39,12 +39,12 @@
 #define VBEND        (16)
 #define VBSTART      (240)
 
-READ8_MEMBER(markham_state::markham_e004_r)
+uint8_t markham_state::markham_e004_r()
 {
 	return 0;
 }
 
-WRITE8_MEMBER(markham_state::coin_output_w)
+void markham_state::coin_output_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
 
@@ -61,31 +61,38 @@ WRITE8_MEMBER(markham_state::coin_output_w)
 	}
 }
 
-template<int Bit>
-WRITE8_MEMBER(markham_state::flipscreen_w)
+void markham_state::flipscreen_w(uint8_t data)
 {
-	// Strength & Skill hardware only
-	m_scroll_ctrl = data >> 5;
-
-	if (flip_screen() != (BIT(data, Bit)))
+	if (flip_screen() != (BIT(data, 0)))
 	{
-		flip_screen_set(BIT(data, Bit));
+		flip_screen_set(BIT(data, 0));
 		machine().tilemap().mark_all_dirty();
 	}
 }
 
 /****************************************************************************/
 
-READ8_MEMBER(markham_state::strnskil_d800_r)
+uint8_t markham_state::strnskil_d800_r()
 {
 	// bit0: interrupt type?, bit1: CPU2 busack?
 	return (m_irq_source);
+}
+
+void markham_state::strnskil_master_output_w(uint8_t data)
+{
+	m_scroll_ctrl = data >> 5;
+
+	flipscreen_w((data >> 3) & 1);
+
+	// bit 0: master CPU bus request?
 }
 
 TIMER_DEVICE_CALLBACK_MEMBER(markham_state::strnskil_scanline)
 {
 	int scanline = param;
 
+	// same as Ikki, whereas if non-vblank IRQ isn't in-sync with slave CPU irqs then stage 2/3 lacks any sprite whatsoever.
+	// TODO: maybe this is just a timer device that dispatches irqs to both CPUs and running at VSync*2. Verify on real HW or schematics.
 	if (scanline == m_irq_scanline_end || scanline == m_irq_scanline_start)
 	{
 		m_maincpu->set_input_line(0, HOLD_LINE);
@@ -96,7 +103,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(markham_state::strnskil_scanline)
 
 /****************************************************************************/
 
-READ8_MEMBER(markham_state::banbam_protection_r)
+uint8_t markham_state::banbam_protection_r()
 {
 	const uint8_t *prot_rom = (const uint8_t *)memregion("mcu_rom")->base();
 
@@ -148,7 +155,7 @@ READ8_MEMBER(markham_state::banbam_protection_r)
 	return comm | arg;
 }
 
-WRITE8_MEMBER(markham_state::banbam_protection_w)
+void markham_state::banbam_protection_w(uint8_t data)
 {
 	if (m_packet_write_pos)
 	{
@@ -169,7 +176,7 @@ WRITE8_MEMBER(markham_state::banbam_protection_w)
 	logerror("packet buffer is: %02x %02x, status: %s \n", m_packet_buffer[0], m_packet_buffer[1], m_packet_reset ? "reset" : "active" );
 }
 
-WRITE8_MEMBER(markham_state::mcu_reset_w)
+void markham_state::mcu_reset_w(uint8_t data)
 {
 	// clear or assert?
 	logerror("reset = %02x \n", data);
@@ -205,7 +212,7 @@ void markham_state::markham_master_map(address_map &map)
 	map(0xe009, 0xe009).nopw(); /* to CPU2 busreq */
 
 	map(0xe00c, 0xe00d).writeonly().share("xscroll");
-	map(0xe00e, 0xe00e).w(FUNC(markham_state::flipscreen_w<0>));
+	map(0xe00e, 0xe00e).w(FUNC(markham_state::flipscreen_w));
 }
 
 void markham_state::strnskil_master_map(address_map &map)
@@ -223,8 +230,7 @@ void markham_state::strnskil_master_map(address_map &map)
 	map(0xd804, 0xd804).portr("P1");
 	map(0xd805, 0xd805).portr("P2");
 
-	/* same write used here is used for scrolling */
-	map(0xd808, 0xd808).w(FUNC(markham_state::flipscreen_w<3>));
+	map(0xd808, 0xd808).w(FUNC(markham_state::strnskil_master_output_w));
 	map(0xd809, 0xd809).w(FUNC(markham_state::coin_output_w));
 	map(0xd80a, 0xd80b).writeonly().share("xscroll");
 }
@@ -242,8 +248,8 @@ void markham_state::markham_slave_map(address_map &map)
 	map(0x0000, 0x5fff).rom();
 	map(0x8000, 0x87ff).ram().share("share1");
 
-	map(0xc000, 0xc000).w("sn1", FUNC(sn76496_device::command_w));
-	map(0xc001, 0xc001).w("sn2", FUNC(sn76496_device::command_w));
+	map(0xc000, 0xc000).w("sn1", FUNC(sn76496_device::write));
+	map(0xc001, 0xc001).w("sn2", FUNC(sn76496_device::write));
 
 	map(0xc002, 0xc002).nopw(); /* unknown */
 	map(0xc003, 0xc003).nopw(); /* unknown */
@@ -255,8 +261,8 @@ void markham_state::strnskil_slave_map(address_map &map)
 	map(0xc000, 0xc7ff).ram().share("spriteram");
 	map(0xc800, 0xcfff).ram().share("share1");
 
-	map(0xd801, 0xd801).w("sn1", FUNC(sn76496_device::command_w));
-	map(0xd802, 0xd802).w("sn2", FUNC(sn76496_device::command_w));
+	map(0xd801, 0xd801).w("sn1", FUNC(sn76496_device::write));
+	map(0xd802, 0xd802).w("sn2", FUNC(sn76496_device::write));
 }
 
 /****************************************************************************/
@@ -543,24 +549,44 @@ static GFXDECODE_START( gfx_markham )
 	GFXDECODE_ENTRY( "gfx1", 0x0000, spritelayout, 0,   64 )
 GFXDECODE_END
 
-MACHINE_CONFIG_START(markham_state::markham)
+void markham_state::machine_start()
+{
+	save_item(NAME(m_coin2_lock_cnt));
 
+	/* banbam specific */
+	save_item(NAME(m_packet_buffer));
+	save_item(NAME(m_packet_reset));
+	save_item(NAME(m_packet_write_pos));
+}
+
+void markham_state::machine_reset()
+{
+	/* prevent phantom coins again */
+	m_coin2_lock_cnt = 3;
+
+	/* banbam specific */
+	m_packet_write_pos = 0;
+	m_packet_reset = true;
+}
+
+void markham_state::markham(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, CPU_CLOCK/2) /* 4.000MHz */
-	MCFG_DEVICE_PROGRAM_MAP(markham_master_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", markham_state, irq0_line_hold)
+	Z80(config, m_maincpu, CPU_CLOCK/2); /* 4.000MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &markham_state::markham_master_map);
+	m_maincpu->set_vblank_int("screen", FUNC(markham_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("subcpu", Z80, CPU_CLOCK/2) /* 4.000MHz */
-	MCFG_DEVICE_PROGRAM_MAP(markham_slave_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", markham_state, irq0_line_hold)
+	Z80(config, m_subcpu, CPU_CLOCK/2); /* 4.000MHz */
+	m_subcpu->set_addrmap(AS_PROGRAM, &markham_state::markham_slave_map);
+	m_subcpu->set_vblank_int("screen", FUNC(markham_state::irq0_line_hold));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	config.set_maximum_quantum(attotime::from_hz(CPU_CLOCK/256));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
-	MCFG_SCREEN_UPDATE_DRIVER(markham_state, screen_update_markham)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
+	m_screen->set_screen_update(FUNC(markham_state::screen_update_markham));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_markham);
 	PALETTE(config, m_palette, FUNC(markham_state::markham_palette), 1024, 256);
@@ -568,43 +594,36 @@ MACHINE_CONFIG_START(markham_state::markham)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("sn1", SN76496, CPU_CLOCK/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	SN76496(config, m_sn[0], CPU_CLOCK/2).add_route(ALL_OUTPUTS, "mono", 0.75);
 
-	MCFG_DEVICE_ADD("sn2", SN76496, CPU_CLOCK/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
-MACHINE_CONFIG_END
+	SN76496(config, m_sn[1], CPU_CLOCK/2).add_route(ALL_OUTPUTS, "mono", 0.75);
+}
 
-MACHINE_CONFIG_START(markham_state::strnskil)
-
+void markham_state::strnskil(machine_config &config)
+{
 	markham(config);
 	/* basic machine hardware */
-	MCFG_DEVICE_REMOVE("maincpu")
-	MCFG_DEVICE_ADD("maincpu", Z80, CPU_CLOCK/2) /* 4.000MHz */
-	MCFG_DEVICE_PROGRAM_MAP(strnskil_master_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", markham_state, strnskil_scanline, "screen", 0, 1)
+	Z80(config.replace(), m_maincpu, CPU_CLOCK/2); /* 4.000MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &markham_state::strnskil_master_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(markham_state::strnskil_scanline), "screen", 0, 1);
 
-	MCFG_DEVICE_REMOVE("subcpu")
-	MCFG_DEVICE_ADD("subcpu", Z80, CPU_CLOCK/2) /* 4.000MHz */
-	MCFG_DEVICE_PROGRAM_MAP(strnskil_slave_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(markham_state, irq0_line_hold, 2*(PIXEL_CLOCK/HTOTAL/VTOTAL))
+	Z80(config.replace(), m_subcpu, CPU_CLOCK/2); /* 4.000MHz */
+	m_subcpu->set_addrmap(AS_PROGRAM, &markham_state::strnskil_slave_map);
+	m_subcpu->set_periodic_int(FUNC(markham_state::irq0_line_hold), attotime::from_hz(2*(PIXEL_CLOCK/HTOTAL/VTOTAL)));
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(markham_state, screen_update_strnskil)
+	m_screen->set_screen_update(FUNC(markham_state::screen_update_strnskil));
 
 	MCFG_VIDEO_START_OVERRIDE(markham_state, strnskil)
 
 	/* sound hardware */
-	MCFG_DEVICE_MODIFY("sn1")
-	MCFG_DEVICE_CLOCK(CPU_CLOCK/4)
-MACHINE_CONFIG_END
+	m_sn[0]->set_clock(CPU_CLOCK/4);
+}
 
-MACHINE_CONFIG_START(markham_state::banbam)
-
+void markham_state::banbam(machine_config &config)
+{
 	strnskil(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(banbam_master_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &markham_state::banbam_master_map);
 
 	MB8841(config, m_mcu, CPU_CLOCK/2); /* 4.000MHz */
 	// m_mcu->read_k().set(FUNC(markham_state::mcu_portk_r));
@@ -619,7 +638,7 @@ MACHINE_CONFIG_START(markham_state::banbam)
 	// m_mcu->read_r<3>().set(FUNC(markham_state::mcu_port_r3_r));
 	// m_mcu->write_r<3>().set(FUNC(markham_state::mcu_port_r3_w));
 	m_mcu->set_disable();
-MACHINE_CONFIG_END
+}
 
 /****************************************************************************/
 
@@ -792,26 +811,6 @@ ROM_START( pettanp )
 	ROM_REGION(0x800, "mcu", 0) /* Fujitsu MB8841 4-Bit MCU internal ROM */
 	ROM_LOAD( "sun-8212.ic3", 0x000,  0x800,  NO_DUMP ) // very much likely to be same as banbam and arabian
 ROM_END
-
-void markham_state::machine_start()
-{
-	save_item(NAME(m_coin2_lock_cnt));
-
-	/* banbam specific */
-	save_item(NAME(m_packet_buffer));
-	save_item(NAME(m_packet_reset));
-	save_item(NAME(m_packet_write_pos));
-}
-
-void markham_state::machine_reset()
-{
-	/* prevent phantom coins again */
-	m_coin2_lock_cnt = 3;
-
-	/* banbam specific */
-	m_packet_write_pos = 0;
-	m_packet_reset = true;
-}
 
 /* Markham hardware */
 GAME( 1983, markham,  0,        markham,  markham,  markham_state, empty_init, ROT0, "Sun Electronics", "Markham", MACHINE_SUPPORTS_SAVE )

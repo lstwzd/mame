@@ -99,14 +99,14 @@ private:
 
 	uint8_t m_wdog;
 
-	DECLARE_READ8_MEMBER(rng_r);
-	DECLARE_WRITE8_MEMBER(wdog8000_w);
-	DECLARE_WRITE8_MEMBER(debug8004_w);
-	DECLARE_WRITE8_MEMBER(debug7c00_w);
-	DECLARE_WRITE8_MEMBER(coinin_w);
-	DECLARE_WRITE8_MEMBER(payout_w);
-	DECLARE_WRITE8_MEMBER(ay8910_outputa_w);
-	DECLARE_WRITE8_MEMBER(ay8910_outputb_w);
+	uint8_t rng_r();
+	void wdog8000_w(uint8_t data);
+	void debug8004_w(uint8_t data);
+	void debug7c00_w(uint8_t data);
+	void coinin_w(uint8_t data);
+	void payout_w(uint8_t data);
+	void ay8910_outputa_w(uint8_t data);
+	void ay8910_outputb_w(uint8_t data);
 
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
@@ -182,12 +182,12 @@ void supdrapo_state::supdrapo_palette(palette_device &palette) const
                             R/W Handlers
 **********************************************************************/
 
-READ8_MEMBER(supdrapo_state::rng_r)
+uint8_t supdrapo_state::rng_r()
 {
 	return machine().rand();
 }
 
-WRITE8_MEMBER(supdrapo_state::wdog8000_w)
+void supdrapo_state::wdog8000_w(uint8_t data)
 {
 /*  Kind of state watchdog alternating 0x00 & 0x01 writes.
     Used when exit the test mode (writes 2 consecutive 0's).
@@ -218,7 +218,7 @@ WRITE8_MEMBER(supdrapo_state::wdog8000_w)
 
 	if (m_wdog == data)
 	{
-		m_watchdog->reset_w(space, 0, 0);  /* Reset */
+		m_watchdog->watchdog_reset();  /* Reset */
 	}
 
 	m_wdog = data;
@@ -226,7 +226,7 @@ WRITE8_MEMBER(supdrapo_state::wdog8000_w)
 }
 
 
-WRITE8_MEMBER(supdrapo_state::debug8004_w)
+void supdrapo_state::debug8004_w(uint8_t data)
 {
 /*  Writes 0x00 each time the machine is initialized */
 
@@ -234,7 +234,7 @@ WRITE8_MEMBER(supdrapo_state::debug8004_w)
 //  popmessage("written : %02X", data);
 }
 
-WRITE8_MEMBER(supdrapo_state::debug7c00_w)
+void supdrapo_state::debug7c00_w(uint8_t data)
 {
 /*  This one write 0's constantly when the input test mode is running */
 	logerror("debug7c00: %02X\n", data);
@@ -245,12 +245,12 @@ WRITE8_MEMBER(supdrapo_state::debug7c00_w)
                          Coin I/O Counters
 **********************************************************************/
 
-WRITE8_MEMBER(supdrapo_state::coinin_w)
+void supdrapo_state::coinin_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, data & 0x01);  /* Coin In */
 }
 
-WRITE8_MEMBER(supdrapo_state::payout_w)
+void supdrapo_state::payout_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(1, data & 0x01);  /* Payout */
 }
@@ -280,7 +280,7 @@ void supdrapo_state::sdpoker_mem(address_map &map)
 {
 	map(0x0000, 0x4fff).rom();
 	map(0x5000, 0x50ff).ram().share("col_line");
-	map(0x57ff, 0x57ff).ram().share("col_line");
+	map(0x5700, 0x57ff).ram().share("col_line");
 	map(0x5800, 0x58ff).ram().share("col_line");
 	map(0x6000, 0x67ff).ram(); //work ram
 	map(0x6800, 0x6bff).ram().share("videoram");
@@ -436,12 +436,12 @@ GFXDECODE_END
                          Sound Interface
 **********************************************************************/
 
-WRITE8_MEMBER(supdrapo_state::ay8910_outputa_w)
+void supdrapo_state::ay8910_outputa_w(uint8_t data)
 {
 //  popmessage("ay8910_outputa_w %02x",data);
 }
 
-WRITE8_MEMBER(supdrapo_state::ay8910_outputb_w)
+void supdrapo_state::ay8910_outputb_w(uint8_t data)
 {
 //  popmessage("ay8910_outputb_w %02x",data);
 }
@@ -451,24 +451,24 @@ WRITE8_MEMBER(supdrapo_state::ay8910_outputb_w)
                            Machine Driver
 **********************************************************************/
 
-MACHINE_CONFIG_START(supdrapo_state::supdrapo)
-
-	MCFG_DEVICE_ADD("maincpu", Z80, CPU_CLOCK) /* guess */
-	MCFG_DEVICE_PROGRAM_MAP(sdpoker_mem)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", supdrapo_state,  irq0_line_hold)
+void supdrapo_state::supdrapo(machine_config &config)
+{
+	Z80(config, m_maincpu, CPU_CLOCK); /* guess */
+	m_maincpu->set_addrmap(AS_PROGRAM, &supdrapo_state::sdpoker_mem);
+	m_maincpu->set_vblank_int("screen", FUNC(supdrapo_state::irq0_line_hold));
 
 	WATCHDOG_TIMER(config, m_watchdog);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(supdrapo_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(256, 256);
+	screen.set_visarea(0*8, 32*8-1, 0*8, 32*8-1);
+	screen.set_screen_update(FUNC(supdrapo_state::screen_update));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_supdrapo);
 	PALETTE(config, m_palette, FUNC(supdrapo_state::supdrapo_palette), 0x100);
@@ -479,7 +479,7 @@ MACHINE_CONFIG_START(supdrapo_state::supdrapo)
 	aysnd.port_a_write_callback().set(FUNC(supdrapo_state::ay8910_outputa_w));
 	aysnd.port_b_write_callback().set(FUNC(supdrapo_state::ay8910_outputb_w));
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
 /*********************************************************************

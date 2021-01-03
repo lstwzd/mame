@@ -46,7 +46,7 @@ void mystston_state::mystston_on_scanline_interrupt()
 }
 
 
-WRITE8_MEMBER(mystston_state::irq_clear_w)
+void mystston_state::irq_clear_w(uint8_t data)
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
@@ -73,20 +73,20 @@ INPUT_CHANGED_MEMBER(mystston_state::coin_inserted)
  *
  *************************************/
 
-WRITE8_MEMBER(mystston_state::mystston_ay8910_select_w)
+void mystston_state::mystston_ay8910_select_w(uint8_t data)
 {
 	/* bit 5 goes to 8910 #0 BDIR pin */
 	if (((*m_ay8910_select & 0x20) == 0x20) && ((data & 0x20) == 0x00))
 	{
 		/* bit 4 goes to the 8910 #0 BC1 pin */
-		m_ay8910[0]->data_address_w(space, *m_ay8910_select >> 4, *m_ay8910_data);
+		m_ay8910[0]->data_address_w(*m_ay8910_select >> 4, *m_ay8910_data);
 	}
 
 	/* bit 7 goes to 8910 #1 BDIR pin */
 	if (((*m_ay8910_select & 0x80) == 0x80) && ((data & 0x80) == 0x00))
 	{
 		/* bit 6 goes to the 8910 #1 BC1 pin */
-		m_ay8910[1]->data_address_w(space, *m_ay8910_select >> 6, *m_ay8910_data);
+		m_ay8910[1]->data_address_w(*m_ay8910_select >> 6, *m_ay8910_data);
 	}
 
 	*m_ay8910_select = data;
@@ -191,11 +191,11 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(mystston_state::mystston)
-
+void mystston_state::mystston(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, CPU_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M6502(config, m_maincpu, CPU_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &mystston_state::main_map);
 
 	/* video hardware */
 	mystston_video(config);
@@ -206,7 +206,7 @@ MACHINE_CONFIG_START(mystston_state::mystston)
 	AY8910(config, m_ay8910[0], AY8910_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.30);
 
 	AY8910(config, m_ay8910[1], AY8910_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.30);
-MACHINE_CONFIG_END
+}
 
 
 

@@ -45,13 +45,13 @@ public:
 	void play_1(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(port07_r);
-	DECLARE_WRITE8_MEMBER(port01_w);
-	DECLARE_WRITE8_MEMBER(port02_w);
-	DECLARE_WRITE8_MEMBER(port03_w);
-	DECLARE_WRITE8_MEMBER(port04_w);
-	DECLARE_WRITE8_MEMBER(port05_w);
-	DECLARE_WRITE8_MEMBER(port06_w);
+	uint8_t port07_r();
+	void port01_w(uint8_t data);
+	void port02_w(uint8_t data);
+	void port03_w(uint8_t data);
+	void port04_w(uint8_t data);
+	void port05_w(uint8_t data);
+	void port06_w(uint8_t data);
 	DECLARE_READ_LINE_MEMBER(clear_r);
 	DECLARE_READ_LINE_MEMBER(wait_r);
 	DECLARE_READ_LINE_MEMBER(ef2_r);
@@ -264,7 +264,7 @@ void play_1_state::machine_reset()
 	m_ball = 0;
 }
 
-READ8_MEMBER( play_1_state::port07_r )
+uint8_t play_1_state::port07_r()
 {
 	uint8_t data = m_dips[3]->read() & 0x3f;
 	data |= (m_segment & m_dips[1]->read()) ? 0x40 : 0;
@@ -272,7 +272,7 @@ READ8_MEMBER( play_1_state::port07_r )
 	return data;
 }
 
-WRITE8_MEMBER( play_1_state::port01_w )
+void play_1_state::port01_w(uint8_t data)
 {
 	static const uint8_t patterns[16] = { 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7c, 0x07, 0x7f, 0x67, 0, 0, 0, 0, 0, 0 }; // 4511
 	// d0-1 via 4013 to match-game board
@@ -297,14 +297,14 @@ WRITE8_MEMBER( play_1_state::port01_w )
 	m_waitcnt = 0;
 }
 
-WRITE8_MEMBER( play_1_state::port02_w )
+void play_1_state::port02_w(uint8_t data)
 {
 	// N1-8, segments and other
 	m_segment = data;
 	m_waitcnt = 0;
 }
 
-WRITE8_MEMBER( play_1_state::port03_w )
+void play_1_state::port03_w(uint8_t data)
 {
 	static const uint8_t patterns[16] = { 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7c, 0x07, 0x7f, 0x67, 0, 0, 0, 0, 0, 0 }; // 4511
 	// D1-4, digit select
@@ -395,20 +395,20 @@ WRITE8_MEMBER( play_1_state::port03_w )
 	m_waitcnt = 0;
 }
 
-WRITE8_MEMBER( play_1_state::port04_w )
+void play_1_state::port04_w(uint8_t data)
 {
 	// U1-8
 	m_ball = data;
 	m_waitcnt = 0;
 }
 
-WRITE8_MEMBER( play_1_state::port05_w )
+void play_1_state::port05_w(uint8_t data)
 {
 	// V1-8
 	m_waitcnt = 0;
 }
 
-WRITE8_MEMBER( play_1_state::port06_w )
+void play_1_state::port06_w(uint8_t data)
 {
 	// W1-8
 	m_waitcnt = 0;
@@ -470,7 +470,8 @@ WRITE_LINE_MEMBER( play_1_state::clock_w )
 	}
 }
 
-MACHINE_CONFIG_START(play_1_state::play_1)
+void play_1_state::play_1(machine_config &config)
+{
 	/* basic machine hardware */
 	CDP1802(config, m_maincpu, 400000); // 2 gates, 1 cap, 1 resistor oscillating somewhere between 350 to 450 kHz
 	m_maincpu->set_addrmap(AS_PROGRAM, &play_1_state::play_1_map);
@@ -486,23 +487,22 @@ MACHINE_CONFIG_START(play_1_state::play_1)
 	/* Video */
 	config.set_default_layout(layout_play_1);
 
-	MCFG_DEVICE_ADD("xpoint", CLOCK, 100) // crossing-point detector
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, play_1_state, clock_w))
+	clock_device &xpoint(CLOCK(config, "xpoint", 100)); // crossing-point detector
+	xpoint.signal_handler().set(FUNC(play_1_state::clock_w));
 
 	/* Sound */
 	genpin_audio(config);
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-	MCFG_DEVICE_ADD("monotone", CLOCK, 0) // sound device
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE("speaker", speaker_sound_device, level_w))
-MACHINE_CONFIG_END
+	SPEAKER_SOUND(config, "speaker").add_route(ALL_OUTPUTS, "mono", 0.50);
+	CLOCK(config, m_monotone, 0); // sound device
+	m_monotone->signal_handler().set("speaker", FUNC(speaker_sound_device::level_w));
+}
 
-MACHINE_CONFIG_START(play_1_state::chance)
+void play_1_state::chance(machine_config &config)
+{
 	play_1(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(chance_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &play_1_state::chance_map);
+}
 
 /*-------------------------------------------------------------------
 / Space Gambler (03/78)

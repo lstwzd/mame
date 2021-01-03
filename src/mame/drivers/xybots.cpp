@@ -36,9 +36,9 @@
  *
  *************************************/
 
-void xybots_state::update_interrupts()
+void xybots_state::video_int_ack_w(uint16_t data)
 {
-	m_maincpu->set_input_line(1, m_video_int_state ? ASSERT_LINE : CLEAR_LINE);
+	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 }
 
 
@@ -49,7 +49,7 @@ void xybots_state::update_interrupts()
  *
  *************************************/
 
-READ16_MEMBER(xybots_state::special_port1_r)
+uint16_t xybots_state::special_port1_r()
 {
 	int result = ioport("FFE200")->read();
 	result ^= m_h256 ^= 0x0400;
@@ -69,7 +69,7 @@ void xybots_state::main_map(address_map &map)
 {
 	map.unmap_value_high();
 	map(0x000000, 0x007fff).mirror(0x7c0000).rom();
-	map(0x008000, 0x00ffff).mirror(0x7c0000).rom(); /* slapstic maps here */
+	map(0x008000, 0x009fff).mirror(0x7c6000).bankr(m_slapstic_bank); /* slapstic maps here */
 	map(0x010000, 0x03ffff).mirror(0x7c0000).rom();
 	map(0x800000, 0x800fff).mirror(0x7f8000).ram().w(m_alpha_tilemap, FUNC(tilemap_device::write16)).share("alpha");
 	map(0x801000, 0x802dff).mirror(0x7f8000).ram();
@@ -175,13 +175,14 @@ GFXDECODE_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(xybots_state::xybots)
-
+void xybots_state::xybots(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, ATARI_CLOCK_14MHz/2)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M68000(config, m_maincpu, 14.318181_MHz_XTAL/2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &xybots_state::main_map);
 
-	SLAPSTIC(config, "slapstic", 107, true);
+	SLAPSTIC(config, m_slapstic, 107);
+	m_slapstic->set_bank(m_slapstic_bank);
 
 	EEPROM_2804(config, "eeprom").lock_after_write(true);
 
@@ -191,20 +192,20 @@ MACHINE_CONFIG_START(xybots_state::xybots)
 	GFXDECODE(config, "gfxdecode", "palette", gfx_xybots);
 	PALETTE(config, "palette").set_format(palette_device::IRGB_4444, 1024);
 
-	MCFG_TILEMAP_ADD_STANDARD("playfield", "gfxdecode", 2, xybots_state, get_playfield_tile_info, 8,8, SCAN_ROWS, 64,32)
-	MCFG_TILEMAP_ADD_STANDARD_TRANSPEN("alpha", "gfxdecode", 2, xybots_state, get_alpha_tile_info, 8,8, SCAN_ROWS, 64,32, 0)
+	TILEMAP(config, m_playfield_tilemap, "gfxdecode", 2, 8, 8, TILEMAP_SCAN_ROWS, 64, 32).set_info_callback(FUNC(xybots_state::get_playfield_tile_info));
+	TILEMAP(config, m_alpha_tilemap, "gfxdecode", 2, 8, 8, TILEMAP_SCAN_ROWS, 64, 32, 0).set_info_callback(FUNC(xybots_state::get_alpha_tile_info));
 
 	ATARI_MOTION_OBJECTS(config, m_mob, 0, m_screen, xybots_state::s_mob_config);
 	m_mob->set_gfxdecode(m_gfxdecode);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
 	/* note: these parameters are from published specs, not derived */
 	/* the board uses a SYNGEN chip to generate video signals */
-	MCFG_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
-	MCFG_SCREEN_UPDATE_DRIVER(xybots_state, screen_update_xybots)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, xybots_state, video_int_write_line))
+	m_screen->set_raw(14.318181_MHz_XTAL/2, 456, 0, 336, 262, 0, 240);
+	m_screen->set_screen_update(FUNC(xybots_state::screen_update_xybots));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set_inputline(m_maincpu, M68K_IRQ_1, ASSERT_LINE);
 
 	/* sound hardware */
 	SPEAKER(config, "lspeaker").front_left();
@@ -217,7 +218,7 @@ MACHINE_CONFIG_START(xybots_state::xybots)
 	m_jsa->add_route(1, "lspeaker", 1.0);
 	config.device_remove("jsa:pokey");
 	config.device_remove("jsa:tms");
-MACHINE_CONFIG_END
+}
 
 
 
@@ -384,10 +385,14 @@ ROM_END
  *
  *************************************/
 
-void xybots_state::init_xybots()
+void xybots_state::machine_start()
 {
+	m_slapstic_bank->configure_entries(0, 4, memregion("maincpu")->base() + 0x8000, 0x2000);
+	m_maincpu->space(AS_PROGRAM).install_readwrite_tap(0x8000, 0xffff, 0x7c0000, "slapstic",
+													   [this](offs_t offset, u16 &data, u16 mem_mask) { m_slapstic->tweak(offset >> 1); },
+													   [this](offs_t offset, u16 &data, u16 mem_mask) { m_slapstic->tweak(offset >> 1); });
+
 	m_h256 = 0x0400;
-	slapstic_configure(*m_maincpu, 0x008000, 0, memregion("maincpu")->base() + 0x8000);
 }
 
 
@@ -398,8 +403,8 @@ void xybots_state::init_xybots()
  *
  *************************************/
 
-GAME( 1987, xybots,  0,      xybots, xybots, xybots_state, init_xybots, ROT0, "Atari Games", "Xybots (rev 2)", 0 )
-GAME( 1987, xybotsg, xybots, xybots, xybots, xybots_state, init_xybots, ROT0, "Atari Games", "Xybots (German, rev 3)", 0 )
-GAME( 1987, xybotsf, xybots, xybots, xybots, xybots_state, init_xybots, ROT0, "Atari Games", "Xybots (French, rev 3)", 0 )
-GAME( 1987, xybots1, xybots, xybots, xybots, xybots_state, init_xybots, ROT0, "Atari Games", "Xybots (rev 1)", 0 )
-GAME( 1987, xybots0, xybots, xybots, xybots, xybots_state, init_xybots, ROT0, "Atari Games", "Xybots (rev 0)", 0 )
+GAME( 1987, xybots,  0,      xybots, xybots, xybots_state, empty_init, ROT0, "Atari Games", "Xybots (rev 2)", 0 )
+GAME( 1987, xybotsg, xybots, xybots, xybots, xybots_state, empty_init, ROT0, "Atari Games", "Xybots (German, rev 3)", 0 )
+GAME( 1987, xybotsf, xybots, xybots, xybots, xybots_state, empty_init, ROT0, "Atari Games", "Xybots (French, rev 3)", 0 )
+GAME( 1987, xybots1, xybots, xybots, xybots, xybots_state, empty_init, ROT0, "Atari Games", "Xybots (rev 1)", 0 )
+GAME( 1987, xybots0, xybots, xybots, xybots, xybots_state, empty_init, ROT0, "Atari Games", "Xybots (rev 0)", 0 )

@@ -35,10 +35,10 @@ public:
 	void clayshoo(machine_config &config);
 
 protected:
-	DECLARE_WRITE8_MEMBER(analog_reset_w);
-	DECLARE_READ8_MEMBER(analog_r);
-	DECLARE_WRITE8_MEMBER(input_port_select_w);
-	DECLARE_READ8_MEMBER(input_port_r);
+	void analog_reset_w(uint8_t data);
+	uint8_t analog_r();
+	void input_port_select_w(uint8_t data);
+	uint8_t input_port_r();
 	uint32_t screen_update_clayshoo(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	TIMER_CALLBACK_MEMBER(reset_analog_bit);
 	uint8_t difficulty_input_port_r(int bit);
@@ -68,7 +68,7 @@ private:
  *
  *************************************/
 
-WRITE8_MEMBER(clayshoo_state::input_port_select_w)
+void clayshoo_state::input_port_select_w(uint8_t data)
 {
 	m_input_port_select = data;
 }
@@ -92,7 +92,7 @@ uint8_t clayshoo_state::difficulty_input_port_r( int bit )
 }
 
 
-READ8_MEMBER(clayshoo_state::input_port_r)
+uint8_t clayshoo_state::input_port_r()
 {
 	uint8_t ret = 0;
 
@@ -132,7 +132,7 @@ static attotime compute_duration( device_t *device, int analog_pos )
 }
 
 
-WRITE8_MEMBER(clayshoo_state::analog_reset_w)
+void clayshoo_state::analog_reset_w(uint8_t data)
 {
 	/* reset the analog value, and start the two times that will fire
 	   off in a short period proportional to the position of the
@@ -145,7 +145,7 @@ WRITE8_MEMBER(clayshoo_state::analog_reset_w)
 }
 
 
-READ8_MEMBER(clayshoo_state::analog_r)
+uint8_t clayshoo_state::analog_r()
 {
 	return m_analog_port_val;
 }
@@ -196,7 +196,7 @@ uint32_t clayshoo_state::screen_update_clayshoo(screen_device &screen, bitmap_rg
 		for (i = 0; i < 8; i++)
 		{
 			pen_t pen = (data & 0x80) ? rgb_t::white() : rgb_t::black();
-			bitmap.pix32(y, x) = pen;
+			bitmap.pix(y, x) = pen;
 
 			data = data << 1;
 			x = x + 1;
@@ -238,9 +238,9 @@ void clayshoo_state::main_io_map(address_map &map)
 	map(0x00, 0x00).w("watchdog", FUNC(watchdog_timer_device::reset_w));
 	map(0x20, 0x23).rw("ppi8255_0", FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x30, 0x33).rw("ppi8255_1", FUNC(i8255_device::read), FUNC(i8255_device::write));
-//  AM_RANGE(0x40, 0x43) AM_NOP // 8253 for sound?
-//  AM_RANGE(0x50, 0x50) AM_NOP // ?
-//  AM_RANGE(0x60, 0x60) AM_NOP // ?
+//  map(0x40, 0x43).noprw(); // 8253 for sound?
+//  map(0x50, 0x50).noprw(); // ?
+//  map(0x60, 0x60).noprw(); // ?
 }
 
 
@@ -322,30 +322,30 @@ void clayshoo_state::machine_reset()
 	m_analog_port_val = 0;
 }
 
-MACHINE_CONFIG_START(clayshoo_state::clayshoo)
-
+void clayshoo_state::clayshoo(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,5068000/4)      /* 5.068/4 Mhz (divider is a guess) */
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_IO_MAP(main_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", clayshoo_state,  irq0_line_hold)
+	Z80(config, m_maincpu, 5068000/4);      /* 5.068/4 Mhz (divider is a guess) */
+	m_maincpu->set_addrmap(AS_PROGRAM, &clayshoo_state::main_map);
+	m_maincpu->set_addrmap(AS_IO, &clayshoo_state::main_io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(clayshoo_state::irq0_line_hold));
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255, 64, 255)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_UPDATE_DRIVER(clayshoo_state, screen_update_clayshoo)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_size(256, 256);
+	screen.set_visarea(0, 255, 64, 255);
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_screen_update(FUNC(clayshoo_state::screen_update_clayshoo));
 
 	I8255A(config, "ppi8255_0");
 
 	i8255_device &ppi1(I8255A(config, "ppi8255_1"));
 	ppi1.out_pa_callback().set(FUNC(clayshoo_state::input_port_select_w));
 	ppi1.in_pb_callback().set(FUNC(clayshoo_state::input_port_r));
-MACHINE_CONFIG_END
+}
 
 
 

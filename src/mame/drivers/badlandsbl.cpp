@@ -21,7 +21,7 @@
  sound cpu:  Z80
  sound ics: YM2151 + 3012
 
- other ics: 28c16 2kx8 eeprom.Used to store bookeeping,settings etc. like original pcb.
+ other ics: 28c16 2kx8 eeprom. Used to store book-keeping, settings etc. like original pcb.
 
  Osc: 20 Mhz, 28 Mhz
 
@@ -35,7 +35,7 @@
 
  Note
 
- This romset comes from a bootleg pcb produced by Playmark.This pcb was been modified to use as control standard joysticks instead of steering wheels.Game differences are: Copyright string removed.
+ This romset comes from a bootleg pcb produced by Playmark. This pcb was been modified to use as control standard joysticks instead of steering wheels. Game differences are: Copyright string removed.
 
 ***************************************************************************************/
 
@@ -76,23 +76,23 @@ uint32_t badlandsbl_state::screen_update_badlandsbl(screen_device &screen, bitma
 }
 
 
-READ16_MEMBER(badlandsbl_state::badlandsb_unk_r)
+uint16_t badlandsbl_state::badlandsb_unk_r()
 {
 	return 0xffff;
 }
 
 // TODO: this prolly mimics audio_io_r/_w in original version
-READ8_MEMBER(badlandsbl_state::bootleg_shared_r)
+uint8_t badlandsbl_state::bootleg_shared_r(offs_t offset)
 {
 	return m_b_sharedram[offset];
 }
 
-WRITE8_MEMBER(badlandsbl_state::bootleg_shared_w)
+void badlandsbl_state::bootleg_shared_w(offs_t offset, uint8_t data)
 {
 	m_b_sharedram[offset] = data;
 }
 
-READ8_MEMBER(badlandsbl_state::sound_response_r)
+uint8_t badlandsbl_state::sound_response_r()
 {
 	m_maincpu->set_input_line(2, CLEAR_LINE);
 	return m_sound_response;
@@ -111,7 +111,7 @@ void badlandsbl_state::bootleg_map(address_map &map)
 	map(0xfc0000, 0xfc0001).r(FUNC(badlandsbl_state::badlandsb_unk_r)).nopw();
 
 	map(0xfd0000, 0xfd1fff).rw("eeprom", FUNC(eeprom_parallel_28xx_device::read), FUNC(eeprom_parallel_28xx_device::write)).umask16(0x00ff);
-	//AM_RANGE(0xfe0000, 0xfe1fff) AM_DEVWRITE("watchdog", watchdog_timer_device, reset_w)
+	//map(0xfe0000, 0xfe1fff).w("watchdog", FUNC(watchdog_timer_device::reset_w));
 	map(0xfe2000, 0xfe3fff).w(FUNC(badlandsbl_state::video_int_ack_w));
 
 	map(0xfe0000, 0xfe0001).nopw();
@@ -127,7 +127,7 @@ void badlandsbl_state::bootleg_map(address_map &map)
 	map(0xfff000, 0xffffff).ram();
 }
 
-WRITE8_MEMBER(badlandsbl_state::bootleg_main_irq_w)
+void badlandsbl_state::bootleg_main_irq_w(uint8_t data)
 {
 	m_maincpu->set_input_line(2, ASSERT_LINE);
 	m_sound_response = data;
@@ -218,49 +218,45 @@ TIMER_DEVICE_CALLBACK_MEMBER(badlandsbl_state::bootleg_sound_scanline)
 		m_audiocpu->set_input_line(0, HOLD_LINE);
 }
 
-MACHINE_CONFIG_START(badlandsbl_state::badlandsb)
-
+void badlandsbl_state::badlandsb(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(28'000'000)/4)   /* Divisor estimated */
-	MCFG_DEVICE_PROGRAM_MAP(bootleg_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", badlandsbl_state,  irq1_line_hold) //vblank_int)
+	M68000(config, m_maincpu, XTAL(28'000'000)/4);   /* Divisor estimated */
+	m_maincpu->set_addrmap(AS_PROGRAM, &badlandsbl_state::bootleg_map);
+	m_maincpu->set_vblank_int("screen", FUNC(badlandsbl_state::irq1_line_hold)); //vblank_int)
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, XTAL(20'000'000)/12)    /* Divisor estimated */
-	MCFG_DEVICE_PROGRAM_MAP(bootleg_audio_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", badlandsbl_state, bootleg_sound_scanline, "screen", 0, 1)
+	Z80(config, m_audiocpu, XTAL(20'000'000)/12);    /* Divisor estimated */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &badlandsbl_state::bootleg_audio_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(badlandsbl_state::bootleg_sound_scanline), "screen", 0, 1);
 
-//  MCFG_QUANTUM_PERFECT_CPU("maincpu")
-
-	MCFG_MACHINE_START_OVERRIDE(badlands_state,badlands)
+//  config.m_perfect_cpu_quantum = subtag("maincpu");
 
 	EEPROM_2816(config, "eeprom").lock_after_write(true);
 
 	/* video hardware */
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_badlandsb)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_badlandsb);
 	palette_device &palette(PALETTE(config, "palette"));
 	palette.set_format(palette_device::IRGB_1555, 256);
 	palette.set_membits(8);
 
-	MCFG_TILEMAP_ADD_STANDARD("playfield", "gfxdecode", 2, badlands_state, get_playfield_tile_info, 8,8, SCAN_ROWS, 64,32)
+	TILEMAP(config, m_playfield_tilemap, m_gfxdecode, 2, 8,8, TILEMAP_SCAN_ROWS, 64,32).set_info_callback(FUNC(badlandsbl_state::get_playfield_tile_info));
 
 //  ATARI_MOTION_OBJECTS(config, m_mob, 0, m_screen, badlands_state::s_mob_config);
 //  m_mob->set_gfxdecode(m_gfxdecode);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
 	/* note: these parameters are from published specs, not derived */
 	/* the board uses an SOS-2 chip to generate video signals */
-	MCFG_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
-	MCFG_SCREEN_UPDATE_DRIVER(badlandsbl_state, screen_update_badlandsbl)
-	MCFG_SCREEN_PALETTE("palette")
-
-	MCFG_VIDEO_START_OVERRIDE(badlands_state,badlands)
+	m_screen->set_raw(14.318181_MHz_XTAL/2, 456, 0, 336, 262, 0, 240);
+	m_screen->set_screen_update(FUNC(badlandsbl_state::screen_update_badlandsbl));
+	m_screen->set_palette("palette");
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
 	YM2151(config, "ymsnd", XTAL(20'000'000)/8).add_route(0, "mono", 0.30).add_route(1, "mono", 0.30); /* Divisor estimated */
-MACHINE_CONFIG_END
+}
 
 
 

@@ -15,6 +15,7 @@ similar hardware.
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 class drtomy_state : public driver_device
 {
@@ -44,9 +45,9 @@ private:
 
 	/* misc */
 	int       m_oki_bank;
-	DECLARE_WRITE16_MEMBER(drtomy_vram_fg_w);
-	DECLARE_WRITE16_MEMBER(drtomy_vram_bg_w);
-	DECLARE_WRITE16_MEMBER(drtomy_okibank_w);
+	void drtomy_vram_fg_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void drtomy_vram_bg_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void drtomy_okibank_w(uint16_t data);
 	TILE_GET_INFO_MEMBER(get_tile_info_fg);
 	TILE_GET_INFO_MEMBER(get_tile_info_bg);
 	virtual void machine_start() override;
@@ -67,7 +68,7 @@ TILE_GET_INFO_MEMBER(drtomy_state::get_tile_info_fg)
 {
 	int code  = m_videoram_fg[tile_index] & 0xfff;
 	int color = (m_videoram_fg[tile_index] & 0xf000) >> 12;
-	SET_TILE_INFO_MEMBER(2, code, color, 0);
+	tileinfo.set(2, code, color, 0);
 }
 
 
@@ -75,7 +76,7 @@ TILE_GET_INFO_MEMBER(drtomy_state::get_tile_info_bg)
 {
 	int code  = m_videoram_bg[tile_index] & 0xfff;
 	int color = (m_videoram_bg[tile_index] & 0xf000) >> 12;
-	SET_TILE_INFO_MEMBER(1, code, color, 0);
+	tileinfo.set(1, code, color, 0);
 }
 
 
@@ -141,8 +142,8 @@ void drtomy_state::draw_sprites( bitmap_ind16 &bitmap, const rectangle &cliprect
 
 void drtomy_state::video_start()
 {
-	m_tilemap_bg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(drtomy_state::get_tile_info_bg),this), TILEMAP_SCAN_ROWS, 16, 16, 32, 32);
-	m_tilemap_fg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(drtomy_state::get_tile_info_fg),this), TILEMAP_SCAN_ROWS, 16, 16, 32, 32);
+	m_tilemap_bg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(drtomy_state::get_tile_info_bg)), TILEMAP_SCAN_ROWS, 16, 16, 32, 32);
+	m_tilemap_fg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(drtomy_state::get_tile_info_fg)), TILEMAP_SCAN_ROWS, 16, 16, 32, 32);
 
 	m_tilemap_fg->set_transparent_pen(0);
 }
@@ -155,19 +156,19 @@ uint32_t drtomy_state::screen_update_drtomy(screen_device &screen, bitmap_ind16 
 	return 0;
 }
 
-WRITE16_MEMBER(drtomy_state::drtomy_vram_fg_w)
+void drtomy_state::drtomy_vram_fg_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_videoram_fg[offset]);
 	m_tilemap_fg->mark_tile_dirty(offset);
 }
 
-WRITE16_MEMBER(drtomy_state::drtomy_vram_bg_w)
+void drtomy_state::drtomy_vram_bg_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_videoram_bg[offset]);
 	m_tilemap_bg->mark_tile_dirty(offset);
 }
 
-WRITE16_MEMBER(drtomy_state::drtomy_okibank_w)
+void drtomy_state::drtomy_okibank_w(uint16_t data)
 {
 	if (m_oki_bank != (data & 3))
 	{
@@ -306,22 +307,22 @@ void drtomy_state::machine_reset()
 	m_oki_bank = 0;
 }
 
-MACHINE_CONFIG_START(drtomy_state::drtomy)
-
+void drtomy_state::drtomy(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000,24000000/2)          /* ? MHz */
-	MCFG_DEVICE_PROGRAM_MAP(drtomy_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", drtomy_state,  irq6_line_hold)
+	M68000(config, m_maincpu, 24000000/2);          /* ? MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &drtomy_state::drtomy_map);
+	m_maincpu->set_vblank_int("screen", FUNC(drtomy_state::irq6_line_hold));
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE_DRIVER(drtomy_state, screen_update_drtomy)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(32*16, 32*16);
+	screen.set_visarea(0, 320-1, 16, 256-1);
+	screen.set_screen_update(FUNC(drtomy_state::screen_update_drtomy));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_drtomy);
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 1024);
@@ -329,9 +330,8 @@ MACHINE_CONFIG_START(drtomy_state::drtomy)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 26000000/16, okim6295_device::PIN7_LOW)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.8)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, 26000000/16, okim6295_device::PIN7_LOW).add_route(ALL_OUTPUTS, "mono", 0.8);
+}
 
 
 ROM_START( drtomy )

@@ -160,6 +160,7 @@ Notes:
 
 void v1050_state::set_interrupt(int line, int state)
 {
+	line ^= 7;
 	if (state)
 	{
 		m_int_state |= (1 << line);
@@ -180,12 +181,12 @@ void v1050_state::bankswitch()
 
 	if (BIT(m_bank, 0))
 	{
-		program.install_readwrite_bank(0x0000, 0x1fff, "bank1");
+		program.install_readwrite_bank(0x0000, 0x1fff, membank("bank1"));
 		membank("bank1")->set_entry(bank);
 	}
 	else
 	{
-		program.install_read_bank(0x0000, 0x1fff, "bank1");
+		program.install_read_bank(0x0000, 0x1fff, membank("bank1"));
 		program.unmap_write(0x0000, 0x1fff);
 		membank("bank1")->set_entry(3);
 	}
@@ -198,8 +199,8 @@ void v1050_state::bankswitch()
 	}
 	else
 	{
-		program.install_readwrite_bank(0x4000, 0x7fff, "bank3");
-		program.install_readwrite_bank(0x8000, 0xbfff, "bank4");
+		program.install_readwrite_bank(0x4000, 0x7fff, membank("bank3"));
+		program.install_readwrite_bank(0x8000, 0xbfff, membank("bank4"));
 		membank("bank3")->set_entry(bank);
 		membank("bank4")->set_entry(bank);
 	}
@@ -325,7 +326,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(v1050_state::v1050_keyboard_tick)
 	scan_keyboard();
 }
 
-READ8_MEMBER( v1050_state::kb_data_r )
+uint8_t v1050_state::kb_data_r()
 {
 	m_keyavail = 0;
 
@@ -334,7 +335,7 @@ READ8_MEMBER( v1050_state::kb_data_r )
 	return m_keydata;
 }
 
-READ8_MEMBER( v1050_state::kb_status_r )
+uint8_t v1050_state::kb_status_r()
 {
 	uint8_t val = m_uart_kb->status_r();
 
@@ -343,37 +344,37 @@ READ8_MEMBER( v1050_state::kb_status_r )
 
 // Z80 Read/Write Handlers
 
-WRITE8_MEMBER( v1050_state::v1050_i8214_w )
+void v1050_state::v1050_i8214_w(uint8_t data)
 {
 	m_pic->b_w((data >> 1) & 0x07);
 	m_pic->sgs_w(BIT(data, 4));
 }
 
-READ8_MEMBER( v1050_state::vint_clr_r )
+uint8_t v1050_state::vint_clr_r()
 {
 	set_interrupt(INT_VSYNC, 0);
 
 	return 0xff;
 }
 
-WRITE8_MEMBER( v1050_state::vint_clr_w )
+void v1050_state::vint_clr_w(uint8_t data)
 {
 	set_interrupt(INT_VSYNC, 0);
 }
 
-READ8_MEMBER( v1050_state::dint_clr_r )
+uint8_t v1050_state::dint_clr_r()
 {
 	set_interrupt(INT_DISPLAY, 0);
 
 	return 0xff;
 }
 
-WRITE8_MEMBER( v1050_state::dint_clr_w )
+void v1050_state::dint_clr_w(uint8_t data)
 {
 	set_interrupt(INT_DISPLAY, 0);
 }
 
-WRITE8_MEMBER( v1050_state::bank_w )
+void v1050_state::bank_w(uint8_t data)
 {
 	m_bank = data;
 
@@ -382,17 +383,17 @@ WRITE8_MEMBER( v1050_state::bank_w )
 
 // SY6502A Read/Write Handlers
 
-WRITE8_MEMBER( v1050_state::dint_w )
+void v1050_state::dint_w(uint8_t data)
 {
 	set_interrupt(INT_DISPLAY, 1);
 }
 
-WRITE8_MEMBER( v1050_state::dvint_clr_w )
+void v1050_state::dvint_clr_w(uint8_t data)
 {
 	m_subcpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
 }
 
-WRITE8_MEMBER( v1050_state::sasi_data_w )
+void v1050_state::sasi_data_w(uint8_t data)
 {
 	m_sasi_data = data;
 
@@ -428,7 +429,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(v1050_state::sasi_rst_tick)
 	m_sasibus->write_rst(0);
 }
 
-WRITE8_MEMBER( v1050_state::sasi_ctrl_w )
+void v1050_state::sasi_ctrl_w(uint8_t data)
 {
 	/*
 
@@ -492,8 +493,8 @@ void v1050_state::v1050_io(address_map &map)
 	map(0xb0, 0xb0).rw(FUNC(v1050_state::dint_clr_r), FUNC(v1050_state::dint_clr_w));
 	map(0xc0, 0xc0).w(FUNC(v1050_state::v1050_i8214_w));
 	map(0xd0, 0xd0).w(FUNC(v1050_state::bank_w));
-	map(0xe0, 0xe0).w(FUNC(v1050_state::sasi_data_w)).r(m_sasi_data_in, FUNC(input_buffer_device::bus_r));
-	map(0xe1, 0xe1).r(m_sasi_ctrl_in, FUNC(input_buffer_device::bus_r)).w(FUNC(v1050_state::sasi_ctrl_w));
+	map(0xe0, 0xe0).w(FUNC(v1050_state::sasi_data_w)).r(m_sasi_data_in, FUNC(input_buffer_device::read));
+	map(0xe1, 0xe1).r(m_sasi_ctrl_in, FUNC(input_buffer_device::read)).w(FUNC(v1050_state::sasi_ctrl_w));
 }
 
 void v1050_state::v1050_crt_mem(address_map &map)
@@ -651,13 +652,13 @@ WRITE_LINE_MEMBER(v1050_state::pic_int_w)
 
 // Display 8255A Interface
 
-WRITE8_MEMBER(v1050_state::disp_ppi_pc_w)
+void v1050_state::disp_ppi_pc_w(uint8_t data)
 {
 	m_ppi_6502->pc2_w(BIT(data, 6));
 	m_ppi_6502->pc4_w(BIT(data, 7));
 }
 
-WRITE8_MEMBER(v1050_state::m6502_ppi_pc_w)
+void v1050_state::m6502_ppi_pc_w(uint8_t data)
 {
 	m_ppi_disp->pc2_w(BIT(data, 7));
 	m_ppi_disp->pc4_w(BIT(data, 6));
@@ -665,7 +666,7 @@ WRITE8_MEMBER(v1050_state::m6502_ppi_pc_w)
 
 // Miscellanous 8255A Interface
 
-WRITE8_MEMBER( v1050_state::misc_ppi_pa_w )
+void v1050_state::misc_ppi_pa_w(uint8_t data)
 {
 	/*
 
@@ -712,7 +713,7 @@ WRITE_LINE_MEMBER(v1050_state::write_centronics_perror)
 	m_centronics_perror = state;
 }
 
-READ8_MEMBER(v1050_state::misc_ppi_pc_r)
+uint8_t v1050_state::misc_ppi_pc_r()
 {
 	/*
 
@@ -768,7 +769,7 @@ void v1050_state::set_baud_sel(int baud_sel)
 	}
 }
 
-WRITE8_MEMBER( v1050_state::misc_ppi_pc_w )
+void v1050_state::misc_ppi_pc_w(uint8_t data)
 {
 	/*
 
@@ -798,7 +799,7 @@ WRITE8_MEMBER( v1050_state::misc_ppi_pc_w )
 
 // Real Time Clock 8255A Interface
 
-WRITE8_MEMBER( v1050_state::rtc_ppi_pb_w )
+void v1050_state::rtc_ppi_pb_w(uint8_t data)
 {
 	/*
 
@@ -818,12 +819,12 @@ WRITE8_MEMBER( v1050_state::rtc_ppi_pb_w )
 	m_int_mask = data;
 }
 
-READ8_MEMBER( v1050_state::rtc_ppi_pa_r )
+uint8_t v1050_state::rtc_ppi_pa_r()
 {
 	return m_rtc_ppi_pa;
 }
 
-WRITE8_MEMBER( v1050_state::rtc_ppi_pa_w )
+void v1050_state::rtc_ppi_pa_w(uint8_t data)
 {
 	m_rtc->d0_w((data >> 0) & 1);
 	m_rtc->d1_w((data >> 1) & 1);
@@ -831,7 +832,7 @@ WRITE8_MEMBER( v1050_state::rtc_ppi_pa_w )
 	m_rtc->d3_w((data >> 3) & 1);
 }
 
-READ8_MEMBER( v1050_state::rtc_ppi_pc_r )
+uint8_t v1050_state::rtc_ppi_pc_r()
 {
 	/*
 
@@ -851,7 +852,7 @@ READ8_MEMBER( v1050_state::rtc_ppi_pc_r )
 	return m_rtc_ppi_pc;
 }
 
-WRITE8_MEMBER( v1050_state::rtc_ppi_pc_w )
+void v1050_state::rtc_ppi_pc_w(uint8_t data)
 {
 	/*
 
@@ -979,17 +980,17 @@ void v1050_state::machine_start()
 	membank("bank1")->configure_entry(2, ram + 0x1c000);
 	membank("bank1")->configure_entry(3, m_rom->base());
 
-	program.install_readwrite_bank(0x2000, 0x3fff, "bank2");
+	program.install_readwrite_bank(0x2000, 0x3fff, membank("bank2"));
 	membank("bank2")->configure_entries(0, 2, ram + 0x2000, 0x10000);
 	membank("bank2")->configure_entry(2, ram + 0x1e000);
 
-	program.install_readwrite_bank(0x4000, 0x7fff, "bank3");
+	program.install_readwrite_bank(0x4000, 0x7fff, membank("bank3"));
 	membank("bank3")->configure_entries(0, 2, ram + 0x4000, 0x10000);
 
-	program.install_readwrite_bank(0x8000, 0xbfff, "bank4");
+	program.install_readwrite_bank(0x8000, 0xbfff, membank("bank4"));
 	membank("bank4")->configure_entries(0, 2, ram + 0x8000, 0x10000);
 
-	program.install_readwrite_bank(0xc000, 0xffff, "bank5");
+	program.install_readwrite_bank(0xc000, 0xffff, membank("bank5"));
 	membank("bank5")->configure_entries(0, 3, ram + 0xc000, 0);
 
 	bankswitch();
@@ -1022,21 +1023,20 @@ void v1050_state::machine_reset()
 
 // Machine Driver
 
-MACHINE_CONFIG_START(v1050_state::v1050)
+void v1050_state::v1050(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD(Z80_TAG, Z80, 16_MHz_XTAL/4)
-	MCFG_DEVICE_PROGRAM_MAP(v1050_mem)
-	MCFG_DEVICE_IO_MAP(v1050_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(v1050_state,v1050_int_ack)
+	Z80(config, m_maincpu, 16_MHz_XTAL/4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &v1050_state::v1050_mem);
+	m_maincpu->set_addrmap(AS_IO, &v1050_state::v1050_io);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(v1050_state::v1050_int_ack));
 
-	MCFG_QUANTUM_PERFECT_CPU(Z80_TAG)
-
-	MCFG_DEVICE_ADD(M6502_TAG, M6502, 15.36_MHz_XTAL/16)
-	MCFG_DEVICE_PROGRAM_MAP(v1050_crt_mem)
-	MCFG_QUANTUM_PERFECT_CPU(M6502_TAG)
+	M6502(config, m_subcpu, 15.36_MHz_XTAL/16);
+	m_subcpu->set_addrmap(AS_PROGRAM, &v1050_state::v1050_crt_mem);
+	config.set_perfect_quantum(m_subcpu);
 
 	// keyboard HACK
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("keyboard", v1050_state, v1050_keyboard_tick, attotime::from_hz(60))
+	TIMER(config, "keyboard").configure_periodic(FUNC(v1050_state::v1050_keyboard_tick), attotime::from_hz(60));
 
 	// video hardware
 	v1050_video(config);
@@ -1045,12 +1045,12 @@ MACHINE_CONFIG_START(v1050_state::v1050)
 	I8214(config, m_pic, 16_MHz_XTAL/4);
 	m_pic->int_wr_callback().set(FUNC(v1050_state::pic_int_w));
 
-	MCFG_DEVICE_ADD(MSM58321RS_TAG, MSM58321, 32.768_kHz_XTAL)
-	MCFG_MSM58321_D0_HANDLER(WRITELINE(*this, v1050_state, rtc_ppi_pa_0_w))
-	MCFG_MSM58321_D1_HANDLER(WRITELINE(*this, v1050_state, rtc_ppi_pa_1_w))
-	MCFG_MSM58321_D2_HANDLER(WRITELINE(*this, v1050_state, rtc_ppi_pa_2_w))
-	MCFG_MSM58321_D3_HANDLER(WRITELINE(*this, v1050_state, rtc_ppi_pa_3_w))
-	MCFG_MSM58321_BUSY_HANDLER(WRITELINE(*this, v1050_state, rtc_ppi_pc_3_w))
+	MSM58321(config, m_rtc, 32.768_kHz_XTAL);
+	m_rtc->d0_handler().set(FUNC(v1050_state::rtc_ppi_pa_0_w));
+	m_rtc->d1_handler().set(FUNC(v1050_state::rtc_ppi_pa_1_w));
+	m_rtc->d2_handler().set(FUNC(v1050_state::rtc_ppi_pa_2_w));
+	m_rtc->d3_handler().set(FUNC(v1050_state::rtc_ppi_pa_3_w));
+	m_rtc->busy_handler().set(FUNC(v1050_state::rtc_ppi_pc_3_w));
 
 	I8255A(config, m_ppi_disp);
 	m_ppi_disp->in_pa_callback().set(I8255A_M6502_TAG, FUNC(i8255_device::pb_r));
@@ -1059,7 +1059,7 @@ MACHINE_CONFIG_START(v1050_state::v1050)
 	i8255_device &ppi_misc(I8255A(config, I8255A_MISC_TAG));
 	ppi_misc.in_pc_callback().set(FUNC(v1050_state::misc_ppi_pc_r));
 	ppi_misc.out_pa_callback().set(FUNC(v1050_state::misc_ppi_pa_w));
-	ppi_misc.out_pb_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	ppi_misc.out_pb_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	ppi_misc.out_pc_callback().set(FUNC(v1050_state::misc_ppi_pc_w));
 
 	i8255_device &ppi_rtc(I8255A(config, I8255A_RTC_TAG));
@@ -1077,8 +1077,8 @@ MACHINE_CONFIG_START(v1050_state::v1050)
 	m_uart_kb->txd_handler().set(V1050_KEYBOARD_TAG, FUNC(v1050_keyboard_device::si_w));
 	m_uart_kb->rxrdy_handler().set(FUNC(v1050_state::kb_rxrdy_w));
 
-	MCFG_DEVICE_ADD(CLOCK_KB_TAG, CLOCK, 16_MHz_XTAL/4/13/8)
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, v1050_state, write_keyboard_clock))
+	clock_device &clock_kb(CLOCK(config, CLOCK_KB_TAG, 16_MHz_XTAL/4/13/8));
+	clock_kb.signal_handler().set(FUNC(v1050_state::write_keyboard_clock));
 
 	// keyboard
 	v1050_keyboard_device &keyboard(V1050_KEYBOARD(config, V1050_KEYBOARD_TAG, 0));
@@ -1095,48 +1095,50 @@ MACHINE_CONFIG_START(v1050_state::v1050)
 	rs232.rxd_handler().set(m_uart_sio, FUNC(i8251_device::write_rxd));
 	rs232.dsr_handler().set(m_uart_sio, FUNC(i8251_device::write_dsr));
 
-	MCFG_DEVICE_ADD(CLOCK_SIO_TAG, CLOCK, 16_MHz_XTAL/4)
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, v1050_state, write_sio_clock))
+	CLOCK(config, m_clock_sio, 16_MHz_XTAL/4);
+	m_clock_sio->signal_handler().set(FUNC(v1050_state::write_sio_clock));
 
 	MB8877(config, m_fdc, 16_MHz_XTAL/16);
 	m_fdc->intrq_wr_callback().set(FUNC(v1050_state::fdc_intrq_w));
 	m_fdc->drq_wr_callback().set(FUNC(v1050_state::fdc_drq_w));
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":0", v1050_floppies, "525qd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":1", v1050_floppies, "525qd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":2", v1050_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":3", v1050_floppies, nullptr, floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, MB8877_TAG":0", v1050_floppies, "525qd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":1", v1050_floppies, "525qd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":2", v1050_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":3", v1050_floppies, nullptr, floppy_image_device::default_floppy_formats);
 
 	// SASI bus
 	SCSI_PORT(config, m_sasibus, 0);
-	m_sasibus->set_data_input_buffer("scsi_data_in");
-	m_sasibus->req_handler().set("scsi_ctrl_in", FUNC(input_buffer_device::write_bit0)).exor(1);
-	m_sasibus->bsy_handler().set("scsi_ctrl_in", FUNC(input_buffer_device::write_bit1));
-	m_sasibus->msg_handler().set("scsi_ctrl_in", FUNC(input_buffer_device::write_bit2));
-	m_sasibus->cd_handler().set("scsi_ctrl_in", FUNC(input_buffer_device::write_bit3));
+	m_sasibus->set_data_input_buffer(m_sasi_data_in);
+	m_sasibus->req_handler().set(m_sasi_ctrl_in, FUNC(input_buffer_device::write_bit0)).exor(1);
+	m_sasibus->bsy_handler().set(m_sasi_ctrl_in, FUNC(input_buffer_device::write_bit1));
+	m_sasibus->msg_handler().set(m_sasi_ctrl_in, FUNC(input_buffer_device::write_bit2));
+	m_sasibus->cd_handler().set(m_sasi_ctrl_in, FUNC(input_buffer_device::write_bit3));
 	m_sasibus->io_handler().set(FUNC(v1050_state::write_sasi_io)).exor(1); // bit4
-	MCFG_SCSIDEV_ADD(SASIBUS_TAG ":" SCSI_PORT_DEVICE1, "harddisk", S1410, SCSI_ID_0)
+	m_sasibus->set_slot_device(1, "harddisk", S1410, DEVICE_INPUT_DEFAULTS_NAME(SCSI_ID_0));
 
-	MCFG_SCSI_OUTPUT_LATCH_ADD("scsi_data_out", SASIBUS_TAG)
-	MCFG_DEVICE_ADD("scsi_data_in", INPUT_BUFFER, 0)
-	MCFG_DEVICE_ADD("scsi_ctrl_in", INPUT_BUFFER, 0)
+	OUTPUT_LATCH(config, m_sasi_data_out);
+	m_sasibus->set_output_latch(*m_sasi_data_out);
+	INPUT_BUFFER(config, m_sasi_data_in);
+	INPUT_BUFFER(config, m_sasi_ctrl_in);
 
-	MCFG_TIMER_DRIVER_ADD(TIMER_ACK_TAG, v1050_state, sasi_ack_tick)
-	MCFG_TIMER_DRIVER_ADD(TIMER_RST_TAG, v1050_state, sasi_rst_tick)
+	TIMER(config, m_timer_ack).configure_generic(FUNC(v1050_state::sasi_ack_tick));
+	TIMER(config, m_timer_rst).configure_generic(FUNC(v1050_state::sasi_rst_tick));
 
 	// software lists
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "v1050_flop")
-	MCFG_SOFTWARE_LIST_ADD("hdd_list", "v1050_hdd")
+	SOFTWARE_LIST(config, "flop_list").set_original("v1050_flop");
+	SOFTWARE_LIST(config, "hdd_list").set_original("v1050_hdd");
 
 	// printer
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, v1050_state, write_centronics_busy))
-	MCFG_CENTRONICS_PERROR_HANDLER(WRITELINE(*this, v1050_state, write_centronics_perror))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(v1050_state::write_centronics_busy));
+	m_centronics->perror_handler().set(FUNC(v1050_state::write_centronics_perror));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	// internal ram
 	RAM(config, RAM_TAG).set_default_size("128K");
-MACHINE_CONFIG_END
+}
 
 // ROMs
 

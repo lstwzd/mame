@@ -101,9 +101,10 @@ public:
 	// rendering info
 	std::mutex          m_render_lock;
 	render_target *     m_target;
-	int                 m_targetview;
+	unsigned            m_targetview;
 	int                 m_targetorient;
 	render_layer_config m_targetlayerconfig;
+	u32                 m_targetvismask;
 
 	// input info
 	std::chrono::system_clock::time_point  m_lastclicktime;
@@ -112,7 +113,7 @@ public:
 
 private:
 	int complete_create();
-	void draw_video_contents(int update);
+	void draw_video_contents(bool update);
 	void set_starting_view(int index, const char *defview, const char *view);
 	int wnd_extra_width();
 	int wnd_extra_height();
@@ -144,7 +145,7 @@ struct osd_draw_callbacks
 //  PROTOTYPES
 //============================================================
 
-BOOL winwindow_has_focus(void);
+bool winwindow_has_focus(void);
 void winwindow_process_events(running_machine &machine, bool ingame, bool nodispatch);
 void winwindow_process_events_periodic(running_machine &machine);
 

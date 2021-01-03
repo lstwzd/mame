@@ -11,9 +11,8 @@
 #include "zippath.h"
 #include "unzip.h"
 #include "corestr.h"
-#include "osdcore.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include <cassert>
 #include <cctype>
@@ -264,7 +263,7 @@ osd_file::error zippath_resolve(const char *path, osd::directory::entry::entry_t
 			apath = zippath_parent(apath);
 		}
 	}
-	while ((current_entry_type == osd::directory::entry::entry_type::NONE) && !is_root(apath.c_str()));
+	while ((current_entry_type == osd::directory::entry::entry_type::NONE) && !is_root(apath));
 
 	// if we did not find anything, then error out
 	if (current_entry_type == osd::directory::entry::entry_type::NONE)
@@ -867,7 +866,7 @@ done:
 	revised_path.clear();
 	if (filerr == osd_file::error::NONE)
 	{
-		/* cannonicalize mainpath */
+		/* canonicalize mainpath */
 		std::string alloc_fullpath;
 		filerr = osd_get_full_path(alloc_fullpath, mainpath);
 		if (filerr == osd_file::error::NONE)

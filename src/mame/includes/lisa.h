@@ -24,10 +24,6 @@
 #include "emupal.h"
 #include "screen.h"
 
-#define COP421_TAG      "u9f"
-#define KB_COP421_TAG   "kbcop"
-#define SCREEN_TAG      "screen"
-
 /* lisa MMU segment regs */
 struct real_mmu_entry
 {
@@ -116,7 +112,6 @@ public:
 		m_nvram(*this, "nvram"),
 		m_latch(*this, "latch"),
 		m_fdc_cpu(*this,"fdccpu"),
-		m_fdc_rom(*this,"fdc_rom"),
 		m_fdc_ram(*this,"fdc_ram"),
 		m_io_line0(*this, "LINE0"),
 		m_io_line1(*this, "LINE1"),
@@ -129,7 +124,7 @@ public:
 		m_io_mouse_x(*this, "MOUSE_X"),
 		m_io_mouse_y(*this, "MOUSE_Y"),
 		m_palette(*this, "palette"),
-		m_screen(*this, SCREEN_TAG)
+		m_screen(*this, "screen")
 	{ }
 
 	void lisa(machine_config &config);
@@ -145,13 +140,12 @@ private:
 	required_device<via6522_device> m_via0;
 	required_device<via6522_device> m_via1;
 	optional_device<applefdc_base_device> m_fdc;
-	required_device<scc8530_t> m_scc;
+	required_device<scc8530_legacy_device> m_scc;
 	required_device<speaker_sound_device> m_speaker;
 	required_device<nvram_device> m_nvram;
 	required_device<ls259_device> m_latch;
 	required_device<m6504_device> m_fdc_cpu;
 
-	required_shared_ptr<uint8_t> m_fdc_rom;
 	required_shared_ptr<uint8_t> m_fdc_ram;
 
 	required_ioport m_io_line0;
@@ -210,12 +204,12 @@ private:
 	int m_last_my;
 	int m_frame_count;
 	int m_videoROM_address;
-	DECLARE_READ8_MEMBER(lisa_fdc_io_r);
-	DECLARE_WRITE8_MEMBER(lisa_fdc_io_w);
-	DECLARE_READ16_MEMBER(lisa_r);
-	DECLARE_WRITE16_MEMBER(lisa_w);
-	DECLARE_READ16_MEMBER(lisa_IO_r);
-	DECLARE_WRITE16_MEMBER(lisa_IO_w);
+	uint8_t lisa_fdc_io_r(offs_t offset);
+	void lisa_fdc_io_w(offs_t offset, uint8_t data);
+	uint16_t lisa_r(offs_t offset, uint16_t mem_mask = ~0);
+	void lisa_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t lisa_IO_r(offs_t offset, uint16_t mem_mask = ~0);
+	void lisa_IO_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(diag1_w);
 	DECLARE_WRITE_LINE_MEMBER(diag2_w);
 	DECLARE_WRITE_LINE_MEMBER(seg1_w);
@@ -234,9 +228,9 @@ private:
 	TIMER_CALLBACK_MEMBER(handle_mouse);
 	TIMER_CALLBACK_MEMBER(read_COPS_command);
 	TIMER_CALLBACK_MEMBER(set_COPS_ready);
-	DECLARE_WRITE8_MEMBER(COPS_via_out_a);
+	void COPS_via_out_a(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(COPS_via_out_ca2);
-	DECLARE_WRITE8_MEMBER(COPS_via_out_b);
+	void COPS_via_out_b(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(COPS_via_out_cb2);
 
 	void field_interrupts();

@@ -162,23 +162,23 @@ void vme_slot_device::device_config_complete()
 //-------------------------------------------------
 //  P1 D8 read
 //-------------------------------------------------
-READ8_MEMBER(vme_slot_device::read8)
+uint8_t vme_slot_device::read8(offs_t offset)
 {
 	uint16_t result = 0x00;
 	LOG("%s %s\n", tag(), FUNCNAME);
 	//  printf("%s %s\n", tag(), FUNCNAME);
-	//  if (m_card)     result = m_card->read8(space, offset);
+	//  if (m_card)     result = m_card->read8(offset);
 	return result;
 }
 
 //-------------------------------------------------
 //  P1 D8 write
 //-------------------------------------------------
-WRITE8_MEMBER(vme_slot_device::write8)
+void vme_slot_device::write8(offs_t offset, uint8_t data)
 {
 	LOG("%s %s\n", tag(), FUNCNAME);
 	//  printf("%s %s\n", tag(), FUNCNAME);
-	//  if (m_card)     m_card->write8(space, offset, data);
+	//  if (m_card)     m_card->write8(offset, data);
 }
 
 #if 0 // Disabled until we know how to make a board driver also a slot device
@@ -329,6 +329,66 @@ void vme_device::install_device(vme_amod_t amod, offs_t start, offs_t end, read8
 	}
 }
 
+void vme_device::install_device(vme_amod_t amod, offs_t start, offs_t end, read8sm_delegate rhandler, write8sm_delegate whandler, uint32_t mask)
+{
+	LOG("%s %s AM%d D%02x\n", tag(), FUNCNAME, amod, m_prgwidth);
+
+	LOG(" - width:%d\n", m_prgwidth);
+
+	// TODO: support address modifiers and buscycles other than single access cycles
+	switch(amod)
+	{
+	case A16_SC: break;
+	case A24_SC: break;
+	case A32_SC: break;
+	default: fatalerror("VME D8: Non supported Address modifier: AM%02x\n", amod);
+	}
+
+	switch(m_prgwidth)
+	{
+	case 16:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, (uint16_t)(mask & 0x0000ffff));
+		break;
+	case 24:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, (uint32_t)(mask & 0x00ffffff));
+		break;
+	case 32:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, mask);
+		break;
+	default: fatalerror("VME D8: Bus width %d not supported\n", m_prgwidth);
+	}
+}
+
+void vme_device::install_device(vme_amod_t amod, offs_t start, offs_t end, read8smo_delegate rhandler, write8smo_delegate whandler, uint32_t mask)
+{
+	LOG("%s %s AM%d D%02x\n", tag(), FUNCNAME, amod, m_prgwidth);
+
+	LOG(" - width:%d\n", m_prgwidth);
+
+	// TODO: support address modifiers and buscycles other than single access cycles
+	switch(amod)
+	{
+	case A16_SC: break;
+	case A24_SC: break;
+	case A32_SC: break;
+	default: fatalerror("VME D8: Non supported Address modifier: AM%02x\n", amod);
+	}
+
+	switch(m_prgwidth)
+	{
+	case 16:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, (uint16_t)(mask & 0x0000ffff));
+		break;
+	case 24:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, (uint32_t)(mask & 0x00ffffff));
+		break;
+	case 32:
+		m_prgspace->install_readwrite_handler(start, end, rhandler, whandler, mask);
+		break;
+	default: fatalerror("VME D8: Bus width %d not supported\n", m_prgwidth);
+	}
+}
+
 // D16 bit devices in A16, A24 and A32
 void vme_device::install_device(vme_amod_t amod, offs_t start, offs_t end, read16_delegate rhandler, write16_delegate whandler, uint32_t mask)
 {
@@ -395,12 +455,12 @@ void vme_device::install_device(vme_amod_t amod, offs_t start, offs_t end, read3
 // Card interface
 //
 device_vme_card_interface::device_vme_card_interface(const machine_config &mconfig, device_t &device)
-	: device_slot_card_interface(mconfig, device)
-	,m_vme(nullptr)
-	,m_vme_tag(nullptr)
-	,m_vme_slottag(nullptr)
-	,m_slot(0)
-	,m_next(nullptr)
+	: device_interface(device, "vme")
+	, m_vme(nullptr)
+	, m_vme_tag(nullptr)
+	, m_vme_slottag(nullptr)
+	, m_slot(0)
+	, m_next(nullptr)
 {
 	m_device = &device;
 	LOG("%s %s\n", m_device->tag(), FUNCNAME);
@@ -427,14 +487,14 @@ void device_vme_card_interface::set_vme_device()
 }
 
 /* VME D8 accesses */
-READ8_MEMBER(device_vme_card_interface::read8)
+uint8_t device_vme_card_interface::read8(offs_t offset)
 {
 	uint8_t result = 0x00;
 	LOG("%s %s Offset:%08x\n", m_device->tag(), FUNCNAME, offset);
 	return result;
 }
 
-WRITE8_MEMBER(device_vme_card_interface::write8)
+void device_vme_card_interface::write8(offs_t offset, uint8_t data)
 {
 	LOG("%s %s Offset:%08x\n", m_device->tag(), FUNCNAME, offset);
 }

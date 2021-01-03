@@ -267,7 +267,7 @@ inline void gba_lcd_device::update_mask(uint8_t* mask, int y)
 
 void gba_lcd_device::draw_scanline(int y)
 {
-	uint16_t *scanline = &m_bitmap.pix16(y);
+	uint16_t *const scanline = &m_bitmap.pix(y);
 
 	if (is_set(dispcnt::forced_blank))
 	{
@@ -1556,7 +1556,7 @@ static char const *const reg_names[] = {
 	"Unused",  "Unused",   "Unused",   "Unused",
 };
 
-READ32_MEMBER(gba_lcd_device::video_r)
+uint32_t gba_lcd_device::video_r(offs_t offset, uint32_t mem_mask)
 {
 	uint32_t retval = 0;
 
@@ -1577,34 +1577,30 @@ READ32_MEMBER(gba_lcd_device::video_r)
 		break;
 	}
 
-	assert_always(offset < ARRAY_LENGTH(reg_names) / 2, "Not enough register names in gba_lcd_device");
+	if (offset >= ARRAY_LENGTH(reg_names) / 2)
+		throw emu_fatalerror("gba_lcd_device::video_r: Not enough register names in gba_lcd_device");
 
 	if (ACCESSING_BITS_0_15)
-	{
 		verboselog(*this, 2, "GBA I/O Read: %s = %04x\n", reg_names[offset * 2], retval & 0x0000ffff);
-	}
+
 	if (ACCESSING_BITS_16_31)
-	{
 		verboselog(*this, 2, "GBA I/O Read: %s = %04x\n", reg_names[offset * 2 + 1], (retval & 0xffff0000) >> 16);
-	}
 
 	return retval;
 }
 
-WRITE32_MEMBER(gba_lcd_device::video_w)
+void gba_lcd_device::video_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&m_regs[offset]);
 
-	assert_always(offset < ARRAY_LENGTH(reg_names) / 2, "Not enough register names in gba_lcd_device");
+	if (offset >= ARRAY_LENGTH(reg_names) / 2)
+		throw emu_fatalerror("gba_lcd_device::video_w: Not enough register names in gba_lcd_device");
 
 	if (ACCESSING_BITS_0_15)
-	{
 		verboselog(*this, 2, "GBA I/O Write: %s = %04x\n", reg_names[offset * 2], data & 0x0000ffff);
-	}
+
 	if (ACCESSING_BITS_16_31)
-	{
 		verboselog(*this, 2, "GBA I/O Write: %s = %04x\n", reg_names[offset * 2 + 1], (data & 0xffff0000) >> 16);
-	}
 
 	switch (offset)
 	{
@@ -1623,32 +1619,32 @@ WRITE32_MEMBER(gba_lcd_device::video_w)
 	}
 }
 
-READ32_MEMBER(gba_lcd_device::gba_pram_r)
+uint32_t gba_lcd_device::gba_pram_r(offs_t offset)
 {
 	return m_pram[offset];
 }
 
-WRITE32_MEMBER(gba_lcd_device::gba_pram_w)
+void gba_lcd_device::gba_pram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&m_pram[offset]);
 }
 
-READ32_MEMBER(gba_lcd_device::gba_vram_r)
+uint32_t gba_lcd_device::gba_vram_r(offs_t offset)
 {
 	return m_vram[offset];
 }
 
-WRITE32_MEMBER(gba_lcd_device::gba_vram_w)
+void gba_lcd_device::gba_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&m_vram[offset]);
 }
 
-READ32_MEMBER(gba_lcd_device::gba_oam_r)
+uint32_t gba_lcd_device::gba_oam_r(offs_t offset)
 {
 	return m_oam[offset];
 }
 
-WRITE32_MEMBER(gba_lcd_device::gba_oam_w)
+void gba_lcd_device::gba_oam_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	COMBINE_DATA(&m_oam[offset]);
 }
@@ -1807,11 +1803,12 @@ void gba_lcd_device::device_reset()
 	m_hbl_timer->adjust(attotime::never);
 }
 
-MACHINE_CONFIG_START(gba_lcd_device::device_add_mconfig)
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_RAW_PARAMS(XTAL(16'777'216) / 4, 308, 0, 240, 228, 0, 160)
-	MCFG_SCREEN_UPDATE_DEVICE(DEVICE_SELF, gba_lcd_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+void gba_lcd_device::device_add_mconfig(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_raw(XTAL(16'777'216) / 4, 308, 0, 240, 228, 0, 160);
+	screen.set_screen_update(FUNC(gba_lcd_device::screen_update));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(gba_lcd_device::gba_palette), 32768);
-MACHINE_CONFIG_END
+}

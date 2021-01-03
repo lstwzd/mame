@@ -33,33 +33,33 @@ void taxidriv_state::machine_start()
 	save_item(NAME(m_spritectrl));
 }
 
-WRITE8_MEMBER(taxidriv_state::p2a_w){ spritectrl_w(space,0,data); }
-WRITE8_MEMBER(taxidriv_state::p2b_w){ spritectrl_w(space,1,data); }
-WRITE8_MEMBER(taxidriv_state::p2c_w){ spritectrl_w(space,2,data); }
-WRITE8_MEMBER(taxidriv_state::p3a_w){ spritectrl_w(space,3,data); }
-WRITE8_MEMBER(taxidriv_state::p3b_w){ spritectrl_w(space,4,data); }
-WRITE8_MEMBER(taxidriv_state::p3c_w){ spritectrl_w(space,5,data); }
-WRITE8_MEMBER(taxidriv_state::p4a_w){ spritectrl_w(space,6,data); }
-WRITE8_MEMBER(taxidriv_state::p4b_w){ spritectrl_w(space,7,data); }
-WRITE8_MEMBER(taxidriv_state::p4c_w){ spritectrl_w(space,8,data); }
+void taxidriv_state::p2a_w(uint8_t data) { spritectrl_w(0,data); }
+void taxidriv_state::p2b_w(uint8_t data) { spritectrl_w(1,data); }
+void taxidriv_state::p2c_w(uint8_t data) { spritectrl_w(2,data); }
+void taxidriv_state::p3a_w(uint8_t data) { spritectrl_w(3,data); }
+void taxidriv_state::p3b_w(uint8_t data) { spritectrl_w(4,data); }
+void taxidriv_state::p3c_w(uint8_t data) { spritectrl_w(5,data); }
+void taxidriv_state::p4a_w(uint8_t data) { spritectrl_w(6,data); }
+void taxidriv_state::p4b_w(uint8_t data) { spritectrl_w(7,data); }
+void taxidriv_state::p4c_w(uint8_t data) { spritectrl_w(8,data); }
 
 
-READ8_MEMBER(taxidriv_state::p0a_r)
+uint8_t taxidriv_state::p0a_r()
 {
 	return m_latchA;
 }
 
-READ8_MEMBER(taxidriv_state::p0c_r)
+uint8_t taxidriv_state::p0c_r()
 {
 	return (m_s1 << 7);
 }
 
-WRITE8_MEMBER(taxidriv_state::p0b_w)
+void taxidriv_state::p0b_w(uint8_t data)
 {
 	m_latchB = data;
 }
 
-WRITE8_MEMBER(taxidriv_state::p0c_w)
+void taxidriv_state::p0c_w(uint8_t data)
 {
 	m_s2 = data & 1;
 
@@ -72,40 +72,40 @@ WRITE8_MEMBER(taxidriv_state::p0c_w)
 //  popmessage("%02x",data&0x0f);
 }
 
-READ8_MEMBER(taxidriv_state::p1b_r)
+uint8_t taxidriv_state::p1b_r()
 {
 	return m_latchB;
 }
 
-READ8_MEMBER(taxidriv_state::p1c_r)
+uint8_t taxidriv_state::p1c_r()
 {
 	return (m_s2 << 7) | (m_s4 << 6) | ((ioport("SERVCOIN")->read() & 1) << 4);
 }
 
-WRITE8_MEMBER(taxidriv_state::p1a_w)
+void taxidriv_state::p1a_w(uint8_t data)
 {
 	m_latchA = data;
 }
 
-WRITE8_MEMBER(taxidriv_state::p1c_w)
+void taxidriv_state::p1c_w(uint8_t data)
 {
 	m_s1 = data & 1;
 	m_s3 = (data & 2) >> 1;
 }
 
-READ8_MEMBER(taxidriv_state::p8910_0a_r)
+uint8_t taxidriv_state::p8910_0a_r()
 {
 	return m_latchA;
 }
 
-READ8_MEMBER(taxidriv_state::p8910_1a_r)
+uint8_t taxidriv_state::p8910_1a_r()
 {
 	return m_s3;
 }
 
 /* note that a lot of writes happen with port B set as input. I think this is a bug in the
    original, since it works anyway even if the communication is flawed. */
-WRITE8_MEMBER(taxidriv_state::p8910_0b_w)
+void taxidriv_state::p8910_0b_w(uint8_t data)
 {
 	m_s4 = data & 1;
 }
@@ -120,17 +120,16 @@ void taxidriv_state::main_map(address_map &map)
 	map(0xc000, 0xc7ff).ram().share("vram4");           /* radar bitmap */
 	map(0xc800, 0xcfff).writeonly().share("vram5"); /* "sprite1" bitmap */
 	map(0xd000, 0xd7ff).writeonly().share("vram6"); /* "sprite2" bitmap */
-	map(0xd800, 0xdfff).ram().share("vram7");           /* "sprite3" bitmap */
-	map(0xe000, 0xf3ff).readonly();
-	map(0xe000, 0xe3ff).writeonly().share("vram1"); /* car tilemap */
-	map(0xe400, 0xebff).writeonly().share("vram2"); /* bg1 tilemap */
-	map(0xec00, 0xefff).writeonly().share("vram0"); /* fg tilemap */
-	map(0xf000, 0xf3ff).writeonly().share("vram3"); /* bg2 tilemap */
+	map(0xd800, 0xdfff).ram().share("vram7"); /* "sprite3" bitmap */
+	map(0xe000, 0xe3ff).ram().share("vram1"); /* car tilemap */
+	map(0xe400, 0xebff).ram().share("vram2"); /* bg1 tilemap */
+	map(0xec00, 0xefff).ram().share("vram0"); /* fg tilemap */
+	map(0xf000, 0xf3ff).ram().share("vram3"); /* bg2 tilemap */
 	map(0xf400, 0xf403).rw("ppi8255_0", FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0xf480, 0xf483).rw("ppi8255_2", FUNC(i8255_device::read), FUNC(i8255_device::write));    /* "sprite1" placement */
 	map(0xf500, 0xf503).rw("ppi8255_3", FUNC(i8255_device::read), FUNC(i8255_device::write));    /* "sprite2" placement */
 	map(0xf580, 0xf583).rw("ppi8255_4", FUNC(i8255_device::read), FUNC(i8255_device::write));    /* "sprite3" placement */
-	//AM_RANGE(0xf780, 0xf781) AM_WRITEONLY     /* more scroll registers? */
+	//map(0xf780, 0xf781).writeonly();    /* more scroll registers? */
 	map(0xf782, 0xf787).writeonly().share("scroll");    /* bg scroll (three copies always identical) */
 	map(0xf800, 0xffff).ram();
 }
@@ -332,23 +331,23 @@ void taxidriv_state::taxidriv_palette(palette_device &palette) const
 	}
 }
 
-MACHINE_CONFIG_START(taxidriv_state::taxidriv)
-
+void taxidriv_state::taxidriv(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,4000000)    /* 4 MHz ??? */
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", taxidriv_state,  irq0_line_hold)
+	Z80(config, m_maincpu, 4000000);    /* 4 MHz ??? */
+	m_maincpu->set_addrmap(AS_PROGRAM, &taxidriv_state::main_map);
+	m_maincpu->set_vblank_int("screen", FUNC(taxidriv_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("sub", Z80,4000000)    /* 4 MHz ??? */
-	MCFG_DEVICE_PROGRAM_MAP(cpu2_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", taxidriv_state,  irq0_line_hold)   /* ??? */
+	z80_device &subcpu(Z80(config, "sub", 4000000));    /* 4 MHz ??? */
+	subcpu.set_addrmap(AS_PROGRAM, &taxidriv_state::cpu2_map);
+	subcpu.set_vblank_int("screen", FUNC(taxidriv_state::irq0_line_hold));   /* ??? */
 
-	MCFG_DEVICE_ADD("audiocpu", Z80,4000000)   /* 4 MHz ??? */
-	MCFG_DEVICE_PROGRAM_MAP(cpu3_map)
-	MCFG_DEVICE_IO_MAP(cpu3_port_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", taxidriv_state,  irq0_line_hold)   /* ??? */
+	z80_device &audiocpu(Z80(config, "audiocpu", 4000000));   /* 4 MHz ??? */
+	audiocpu.set_addrmap(AS_PROGRAM, &taxidriv_state::cpu3_map);
+	audiocpu.set_addrmap(AS_IO, &taxidriv_state::cpu3_port_map);
+	audiocpu.set_vblank_int("screen", FUNC(taxidriv_state::irq0_line_hold));   /* ??? */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))  /* 100 CPU slices per frame - an high value to ensure proper */
+	config.set_maximum_quantum(attotime::from_hz(6000));  /* 100 CPU slices per frame - a high value to ensure proper */
 							/* synchronization of the CPUs */
 
 	i8255_device &ppi0(I8255A(config, "ppi8255_0"));
@@ -379,13 +378,13 @@ MACHINE_CONFIG_START(taxidriv_state::taxidriv)
 	ppi4.out_pc_callback().set(FUNC(taxidriv_state::p4c_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 27*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(taxidriv_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 1*8, 27*8-1);
+	screen.set_screen_update(FUNC(taxidriv_state::screen_update));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_taxidriv);
 	PALETTE(config, m_palette, FUNC(taxidriv_state::taxidriv_palette), 16);
@@ -401,7 +400,7 @@ MACHINE_CONFIG_START(taxidriv_state::taxidriv)
 	ay8910_device &ay2(AY8910(config, "ay2", 1250000));
 	ay2.port_a_read_callback().set(FUNC(taxidriv_state::p8910_1a_r));
 	ay2.add_route(ALL_OUTPUTS, "mono", 0.25);
-MACHINE_CONFIG_END
+}
 
 
 

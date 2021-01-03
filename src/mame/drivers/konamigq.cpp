@@ -85,6 +85,8 @@
 #include "speaker.h"
 
 
+namespace {
+
 class konamigq_state : public driver_device
 {
 public:
@@ -116,15 +118,11 @@ private:
 	uint8_t m_sound_ctrl;
 	uint8_t m_sound_intck;
 
-	DECLARE_WRITE16_MEMBER(eeprom_w);
-	DECLARE_WRITE8_MEMBER(pcmram_w);
-	DECLARE_READ8_MEMBER(pcmram_r);
-	DECLARE_READ16_MEMBER(tms57002_data_word_r);
-	DECLARE_WRITE16_MEMBER(tms57002_data_word_w);
-	DECLARE_READ16_MEMBER(tms57002_status_word_r);
-	DECLARE_WRITE16_MEMBER(tms57002_control_word_w);
-	DECLARE_MACHINE_START(konamigq);
-	DECLARE_MACHINE_RESET(konamigq);
+	void eeprom_w(uint16_t data);
+	void pcmram_w(offs_t offset, uint8_t data);
+	uint8_t pcmram_r(offs_t offset);
+	uint16_t tms57002_status_word_r();
+	void tms57002_control_word_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	INTERRUPT_GEN_MEMBER(tms_sync);
 	DECLARE_WRITE_LINE_MEMBER(k054539_irq_gen);
 
@@ -150,7 +148,7 @@ static const uint16_t konamigq_def_eeprom[64] =
 	0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa,
 };
 
-WRITE16_MEMBER(konamigq_state::eeprom_w)
+void konamigq_state::eeprom_w(uint16_t data)
 {
 	ioport("EEPROMOUT")->write(data & 0x07, 0xff);
 	m_soundcpu->set_input_line(INPUT_LINE_RESET, ( data & 0x40 ) ? CLEAR_LINE : ASSERT_LINE );
@@ -159,12 +157,12 @@ WRITE16_MEMBER(konamigq_state::eeprom_w)
 
 /* PCM RAM */
 
-WRITE8_MEMBER(konamigq_state::pcmram_w)
+void konamigq_state::pcmram_w(offs_t offset, uint8_t data)
 {
 	m_pcmram[ offset ] = data;
 }
 
-READ8_MEMBER(konamigq_state::pcmram_r)
+uint8_t konamigq_state::pcmram_r(offs_t offset)
 {
 	return m_pcmram[ offset ];
 }
@@ -201,25 +199,14 @@ INTERRUPT_GEN_MEMBER(konamigq_state::tms_sync)
 		m_dasp->sync_w(1);
 }
 
-READ16_MEMBER(konamigq_state::tms57002_data_word_r)
-{
-	return m_dasp->data_r(space, 0);
-}
-
-WRITE16_MEMBER(konamigq_state::tms57002_data_word_w)
-{
-	if (ACCESSING_BITS_0_7)
-		m_dasp->data_w(space, 0, data);
-}
-
-READ16_MEMBER(konamigq_state::tms57002_status_word_r)
+uint16_t konamigq_state::tms57002_status_word_r()
 {
 	return (m_dasp->dready_r() ? 4 : 0) |
 		(m_dasp->pc0_r() ? 2 : 0) |
 		(m_dasp->empty_r() ? 1 : 0);
 }
 
-WRITE16_MEMBER(konamigq_state::tms57002_control_word_w)
+void konamigq_state::tms57002_control_word_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -241,7 +228,7 @@ void konamigq_state::konamigq_sound_map(address_map &map)
 	map(0x100000, 0x10ffff).ram();
 	map(0x200000, 0x2004ff).rw("k054539_1", FUNC(k054539_device::read), FUNC(k054539_device::write)).umask16(0xff00);
 	map(0x200000, 0x2004ff).rw("k054539_2", FUNC(k054539_device::read), FUNC(k054539_device::write)).umask16(0x00ff);
-	map(0x300000, 0x300001).rw(FUNC(konamigq_state::tms57002_data_word_r), FUNC(konamigq_state::tms57002_data_word_w));
+	map(0x300001, 0x300001).rw(m_dasp, FUNC(tms57002_device::data_r), FUNC(tms57002_device::data_w));
 	map(0x400000, 0x40001f).rw(m_k056800, FUNC(k056800_device::sound_r), FUNC(k056800_device::sound_w)).umask16(0x00ff);
 	map(0x500000, 0x500001).rw(FUNC(konamigq_state::tms57002_status_word_r), FUNC(konamigq_state::tms57002_control_word_w));
 	map(0x580000, 0x580001).nopw(); // 'NRES' - D2: K056602 /RESET
@@ -471,5 +458,8 @@ ROM_START( cryptklr )
 	DISK_REGION( "scsi:" SCSI_PORT_DEVICE1 ":harddisk:image" )
 	DISK_IMAGE( "420uaa04", 0, SHA1(67cb1418fc0de2a89fc61847dc9efb9f1bebb347) )
 ROM_END
+
+} // Anonymous namespace
+
 
 GAME( 1995, cryptklr, 0, konamigq, konamigq, konamigq_state, empty_init, ROT0, "Konami", "Crypt Killer (GQ420 UAA)", 0 )

@@ -70,7 +70,7 @@ int sprint2_state::service_mode()
 }
 
 
-INTERRUPT_GEN_MEMBER(sprint2_state::sprint2)
+INTERRUPT_GEN_MEMBER(sprint2_state::sprint2_irq)
 {
 	/* handle steering wheels */
 
@@ -118,19 +118,19 @@ INTERRUPT_GEN_MEMBER(sprint2_state::sprint2)
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_wram_r)
+uint8_t sprint2_state::sprint2_wram_r(offs_t offset)
 {
 	return m_video_ram[0x380 + offset % 0x80];
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_dip_r)
+uint8_t sprint2_state::sprint2_dip_r(offs_t offset)
 {
 	return (ioport("DSW")->read() << (2 * ((offset & 3) ^ 3))) & 0xc0;
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_input_A_r)
+uint8_t sprint2_state::sprint2_input_A_r(offs_t offset)
 {
 	uint8_t val = ioport("INA")->read();
 
@@ -148,7 +148,7 @@ READ8_MEMBER(sprint2_state::sprint2_input_A_r)
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_input_B_r)
+uint8_t sprint2_state::sprint2_input_B_r(offs_t offset)
 {
 	uint8_t val = ioport("INB")->read();
 
@@ -163,7 +163,7 @@ READ8_MEMBER(sprint2_state::sprint2_input_B_r)
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_sync_r)
+uint8_t sprint2_state::sprint2_sync_r()
 {
 	uint8_t val = 0;
 
@@ -183,39 +183,39 @@ READ8_MEMBER(sprint2_state::sprint2_sync_r)
 }
 
 
-READ8_MEMBER(sprint2_state::sprint2_steering1_r)
+uint8_t sprint2_state::sprint2_steering1_r()
 {
 	return m_steering[0];
 }
-READ8_MEMBER(sprint2_state::sprint2_steering2_r)
+uint8_t sprint2_state::sprint2_steering2_r()
 {
 	return m_steering[1];
 }
 
 
-WRITE8_MEMBER(sprint2_state::sprint2_steering_reset1_w)
+void sprint2_state::sprint2_steering_reset1_w(uint8_t data)
 {
 	m_steering[0] |= 0x80;
 }
-WRITE8_MEMBER(sprint2_state::sprint2_steering_reset2_w)
+void sprint2_state::sprint2_steering_reset2_w(uint8_t data)
 {
 	m_steering[1] |= 0x80;
 }
 
 
-WRITE8_MEMBER(sprint2_state::sprint2_wram_w)
+void sprint2_state::sprint2_wram_w(offs_t offset, uint8_t data)
 {
 	m_video_ram[0x380 + offset % 0x80] = data;
 }
 
 
-WRITE8_MEMBER(sprint2_state::output_latch_w)
+void sprint2_state::output_latch_w(offs_t offset, uint8_t data)
 {
 	m_outlatch->write_bit(offset >> 4, offset & 1);
 }
 
 
-WRITE8_MEMBER(sprint2_state::sprint2_noise_reset_w)
+void sprint2_state::sprint2_noise_reset_w(uint8_t data)
 {
 	m_discrete->write(SPRINT2_NOISE_RESET, 0);
 }
@@ -489,23 +489,23 @@ static GFXDECODE_START( gfx_sprint2 )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(sprint2_state::sprint2)
-
+void sprint2_state::sprint2(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, 12.096_MHz_XTAL / 16)
-	MCFG_DEVICE_PROGRAM_MAP(sprint2_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sprint2_state,  sprint2)
+	M6502(config, m_maincpu, 12.096_MHz_XTAL / 16);
+	m_maincpu->set_addrmap(AS_PROGRAM, &sprint2_state::sprint2_map);
+	m_maincpu->set_vblank_int("screen", FUNC(sprint2_state::sprint2_irq));
 
 	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count(m_screen, 8);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD(m_screen, RASTER)
-	MCFG_SCREEN_RAW_PARAMS(12.096_MHz_XTAL, 768, 0, 512, 262, 0, 224)
-	MCFG_SCREEN_UPDATE_DRIVER(sprint2_state, screen_update_sprint2)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, sprint2_state, screen_vblank_sprint2))
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(12.096_MHz_XTAL, 768, 0, 512, 262, 0, 224);
+	m_screen->set_screen_update(FUNC(sprint2_state::screen_update_sprint2));
+	m_screen->screen_vblank().set(FUNC(sprint2_state::screen_vblank_sprint2));
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_sprint2)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_sprint2);
 	PALETTE(config, m_palette, FUNC(sprint2_state::sprint2_palette), 12, 4);
 
 	/* sound hardware */
@@ -520,40 +520,40 @@ MACHINE_CONFIG_START(sprint2_state::sprint2)
 	m_outlatch->q_out_cb<4>().set_output("led1"); // START LAMP2
 	//m_outlatch->q_out_cb<6>().set(FUNC(sprint2_state::sprint2_spare_w));
 
-	MCFG_DEVICE_ADD("discrete", DISCRETE, sprint2_discrete)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, sprint2_discrete);
+	m_discrete->add_route(0, "lspeaker", 1.0);
+	m_discrete->add_route(1, "rspeaker", 1.0);
+}
 
 
-MACHINE_CONFIG_START(sprint2_state::sprint1)
+void sprint2_state::sprint1(machine_config &config)
+{
 	sprint2(config);
 
 	/* sound hardware */
-	MCFG_DEVICE_REMOVE("lspeaker")
-	MCFG_DEVICE_REMOVE("rspeaker")
+	config.device_remove("lspeaker");
+	config.device_remove("rspeaker");
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_REMOVE("discrete")
+	config.device_remove("discrete");
 
-	MCFG_DEVICE_ADD("discrete", DISCRETE, sprint1_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, sprint1_discrete).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
-MACHINE_CONFIG_START(sprint2_state::dominos)
+void sprint2_state::dominos(machine_config &config)
+{
 	sprint2(config);
 
 	/* sound hardware */
-	MCFG_DEVICE_REMOVE("lspeaker")
-	MCFG_DEVICE_REMOVE("rspeaker")
+	config.device_remove("lspeaker");
+	config.device_remove("rspeaker");
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_REMOVE("discrete")
+	config.device_remove("discrete");
 
-	MCFG_DEVICE_ADD("discrete", DISCRETE, dominos_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, dominos_discrete).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 void sprint2_state::dominos4(machine_config &config)
 {

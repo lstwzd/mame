@@ -52,15 +52,14 @@ public:
 	void nichild(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(gfx_r);
-	DECLARE_READ8_MEMBER(mux_r);
-	DECLARE_WRITE8_MEMBER(mux_w);
-	DECLARE_WRITE8_MEMBER(porta_w);
-	DECLARE_WRITE8_MEMBER(portb_w);
-	DECLARE_WRITE8_MEMBER(portc_w);
-	DECLARE_WRITE8_MEMBER(portd_w);
-	DECLARE_WRITE8_MEMBER(gfxbank_w);
-	INTERRUPT_GEN_MEMBER(vdp_irq);
+	uint8_t gfx_r(offs_t offset);
+	uint8_t mux_r();
+	void mux_w(uint8_t data);
+	void porta_w(uint8_t data);
+	void portb_w(uint8_t data);
+	void portc_w(uint8_t data);
+	void portd_w(uint8_t data);
+	void gfxbank_w(uint8_t data);
 
 	void nichild_io(address_map &map);
 	void nichild_map(address_map &map);
@@ -76,7 +75,7 @@ private:
 };
 
 
-READ8_MEMBER(nichild_state::gfx_r)
+uint8_t nichild_state::gfx_r(offs_t offset)
 {
 	uint32_t gfx_offset;
 
@@ -91,40 +90,40 @@ READ8_MEMBER(nichild_state::gfx_r)
 
 //#include "debugger.h"
 
-WRITE8_MEMBER(nichild_state::porta_w)
+void nichild_state::porta_w(uint8_t data)
 {
 	printf("PORTA %02x\n",data);
 //  machine().debug_break();
 }
 
-WRITE8_MEMBER(nichild_state::portb_w)
+void nichild_state::portb_w(uint8_t data)
 {
 	printf("PORTB %02x\n",data);
 }
 
-WRITE8_MEMBER(nichild_state::portc_w)
+void nichild_state::portc_w(uint8_t data)
 {
 	printf("PORTC %02x\n",data);
 }
 
-WRITE8_MEMBER(nichild_state::portd_w)
+void nichild_state::portd_w(uint8_t data)
 {
 	printf("PORTD %02x\n",data);
 }
 
-WRITE8_MEMBER(nichild_state::gfxbank_w)
+void nichild_state::gfxbank_w(uint8_t data)
 {
 	// TODO: ldquiz4 checks up to 0x30, what for?
 	m_gfx_bank = data * 0x8000;
 }
 
-READ8_MEMBER(nichild_state::mux_r)
+uint8_t nichild_state::mux_r()
 {
 	// TODO
 	return 0xff;
 }
 
-WRITE8_MEMBER(nichild_state::mux_w)
+void nichild_state::mux_w(uint8_t data)
 {
 	// ...
 }
@@ -215,29 +214,20 @@ void nichild_state::machine_reset()
 {
 }
 
-#if 0
 static const z80_daisy_config daisy_chain_main[] =
 {
 	TMPZ84C011_DAISY_INTERNAL,
 	{ nullptr }
 };
-#endif
 
 
-INTERRUPT_GEN_MEMBER(nichild_state::vdp_irq)
+void nichild_state::nichild(machine_config &config)
 {
-	m_maincpu->set_input_line_and_vector(0, HOLD_LINE, 0x76);
-}
-
-
-MACHINE_CONFIG_START(nichild_state::nichild)
-
 	/* basic machine hardware */
 	TMPZ84C011(config, m_maincpu, MAIN_CLOCK/4);
-	//m_maincpu->set_daisy_config(daisy_chain_main);
+	m_maincpu->set_daisy_config(daisy_chain_main);
 	m_maincpu->set_addrmap(AS_PROGRAM, &nichild_state::nichild_map);
 	m_maincpu->set_addrmap(AS_IO, &nichild_state::nichild_io);
-	m_maincpu->set_vblank_int("screen", FUNC(nichild_state::vdp_irq));
 	m_maincpu->in_pb_callback().set(FUNC(nichild_state::mux_r));
 	m_maincpu->out_pa_callback().set(FUNC(nichild_state::porta_w));
 	m_maincpu->out_pb_callback().set(FUNC(nichild_state::portb_w));
@@ -249,14 +239,14 @@ MACHINE_CONFIG_START(nichild_state::nichild)
 	V9938(config, m_v9938, MAIN_CLOCK);
 	m_v9938->set_screen_ntsc("screen");
 	m_v9938->set_vram_size(0x40000);
-//  m_v9938->int_cb().set_inputline("maincpu", 0);
-//  m_v9938->int_cb().set(FUNC(nichild_state::vdp_irq));
+	m_v9938->int_cb().set(m_maincpu, FUNC(tmpz84c011_device::trg3)).invert();
+
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 //  YM3812(config, "fmsnd", SOUND_CLOCK).add_route(ALL_OUTPUTS, "speaker", 0.7);
-MACHINE_CONFIG_END
+}
 
 
 /***************************************************************************

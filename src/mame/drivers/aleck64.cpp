@@ -199,10 +199,10 @@ public:
 	void init_aleck64();
 
 private:
-	DECLARE_WRITE32_MEMBER(aleck_dips_w);
-	DECLARE_READ32_MEMBER(aleck_dips_r);
-	DECLARE_READ16_MEMBER(e90_prot_r);
-	DECLARE_WRITE16_MEMBER(e90_prot_w);
+	void aleck_dips_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t aleck_dips_r(offs_t offset, uint32_t mem_mask = ~0);
+	uint16_t e90_prot_r();
+	void e90_prot_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	uint32_t screen_update_e90(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -216,7 +216,7 @@ private:
 };
 
 
-WRITE32_MEMBER(aleck64_state::aleck_dips_w)
+void aleck64_state::aleck_dips_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	/*
 	    mtetrisc uses offset 0x1c and 0x03 a good bit in conjunction with reading INMJ.
@@ -236,7 +236,7 @@ WRITE32_MEMBER(aleck64_state::aleck_dips_w)
 	}
 }
 
-READ32_MEMBER(aleck64_state::aleck_dips_r)
+uint32_t aleck64_state::aleck_dips_r(offs_t offset, uint32_t mem_mask)
 {
 	// srmvs uses 0x40, communications?
 
@@ -345,13 +345,13 @@ void aleck64_state::n64_map(address_map &map)
  E90 protection handlers
 */
 
-READ16_MEMBER(aleck64_state::e90_prot_r)
+uint16_t aleck64_state::e90_prot_r()
 {
 // offset 0 $800 = status ready, active high
 	return 0;
 }
 
-WRITE16_MEMBER(aleck64_state::e90_prot_w)
+void aleck64_state::e90_prot_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	switch(offset*2)
 	{
@@ -933,6 +933,61 @@ static INPUT_PORTS_START( hipai )
 	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_COIN1 )
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( hipai2 )
+	PORT_INCLUDE( hipai )
+
+	PORT_MODIFY("IN0")
+	PORT_BIT( 0x0000ffff, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_DIPNAME( 0x80000000, 0x80000000, DEF_STR( Free_Play ) )        PORT_DIPLOCATION("SW1:8")
+	PORT_DIPSETTING( 0x80000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40000000, 0x40000000, "Backup Settings" )           PORT_DIPLOCATION("SW1:7")
+	PORT_DIPSETTING( 0x40000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20000000, 0x20000000, DEF_STR( Unused ) )           PORT_DIPLOCATION("SW1:6")
+	PORT_DIPSETTING( 0x20000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10000000, 0x10000000, DEF_STR( Unused ) )           PORT_DIPLOCATION("SW1:5")
+	PORT_DIPSETTING( 0x10000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08000000, 0x08000000, DEF_STR( Unused ) )           PORT_DIPLOCATION("SW1:4")
+	PORT_DIPSETTING( 0x08000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x07000000, 0x07000000, DEF_STR( Coinage ) )          PORT_DIPLOCATION("SW1:1,2,3")
+	PORT_DIPSETTING( 0x00000000, DEF_STR( 5C_1C ) )
+	PORT_DIPSETTING( 0x01000000, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING( 0x02000000, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING( 0x03000000, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING( 0x07000000, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING( 0x06000000, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING( 0x05000000, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING( 0x04000000, DEF_STR( 1C_4C ) )
+	PORT_DIPNAME( 0x00800000, 0x00800000, DEF_STR( Test ) )             PORT_DIPLOCATION("SW2:8")
+	PORT_DIPSETTING( 0x00800000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x00400000, 0x00400000, DEF_STR( Unused ) )           PORT_DIPLOCATION("SW2:7")
+	PORT_DIPSETTING( 0x00400000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x00200000, 0x00000000, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SW2:6")
+	PORT_DIPSETTING( 0x00200000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00000000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x00100000, 0x00100000, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SW2:5")
+	PORT_DIPSETTING( 0x00000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00100000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x00080000, 0x00080000, "Kuitan" )                    PORT_DIPLOCATION("SW2:4")
+	PORT_DIPSETTING( 0x00000000, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00080000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x00070000, 0x00070000, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SW2:1,2,3")
+	PORT_DIPSETTING( 0x00000000, DEF_STR( Hardest ) )
+	PORT_DIPSETTING( 0x00010000, DEF_STR( Very_Hard ) )
+	PORT_DIPSETTING( 0x00020000, DEF_STR( Hard ) )
+	PORT_DIPSETTING( 0x00030000, "Normal+" )
+	PORT_DIPSETTING( 0x00040000, DEF_STR( Easy ) )
+	PORT_DIPSETTING( 0x00050000, DEF_STR( Very_Easy ) )
+	PORT_DIPSETTING( 0x00060000, DEF_STR( Easiest ) )
+	PORT_DIPSETTING( 0x00070000, DEF_STR( Normal ) )
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( srmvs )
 	PORT_INCLUDE( hipai )
 
@@ -1030,10 +1085,6 @@ uint32_t aleck64_state::screen_update_e90(screen_device &screen, bitmap_rgb32 &b
 
 	for(int offs=0;offs<0x1000/4;offs+=2)
 	{
-		int xi,yi;
-		int r,g,b;
-		int pal_offs;
-		int pal_shift;
 		// 0x400 is another enable? end code if off?
 		//uint16_t tile = m_e90_vram[offs] >> 16;
 
@@ -1058,28 +1109,26 @@ uint32_t aleck64_state::screen_update_e90(screen_device &screen, bitmap_rgb32 &b
 		// some pieces needs this color adjustment (see T piece / 5 block version of I piece)
 		pal |= (attr & 0xc0) >> 4;
 
-		for(yi=0;yi<8;yi++)
+		for(int yi=0;yi<8;yi++)
 		{
-			for(xi=0;xi<8;xi++)
+			for(int xi=0;xi<8;xi++)
 			{
-				int res_x,res_y;
-				uint16_t raw_rgb;
-				res_x = x+xi + 4;
-				res_y = (y & 0xff)+yi + 7;
+				int res_x = x+xi + 4;
+				int res_y = (y & 0xff)+yi + 7;
 
-				pal_offs = (pal*0x10);
+				int pal_offs = (pal*0x10);
 				pal_offs+= pal_table[xi+yi*8];
-				pal_shift = pal_offs & 1 ? 0 : 16;
-				raw_rgb = m_e90_pal[pal_offs>>1] >> pal_shift;
-				r = (raw_rgb & 0x001f) >> 0;
-				g = (raw_rgb & 0x03e0) >> 5;
-				b = (raw_rgb & 0x7c00) >> 10;
+				int pal_shift = pal_offs & 1 ? 0 : 16;
+				uint16_t raw_rgb = m_e90_pal[pal_offs>>1] >> pal_shift;
+				int r = (raw_rgb & 0x001f) >> 0;
+				int g = (raw_rgb & 0x03e0) >> 5;
+				int b = (raw_rgb & 0x7c00) >> 10;
 				r = pal5bit(r);
 				g = pal5bit(g);
 				b = pal5bit(b);
 
 				if(cliprect.contains(res_x, res_y))
-					bitmap.pix32(res_y, res_x) = r << 16 | g << 8 | b;
+					bitmap.pix(res_y, res_x) = r << 16 | g << 8 | b;
 			}
 		}
 	}
@@ -1267,6 +1316,25 @@ ROM_START( hipai )
 ROM_END
 
 
+ROM_START( hipai2 )
+	ROM_REGION32_BE( 0x800, "user1", ROMREGION_ERASE00 )
+	PIF_BOOTROM
+
+	ROM_REGION32_BE( 0x4000000, "user2", 0 )
+	ROM_LOAD16_WORD_SWAP( "ua3029-all01.u3", 0x0000000, 0x1000000, CRC(88b83e93) SHA1(279a006436069232383b2065e7416d8ccc76e3ca) )
+	ROM_LOAD16_WORD_SWAP( "ua3029-alh01.u4", 0x1000000, 0x1000000, CRC(4f79fa94) SHA1(a6d2d805f96f0ad7294ebf41b13573320154b2a4) )
+
+	ROM_REGION32_BE( 0x800000, "user3", 0 )
+	ROM_LOAD16_WORD_SWAP( "nus-zsij-0.u1", 0x000000, 0x800000, CRC(2389576f) SHA1(dc22b2eab4d7a02cb918827a62e6c120b3a84e6c) )
+
+	ROM_REGION16_BE( 0x80, "normpoint", 0 )
+	ROM_LOAD( "normpnt.rom", 0x00, 0x80, CRC(e7f2a005) SHA1(c27b4a364a24daeee6e99fd286753fd6216362b4) )
+
+	ROM_REGION16_BE( 0x80, "normslope", 0 )
+	ROM_LOAD( "normslp.rom", 0x00, 0x80, CRC(4f2ae525) SHA1(eab43f8cc52c8551d9cff6fced18ef80eaba6f05) )
+ROM_END
+
+
 ROM_START( kurufev )
 	ROM_REGION32_BE( 0x800, "user1", ROMREGION_ERASE00 )
 	PIF_BOOTROM
@@ -1343,3 +1411,4 @@ GAME( 2003, twrshaft, aleck64, aleck64, twrshaft, aleck64_state, init_aleck64, R
 GAME( 2003, hipai,    aleck64, aleck64, hipai,    aleck64_state, init_aleck64, ROT0, "Aruze / Seta",            "Hi Pai Paradise", MACHINE_IMPERFECT_GRAPHICS )
 GAME( 2003, doncdoon, aleck64, aleck64, doncdoon, aleck64_state, init_aleck64, ROT0, "Aruze",                   "Hanabi de Doon! - Don-chan Puzzle", MACHINE_IMPERFECT_GRAPHICS )
 GAME( 2003, kurufev,  aleck64, aleck64, kurufev,  aleck64_state, init_aleck64, ROT0, "Aruze / Takumi",          "Kurukuru Fever", MACHINE_IMPERFECT_GRAPHICS )
+GAME( 2004, hipai2,   aleck64, aleck64, hipai2,   aleck64_state, init_aleck64, ROT0, "Aruze / Seta / Paon",     "Hi Pai Paradise 2", MACHINE_IMPERFECT_GRAPHICS )

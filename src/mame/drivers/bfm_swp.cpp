@@ -118,8 +118,8 @@ public:
 	uint32_t* m_cpuregion;
 	std::unique_ptr<uint32_t[]> m_mainram;
 
-	DECLARE_READ32_MEMBER(bfm_swp_mem_r);
-	DECLARE_WRITE32_MEMBER(bfm_swp_mem_w);
+	uint32_t bfm_swp_mem_r(offs_t offset, uint32_t mem_mask = ~0);
+	void bfm_swp_mem_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
@@ -137,7 +137,7 @@ protected:
 	virtual void machine_start() override;
 };
 
-READ32_MEMBER(bfm_swp_state::bfm_swp_mem_r)
+uint32_t bfm_swp_state::bfm_swp_mem_r(offs_t offset, uint32_t mem_mask)
 {
 	int pc = m_maincpu->pc();
 	int cs = m_maincpu->get_cs(offset * 4);
@@ -145,21 +145,21 @@ READ32_MEMBER(bfm_swp_state::bfm_swp_mem_r)
 	switch ( cs )
 	{
 		case 1:
-			if (offset<0x100000/4) return m_cpuregion[offset];
-
+			if (offset<0x100000/4)
+				return m_cpuregion[offset];
+			[[fallthrough]]; // FIXME: really?
 		case 2:
 			offset&=0x3fff;
 			return m_mainram[offset];
 
 		default:
 			logerror("%08x maincpu read access offset %08x mem_mask %08x cs %d\n", pc, offset*4, mem_mask, cs);
-
 	}
 
 	return 0x0000;
 }
 
-WRITE32_MEMBER(bfm_swp_state::bfm_swp_mem_w)
+void bfm_swp_state::bfm_swp_mem_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	int pc = m_maincpu->pc();
 	int cs = m_maincpu->get_cs(offset * 4);
@@ -168,13 +168,10 @@ WRITE32_MEMBER(bfm_swp_state::bfm_swp_mem_w)
 	{
 		default:
 			logerror("%08x maincpu write access offset %08x data %08x mem_mask %08x cs %d\n", pc, offset*4, data, mem_mask, cs);
-
+			[[fallthrough]];
 		case 2:
 			offset&=0x3fff;
 			COMBINE_DATA(&m_mainram[offset]);
-			break;
-
-
 	}
 
 }
@@ -201,25 +198,24 @@ void bfm_swp_state::machine_start()
 }
 
 
-MACHINE_CONFIG_START(bfm_swp_state::bfm_swp)
-
+void bfm_swp_state::bfm_swp(machine_config &config)
+{
 	/* basic machine hardware */
 	M68340(config, m_maincpu, 16000000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &bfm_swp_state::bfm_swp_map);
 
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_UPDATE_DRIVER(bfm_swp_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_screen_update(FUNC(bfm_swp_state::screen_update));
+	screen.set_size(64*8, 64*8);
+	screen.set_visarea(0*8, 32*8-1, 0*8, 32*8-1);
 
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("ymz", YMZ280B, 10000000 )
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	YMZ280B(config, "ymz", 10000000).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 ROM_START( c3_rtime )
 	ROM_REGION( 0x100000, "maincpu", 0 )

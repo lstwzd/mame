@@ -285,8 +285,6 @@ MC6845_UPDATE_ROW( spiders_state::crtc_update_row )
 
 	for (uint8_t cx = 0; cx < x_count; cx++)
 	{
-		uint8_t data1, data2, data3;
-
 		/* the memory is hooked up to the MA, RA lines this way */
 		offs_t offs = ((ma << 3) & 0x3f00) |
 						((ra << 5) & 0x00e0) |
@@ -295,9 +293,9 @@ MC6845_UPDATE_ROW( spiders_state::crtc_update_row )
 		if (m_flipscreen)
 			offs = offs ^ 0x3fff;
 
-		data1 = m_ram[0x0000 | offs];
-		data2 = m_ram[0x4000 | offs];
-		data3 = m_ram[0x8000 | offs];
+		uint8_t data1 = m_ram[0x0000 | offs];
+		uint8_t data2 = m_ram[0x4000 | offs];
+		uint8_t data3 = m_ram[0x8000 | offs];
 
 		for (int i = 0; i < 8; i++)
 		{
@@ -309,9 +307,9 @@ MC6845_UPDATE_ROW( spiders_state::crtc_update_row )
 						((data2 & 0x80) >> 6) |
 						((data1 & 0x80) >> 7);
 
-				data1 = data1 << 1;
-				data2 = data2 << 1;
-				data3 = data3 << 1;
+				data1 <<= 1;
+				data2 <<= 1;
+				data3 <<= 1;
 			}
 			else
 			{
@@ -319,17 +317,17 @@ MC6845_UPDATE_ROW( spiders_state::crtc_update_row )
 						((data2 & 0x01) << 1) |
 						((data1 & 0x01) << 0);
 
-				data1 = data1 >> 1;
-				data2 = data2 >> 1;
-				data3 = data3 >> 1;
+				data1 >>= 1;
+				data2 >>= 1;
+				data3 >>= 1;
 			}
 
-			bitmap.pix32(y, x) = m_palette->pen_color(color);
+			bitmap.pix(y, x) = m_palette->pen_color(color);
 
-			x = x + 1;
+			x++;
 		}
 
-		ma = ma + 1;
+		ma++;
 	}
 }
 
@@ -342,7 +340,7 @@ MC6845_UPDATE_ROW( spiders_state::crtc_update_row )
  *
  *************************************/
 
-WRITE8_MEMBER(spiders_state::gfx_rom_intf_w)
+void spiders_state::gfx_rom_intf_w(uint8_t data)
 {
 	m_gfx_rom_ctrl_mode  = ( data >> 7) & 0x01;
 	m_gfx_rom_ctrl_latch = ( data >> 4) & 0x03;
@@ -350,7 +348,7 @@ WRITE8_MEMBER(spiders_state::gfx_rom_intf_w)
 }
 
 
-READ8_MEMBER(spiders_state::gfx_rom_r)
+uint8_t spiders_state::gfx_rom_r()
 {
 	uint8_t ret;
 
@@ -399,7 +397,6 @@ void spiders_state::spiders_main_map(address_map &map)
 
 void spiders_state::spiders_audio_map(address_map &map)
 {
-	map(0x0000, 0x007f).ram();
 	map(0x0080, 0x0083).rw("pia4", FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0xf800, 0xffff).rom();
 }
@@ -504,22 +501,22 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(spiders_state::spiders)
-
+void spiders_state::spiders(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809, 2800000)
-	MCFG_DEVICE_PROGRAM_MAP(spiders_main_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(spiders_state, update_pia_1,  25)
+	MC6809(config, m_maincpu, 2800000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &spiders_state::spiders_main_map);
+	m_maincpu->set_periodic_int(FUNC(spiders_state::update_pia_1), attotime::from_hz(25));
 
-	MCFG_DEVICE_ADD("audiocpu", M6802, 3000000)
-	MCFG_DEVICE_PROGRAM_MAP(spiders_audio_map)
+	M6802(config, m_audiocpu, 3000000);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &spiders_state::spiders_audio_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 256, 0, 256, 256, 0, 256)   /* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(PIXEL_CLOCK, 360, 0, 256, 276, 0, 224);
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
 
 	PALETTE(config, m_palette, palette_device::RGB_3BIT);
 
@@ -527,7 +524,7 @@ MACHINE_CONFIG_START(spiders_state::spiders)
 	crtc.set_screen("screen");
 	crtc.set_show_border_area(false);
 	crtc.set_char_width(8);
-	crtc.set_update_row_callback(FUNC(spiders_state::crtc_update_row), this);
+	crtc.set_update_row_callback(FUNC(spiders_state::crtc_update_row));
 	crtc.out_de_callback().set("ic60", FUNC(ttl74123_device::a_w));
 
 	PIA6821(config, m_pia[0], 0);
@@ -549,8 +546,7 @@ MACHINE_CONFIG_START(spiders_state::spiders)
 	m_pia[2]->irqa_handler().set("mainirq", FUNC(input_merger_device::in_w<3>));
 	m_pia[2]->irqb_handler().set("mainirq", FUNC(input_merger_device::in_w<4>));
 
-	MCFG_INPUT_MERGER_ANY_HIGH("mainirq")
-	MCFG_INPUT_MERGER_OUTPUT_HANDLER(INPUTLINE("maincpu", M6809_IRQ_LINE))
+	INPUT_MERGER_ANY_HIGH(config, "mainirq").output_handler().set_inputline(m_maincpu, M6809_IRQ_LINE);
 
 	PIA6821(config, m_pia[3], 0);
 	m_pia[3]->writepa_handler().set(FUNC(spiders_state::spiders_audio_a_w));
@@ -568,8 +564,7 @@ MACHINE_CONFIG_START(spiders_state::spiders)
 
 	/* audio hardware */
 	spiders_audio(config);
-
-MACHINE_CONFIG_END
+}
 
 
 

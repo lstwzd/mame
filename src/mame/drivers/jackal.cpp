@@ -86,36 +86,36 @@ Address          Dir Data     Description
  *
  *************************************/
 
-READ8_MEMBER(jackal_state::jackalr_rotary_r)
+uint8_t jackal_state::jackalr_rotary_r(offs_t offset)
 {
 	return (1 << m_dials[offset].read_safe(0x00)) ^ 0xff;
 }
 
-WRITE8_MEMBER(jackal_state::jackal_flipscreen_w)
+void jackal_state::jackal_flipscreen_w(uint8_t data)
 {
 	m_irq_enable = data & 0x02;
 	flip_screen_set(data & 0x08);
 }
 
-READ8_MEMBER(jackal_state::jackal_zram_r)
+uint8_t jackal_state::jackal_zram_r(offs_t offset)
 {
 	return m_rambank[0x0020 + offset];
 }
 
 
-READ8_MEMBER(jackal_state::jackal_voram_r)
+uint8_t jackal_state::jackal_voram_r(offs_t offset)
 {
 	return m_rambank[0x2000 + offset];
 }
 
 
-READ8_MEMBER(jackal_state::jackal_spriteram_r)
+uint8_t jackal_state::jackal_spriteram_r(offs_t offset)
 {
 	return m_spritebank[0x3000 + offset];
 }
 
 
-WRITE8_MEMBER(jackal_state::jackal_rambank_w)
+void jackal_state::jackal_rambank_w(uint8_t data)
 {
 	uint8_t *rgn = memregion("master")->base();
 
@@ -136,13 +136,13 @@ WRITE8_MEMBER(jackal_state::jackal_rambank_w)
 }
 
 
-WRITE8_MEMBER(jackal_state::jackal_zram_w)
+void jackal_state::jackal_zram_w(offs_t offset, uint8_t data)
 {
 	m_rambank[0x0020 + offset] = data;
 }
 
 
-WRITE8_MEMBER(jackal_state::jackal_voram_w)
+void jackal_state::jackal_voram_w(offs_t offset, uint8_t data)
 {
 	if ((offset & 0xf800) == 0)
 		jackal_mark_tile_dirty(offset & 0x3ff);
@@ -151,7 +151,7 @@ WRITE8_MEMBER(jackal_state::jackal_voram_w)
 }
 
 
-WRITE8_MEMBER(jackal_state::jackal_spriteram_w)
+void jackal_state::jackal_spriteram_w(offs_t offset, uint8_t data)
 {
 	m_spritebank[0x3000 + offset] = data;
 }
@@ -357,28 +357,28 @@ void jackal_state::machine_reset()
 	m_irq_enable = 0;
 }
 
-MACHINE_CONFIG_START(jackal_state::jackal)
-
+void jackal_state::jackal(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("master", MC6809E, MASTER_CLOCK/12) // verified on pcb
-	MCFG_DEVICE_PROGRAM_MAP(master_map)
+	MC6809E(config, m_mastercpu, MASTER_CLOCK/12); // verified on pcb
+	m_mastercpu->set_addrmap(AS_PROGRAM, &jackal_state::master_map);
 
-	MCFG_DEVICE_ADD("slave", MC6809E, MASTER_CLOCK/12) // verified on pcb
-	MCFG_DEVICE_PROGRAM_MAP(slave_map)
+	MC6809E(config, m_slavecpu, MASTER_CLOCK/12); // verified on pcb
+	m_slavecpu->set_addrmap(AS_PROGRAM, &jackal_state::slave_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	config.set_maximum_quantum(attotime::from_hz(6000));
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(jackal_state, screen_update_jackal)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, jackal_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(1*8, 31*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(jackal_state::screen_update_jackal));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(jackal_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_jackal);
 	PALETTE(config, m_palette, FUNC(jackal_state::jackal_palette));
@@ -390,7 +390,7 @@ MACHINE_CONFIG_START(jackal_state::jackal)
 	SPEAKER(config, "rspeaker").front_right();
 
 	YM2151(config, "ymsnd", SOUND_CLOCK).add_route(0, "lspeaker", 0.50).add_route(1, "rspeaker", 0.50); // verified on pcb
-MACHINE_CONFIG_END
+}
 
 /*************************************
  *

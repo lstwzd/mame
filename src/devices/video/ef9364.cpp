@@ -35,7 +35,8 @@ DEFINE_DEVICE_TYPE(EF9364, ef9364_device, "ef9364", "Thomson EF9364")
 //-------------------------------------------------
 void ef9364_device::ef9364(address_map &map)
 {
-	map(0x00000, ef9364_device::TXTPLANE_MAX_SIZE * ef9364_device::MAX_TXTPLANES - 1).ram();
+	if (!has_configured_map(0))
+		map(0x00000, ef9364_device::TXTPLANE_MAX_SIZE * ef9364_device::MAX_TXTPLANES - 1).ram();
 }
 
 //-------------------------------------------------
@@ -66,11 +67,13 @@ ef9364_device::ef9364_device(const machine_config &mconfig, const char *tag, dev
 	device_t(mconfig, EF9364, tag, owner, clock),
 	device_memory_interface(mconfig, *this),
 	device_video_interface(mconfig, *this),
-	m_space_config("textram", ENDIANNESS_LITTLE, 8, 12, 0, address_map_constructor(), address_map_constructor(FUNC(ef9364_device::ef9364), this)),
+	m_space_config("textram", ENDIANNESS_LITTLE, 8, 12, 0, address_map_constructor(FUNC(ef9364_device::ef9364), this)),
 	m_charset(*this, DEVICE_SELF),
 	m_palette(*this, finder_base::DUMMY_TAG)
 {
 	clock_freq = clock;
+
+	erase_char = 0x00;
 }
 
 //-------------------------------------------------
@@ -96,6 +99,9 @@ void ef9364_device::set_color_entry( int index, uint8_t r, uint8_t g, uint8_t b 
 
 void ef9364_device::device_start()
 {
+	// assumes it can make an address mask with m_charset.length() - 1
+	assert(!(m_charset.length() & (m_charset.length() - 1)));
+
 	m_textram = &space(0);
 
 	bitplane_xres = NB_OF_COLUMNS*8;
@@ -132,7 +138,7 @@ void ef9364_device::device_reset()
 
 	for(i = 0; i < NB_OF_COLUMNS * NB_OF_ROWS * nb_of_pages; i++)
 	{
-		m_textram->write_byte ( i , 0x7F );
+		m_textram->write_byte ( i , erase_char );
 	}
 
 	memset(m_border, 0, sizeof(m_border));
@@ -177,30 +183,27 @@ void ef9364_device::draw_border(uint16_t line)
 
 uint32_t ef9364_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	int x,y,r;
-	unsigned char c;
-
-	for( r = 0 ; r < NB_OF_ROWS ; r++ )
+	for( int r = 0 ; r < NB_OF_ROWS ; r++ )
 	{
-		for( y = 0 ; y < 8 ; y++ )
+		for( int y = 0 ; y < 8 ; y++ )
 		{
-			for( x = 0 ; x < NB_OF_COLUMNS * 8 ; x++ )
+			for( int x = 0 ; x < NB_OF_COLUMNS * 8 ; x++ )
 			{
 				if( ( ( x >> 3 ) != x_curs_pos )   ||  ( r != y_curs_pos ) || !cursor_state)
 				{
-					c = m_textram->read_byte( ( r * NB_OF_COLUMNS ) + ( x>>3 ) );
+					unsigned char c = m_textram->read_byte( ( r * NB_OF_COLUMNS ) + ( x>>3 ) );
 
-					if( m_charset[((c&0x7F)<<3) + y] & (0x80>>(x&7)) )
-						m_screen_out.pix32((r*12)+y, x) = palette[1];
+					if( BIT(m_charset[((c<<3) + y) & (m_charset.length() - 1)], 7 - (x & 7)) )
+						m_screen_out.pix((r*12)+y, x) = palette[1];
 					else
-						m_screen_out.pix32((r*12)+y, x) = palette[0];
+						m_screen_out.pix((r*12)+y, x) = palette[0];
 				}
 				else
 				{
 					if(y != 7)
-						m_screen_out.pix32((r*12)+y, x) = palette[0];
+						m_screen_out.pix((r*12)+y, x) = palette[0];
 					else
-						m_screen_out.pix32((r*12)+y, x) = palette[1];
+						m_screen_out.pix((r*12)+y, x) = palette[1];
 				}
 			}
 		}
@@ -246,7 +249,7 @@ void ef9364_device::command_w(uint8_t cmd)
 			{
 				for( x=0 ; x < NB_OF_COLUMNS ; x++ )
 				{
-					m_textram->write_byte ( y * NB_OF_COLUMNS + x , 0x7F );
+					m_textram->write_byte ( y * NB_OF_COLUMNS + x , erase_char );
 				}
 			}
 			x_curs_pos = 0;
@@ -256,7 +259,7 @@ void ef9364_device::command_w(uint8_t cmd)
 		case 0x1: // Erase to end of the line and return cursor
 			for( ; x_curs_pos < NB_OF_COLUMNS ; x_curs_pos++ )
 			{
-				m_textram->write_byte ( y_curs_pos * NB_OF_COLUMNS + x_curs_pos , 0x7F );
+				m_textram->write_byte ( y_curs_pos * NB_OF_COLUMNS + x_curs_pos , erase_char );
 			}
 			x_curs_pos = 0;
 		break;
@@ -276,7 +279,7 @@ void ef9364_device::command_w(uint8_t cmd)
 				// Erase last line
 				for( i = 0 ; i < NB_OF_COLUMNS ; i++ )
 				{
-					m_textram->write_byte ( ( NB_OF_ROWS - 1 ) * NB_OF_COLUMNS + i , 0x7F );
+					m_textram->write_byte ( ( NB_OF_ROWS - 1 ) * NB_OF_COLUMNS + i , erase_char );
 				}
 
 				y_curs_pos = NB_OF_ROWS - 1;
@@ -295,7 +298,7 @@ void ef9364_device::command_w(uint8_t cmd)
 		case 0x5: // Erasure of cursor Line.
 			for( x = 0 ; x < NB_OF_COLUMNS ; x++ )
 			{
-				m_textram->write_byte ( y_curs_pos * NB_OF_COLUMNS + x , 0x7F );
+				m_textram->write_byte ( y_curs_pos * NB_OF_COLUMNS + x , erase_char );
 			}
 		break;
 
@@ -326,7 +329,7 @@ void ef9364_device::command_w(uint8_t cmd)
 					// Erase last line
 					for( i = 0 ; i < NB_OF_COLUMNS ; i++ )
 					{
-						m_textram->write_byte ( ( NB_OF_ROWS - 1 ) * NB_OF_COLUMNS + i , 0x7F );
+						m_textram->write_byte ( ( NB_OF_ROWS - 1 ) * NB_OF_COLUMNS + i , erase_char );
 					}
 
 					y_curs_pos = NB_OF_ROWS - 1;

@@ -118,15 +118,15 @@ private:
 	required_device<deco104_device> m_deco104;
 	required_device<decospr_device> m_sprgen;
 
-	DECLARE_READ8_MEMBER(irq_latch_r);
+	uint8_t irq_latch_r();
 	DECLARE_WRITE_LINE_MEMBER(soundlatch_irq_w);
 	uint32_t screen_update_dblewing(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	DECO16IC_BANK_CB_MEMBER(bank_callback);
 	DECOSPR_PRIORITY_CB_MEMBER(pri_callback);
 
-	READ16_MEMBER( wf_protection_region_0_104_r );
-	WRITE16_MEMBER( wf_protection_region_0_104_w );
+	uint16_t wf_protection_region_0_104_r(offs_t offset);
+	void wf_protection_region_0_104_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	void dblewing_map(address_map &map);
 	void decrypted_opcodes_map(address_map &map);
@@ -138,8 +138,7 @@ private:
 
 uint32_t dblewing_state::screen_update_dblewing(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	address_space &space = generic_space();
-	uint16_t flip = m_deco_tilegen->pf_control_r(space, 0, 0xffff);
+	uint16_t flip = m_deco_tilegen->pf_control_r(0);
 
 	flip_screen_set(BIT(flip, 7));
 	m_sprgen->set_flip_screen(BIT(flip, 7));
@@ -154,21 +153,21 @@ uint32_t dblewing_state::screen_update_dblewing(screen_device &screen, bitmap_in
 	return 0;
 }
 
-READ16_MEMBER( dblewing_state::wf_protection_region_0_104_r )
+uint16_t dblewing_state::wf_protection_region_0_104_r(offs_t offset)
 {
 	int real_address = 0 + (offset *2);
 	int deco146_addr = bitswap<32>(real_address, /* NC */31,30,29,28,27,26,25,24,23,22,21,20,19,18, 13,12,11,/**/      17,16,15,14,    10,9,8, 7,6,5,4, 3,2,1,0) & 0x7fff;
 	uint8_t cs = 0;
-	uint16_t data = m_deco104->read_data( deco146_addr, mem_mask, cs );
+	uint16_t data = m_deco104->read_data( deco146_addr, cs );
 	return data;
 }
 
-WRITE16_MEMBER( dblewing_state::wf_protection_region_0_104_w )
+void dblewing_state::wf_protection_region_0_104_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	int real_address = 0 + (offset *2);
 	int deco146_addr = bitswap<32>(real_address, /* NC */31,30,29,28,27,26,25,24,23,22,21,20,19,18, 13,12,11,/**/      17,16,15,14,    10,9,8, 7,6,5,4, 3,2,1,0) & 0x7fff;
 	uint8_t cs = 0;
-	m_deco104->write_data( space, deco146_addr, data, mem_mask, cs );
+	m_deco104->write_data( deco146_addr, data, mem_mask, cs );
 }
 
 WRITE_LINE_MEMBER( dblewing_state::soundlatch_irq_w )
@@ -185,7 +184,7 @@ void dblewing_state::dblewing_map(address_map &map)
 	map(0x104000, 0x104fff).ram().share("pf1_rowscroll");
 	map(0x106000, 0x106fff).ram().share("pf2_rowscroll");
 
-//  AM_RANGE(0x280000, 0x2807ff) AM_DEVREADWRITE("ioprot104", deco104_device, dblewing_prot_r, dblewing_prot_w) AM_SHARE("prot16ram")
+//  map(0x280000, 0x2807ff).rw("ioprot104", FUNC(deco104_device::dblewing_prot_r), FUNC(deco104_device::dblewing_prot_w)).share("prot16ram");
 	map(0x280000, 0x283fff).rw(FUNC(dblewing_state::wf_protection_region_0_104_r), FUNC(dblewing_state::wf_protection_region_0_104_w)).share("prot16ram"); /* Protection device */
 
 
@@ -202,7 +201,7 @@ void dblewing_state::decrypted_opcodes_map(address_map &map)
 	map(0x000000, 0x07ffff).rom().share("decrypted_opcodes");
 }
 
-READ8_MEMBER(dblewing_state::irq_latch_r)
+uint8_t dblewing_state::irq_latch_r()
 {
 	// bit 0: irq type (0 = latch, 1 = ym)
 	return m_soundlatch_pending ? 0 : 1;
@@ -225,15 +224,14 @@ void dblewing_state::sound_io(address_map &map)
 }
 
 
-
 static const gfx_layout tile_8x8_layout =
 {
 	8,8,
 	RGN_FRAC(1,2),
 	4,
 	{ RGN_FRAC(1,2)+8,RGN_FRAC(1,2)+0,RGN_FRAC(0,2)+8,RGN_FRAC(0,2)+0 },
-	{ 0, 1, 2, 3, 4, 5, 6, 7 },
-	{ 0*16, 1*16, 2*16, 3*16, 4*16, 5*16, 6*16, 7*16 },
+	{ STEP8(0,1) },
+	{ STEP8(0,8*2) },
 	8*16
 };
 
@@ -243,28 +241,16 @@ static const gfx_layout tile_16x16_layout =
 	RGN_FRAC(1,2),
 	4,
 	{ RGN_FRAC(1,2)+8,RGN_FRAC(1,2)+0,RGN_FRAC(0,2)+8,RGN_FRAC(0,2)+0 },
-	{ 256,257,258,259,260,261,262,263,0, 1, 2, 3, 4, 5, 6, 7 },
-	{ 0*16, 1*16, 2*16, 3*16, 4*16, 5*16, 6*16, 7*16,8*16,9*16,10*16,11*16,12*16,13*16,14*16,15*16 },
+	{ STEP8(8*2*16,1), STEP8(0,1) },
+	{ STEP16(0,8*2) },
 	32*16
-};
-
-static const gfx_layout spritelayout =
-{
-	16,16,
-	RGN_FRAC(1,1),
-	4,
-	{ 24,8,16,0 },
-	{ 512,513,514,515,516,517,518,519, 0, 1, 2, 3, 4, 5, 6, 7 },
-	{ 0*32, 1*32, 2*32, 3*32, 4*32, 5*32, 6*32, 7*32,
-		8*32, 9*32,10*32,11*32,12*32,13*32,14*32,15*32},
-	32*32
 };
 
 
 static GFXDECODE_START( gfx_dblewing )
-	GFXDECODE_ENTRY( "gfx1", 0, tile_8x8_layout,     0x000, 32 )    /* Tiles (8x8) */
-	GFXDECODE_ENTRY( "gfx1", 0, tile_16x16_layout,   0x000, 32 )    /* Tiles (16x16) */
-	GFXDECODE_ENTRY( "gfx2", 0, spritelayout,        0x200, 32 )    /* Sprites (16x16) */
+	GFXDECODE_ENTRY( "gfx1", 0, tile_8x8_layout,   0x000, 32 )    /* Tiles (8x8) */
+	GFXDECODE_ENTRY( "gfx1", 0, tile_16x16_layout, 0x000, 32 )    /* Tiles (16x16) */
+	GFXDECODE_ENTRY( "gfx2", 0, tile_16x16_layout, 0x200, 32 )    /* Sprites (16x16) */
 GFXDECODE_END
 
 static INPUT_PORTS_START( dblewing )
@@ -352,55 +338,51 @@ DECOSPR_PRIORITY_CB_MEMBER(dblewing_state::pri_callback)
 	return 0; // sprites always on top?
 }
 
-MACHINE_CONFIG_START(dblewing_state::dblewing)
-
+void dblewing_state::dblewing(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(28'000'000)/2)   /* DE102 */
-	MCFG_DEVICE_PROGRAM_MAP(dblewing_map)
-	MCFG_DEVICE_OPCODES_MAP(decrypted_opcodes_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", dblewing_state,  irq6_line_hold)
+	M68000(config, m_maincpu, XTAL(28'000'000)/2);   /* DE102 */
+	m_maincpu->set_addrmap(AS_PROGRAM, &dblewing_state::dblewing_map);
+	m_maincpu->set_addrmap(AS_OPCODES, &dblewing_state::decrypted_opcodes_map);
+	m_maincpu->set_vblank_int("screen", FUNC(dblewing_state::irq6_line_hold));
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, XTAL(32'220'000)/9)
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
-	MCFG_DEVICE_IO_MAP(sound_io)
+	Z80(config, m_audiocpu, XTAL(32'220'000)/9);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &dblewing_state::sound_map);
+	m_audiocpu->set_addrmap(AS_IO, &dblewing_state::sound_io);
 
-	MCFG_INPUT_MERGER_ANY_HIGH("soundirq")
-	MCFG_INPUT_MERGER_OUTPUT_HANDLER(INPUTLINE("audiocpu", 0))
+	INPUT_MERGER_ANY_HIGH(config, "soundirq").output_handler().set_inputline(m_audiocpu, 0);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	config.set_maximum_quantum(attotime::from_hz(6000));
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58.443)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(dblewing_state, screen_update_dblewing)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(58.443);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0*8, 40*8-1, 1*8, 31*8-1);
+	screen.set_screen_update(FUNC(dblewing_state::screen_update_dblewing));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_444, 4096);
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_dblewing)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_dblewing);
 
 	DECO16IC(config, m_deco_tilegen, 0);
-	m_deco_tilegen->set_split(0);
 	m_deco_tilegen->set_pf1_size(DECO_64x32);
 	m_deco_tilegen->set_pf2_size(DECO_64x32);
-	m_deco_tilegen->set_pf1_trans_mask(0x0f);
-	m_deco_tilegen->set_pf2_trans_mask(0x0f);
 	m_deco_tilegen->set_pf1_col_bank(0x00);
 	m_deco_tilegen->set_pf2_col_bank(0x10);
 	m_deco_tilegen->set_pf1_col_mask(0x0f);
 	m_deco_tilegen->set_pf2_col_mask(0x0f);
-	m_deco_tilegen->set_bank1_callback(FUNC(dblewing_state::bank_callback), this);
-	m_deco_tilegen->set_bank2_callback(FUNC(dblewing_state::bank_callback), this);
+	m_deco_tilegen->set_bank1_callback(FUNC(dblewing_state::bank_callback));
+	m_deco_tilegen->set_bank2_callback(FUNC(dblewing_state::bank_callback));
 	m_deco_tilegen->set_pf12_8x8_bank(0);
 	m_deco_tilegen->set_pf12_16x16_bank(1);
 	m_deco_tilegen->set_gfxdecode_tag("gfxdecode");
 
 	DECO_SPRITE(config, m_sprgen, 0);
 	m_sprgen->set_gfx_region(2);
-	m_sprgen->set_pri_callback(FUNC(dblewing_state::pri_callback), this);
+	m_sprgen->set_pri_callback(FUNC(dblewing_state::pri_callback));
 	m_sprgen->set_gfxdecode_tag("gfxdecode");
 
 	DECO104PROT(config, m_deco104, 0);
@@ -419,11 +401,8 @@ MACHINE_CONFIG_START(dblewing_state::dblewing)
 	ymsnd.irq_handler().set("soundirq", FUNC(input_merger_device::in_w<1>));
 	ymsnd.add_route(ALL_OUTPUTS, "mono", 1.0);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(28'000'000)/28, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
-
-
+	OKIM6295(config, "oki", XTAL(28'000'000)/28, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.00);
+}
 
 
 ROM_START( dblewing )
@@ -432,20 +411,77 @@ ROM_START( dblewing )
 	ROM_LOAD16_BYTE( "kp_01-.5d",    0x000000, 0x040000, CRC(7a210c33) SHA1(ced89140af6d6a1bc0ffb7728afca428ed007165) )
 
 	ROM_REGION( 0x10000, "audiocpu", 0 ) // sound cpu
-	ROM_LOAD( "kp_02-.10h",    0x00000, 0x10000, CRC(def035fa) SHA1(fd50314e5c94c25df109ee52c0ce701b0ff2140c) )
+	ROM_LOAD( "kp_02-.10h",   0x000000, 0x010000, CRC(def035fa) SHA1(fd50314e5c94c25df109ee52c0ce701b0ff2140c) )
 
 	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD( "mbe-02.8h",    0x00000, 0x100000, CRC(5a6d3ac5) SHA1(738bb833e2c5d929ac75fe4e69ee0af88197d8a6) )
+	ROM_LOAD( "mbe-02.8h",    0x000000, 0x100000, CRC(5a6d3ac5) SHA1(738bb833e2c5d929ac75fe4e69ee0af88197d8a6) )
 
 	ROM_REGION( 0x200000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "mbe-00.14a",    0x000000, 0x100000, CRC(e33f5c93) SHA1(720904b54d02dace2310ac6bd07d5ed4bc4fd69c) )
-	ROM_LOAD16_BYTE( "mbe-01.16a",    0x000001, 0x100000, CRC(ef452ad7) SHA1(7fe49123b5c2778e46104eaa3a2104ce09e05705) )
+	ROM_LOAD( "mbe-00.14a",   0x000000, 0x100000, CRC(e33f5c93) SHA1(720904b54d02dace2310ac6bd07d5ed4bc4fd69c) )
+	ROM_LOAD( "mbe-01.16a",   0x100000, 0x100000, CRC(ef452ad7) SHA1(7fe49123b5c2778e46104eaa3a2104ce09e05705) )
 
-	ROM_REGION( 0x80000, "oki", 0 ) /* Oki samples */
-	ROM_LOAD( "kp_03-.16h",    0x00000, 0x20000, CRC(5d7f930d) SHA1(ad23aa804ea3ccbd7630ade9b53fc3ea2718a6ec) )
-	ROM_RELOAD(                0x20000, 0x20000 )
-	ROM_RELOAD(                0x40000, 0x20000 )
-	ROM_RELOAD(                0x60000, 0x20000 )
+	ROM_REGION( 0x40000, "oki", 0 ) /* Oki samples */
+	ROM_LOAD( "kp_03-.16h",   0x000000, 0x020000, CRC(5d7f930d) SHA1(ad23aa804ea3ccbd7630ade9b53fc3ea2718a6ec) )
+	ROM_RELOAD(               0x020000, 0x020000 )
+
+	ROM_REGION( 0x600, "plds", 0 )
+	ROM_LOAD( "pal16l8-vg-00.1f",  0x000, 0x117, CRC(8c2849e5) SHA1(72c5142dd78ea7d009229bad9f1a5651eec1e858) )
+	ROM_LOAD( "pal16l8-vg-01.1h",  0x200, 0x117, CRC(04b0bab6) SHA1(6b1ad69506b385eeeac6cb952e166304bf6fbb40) )
+	ROM_LOAD( "pal16r8-vg-02.11b", 0x400, 0x117, NO_DUMP )
+ROM_END
+
+ROM_START( dblewinga )
+	ROM_REGION( 0x80000, "maincpu", 0 ) /* DE102 code (encrypted) */
+	ROM_LOAD16_BYTE( "2.3d",    0x000001, 0x040000, CRC(1e6b0653) SHA1(000fbf8bb07688fe1dd16fe8f33c376871f1860f) )
+	ROM_LOAD16_BYTE( "1.5d",    0x000000, 0x040000, CRC(4d537dc9) SHA1(9149e6de11ed9aa1db58c72e4ba6b2b309c6978b) )
+
+	ROM_REGION( 0x10000, "audiocpu", 0 ) // sound cpu
+	ROM_LOAD( "kp_02-.10h",   0x000000, 0x010000, CRC(def035fa) SHA1(fd50314e5c94c25df109ee52c0ce701b0ff2140c) )
+
+	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_LOAD( "mbe-02.8h",    0x000000, 0x100000, CRC(5a6d3ac5) SHA1(738bb833e2c5d929ac75fe4e69ee0af88197d8a6) )
+
+	ROM_REGION( 0x200000, "gfx2", 0 )
+	ROM_LOAD( "mbe-00.14a",   0x000000, 0x100000, CRC(e33f5c93) SHA1(720904b54d02dace2310ac6bd07d5ed4bc4fd69c) )
+	ROM_LOAD( "mbe-01.16a",   0x100000, 0x100000, CRC(ef452ad7) SHA1(7fe49123b5c2778e46104eaa3a2104ce09e05705) )
+
+	ROM_REGION( 0x40000, "oki", 0 ) /* Oki samples */
+	ROM_LOAD( "kp_03-.16h",   0x000000, 0x020000, CRC(5d7f930d) SHA1(ad23aa804ea3ccbd7630ade9b53fc3ea2718a6ec) )
+	ROM_RELOAD(               0x020000, 0x020000 )
+
+	ROM_REGION( 0x600, "plds", 0 )
+	ROM_LOAD( "pal16l8-vg-00.1f",  0x000, 0x117, CRC(8c2849e5) SHA1(72c5142dd78ea7d009229bad9f1a5651eec1e858) )
+	ROM_LOAD( "pal16l8-vg-01.1h",  0x200, 0x117, CRC(04b0bab6) SHA1(6b1ad69506b385eeeac6cb952e166304bf6fbb40) )
+	ROM_LOAD( "pal16r8-vg-02.11b", 0x400, 0x117, NO_DUMP )
+ROM_END
+
+/*
+The most noticeable difference with the set below is that it doesn't use checkpoints, but respawns you when you die.
+Checkpoints were more common in Japan, so this is likely to be an export version.
+*/
+ROM_START( dblewingb )
+	ROM_REGION( 0x80000, "maincpu", 0 ) /* DE102 code (encrypted) */
+	ROM_LOAD16_BYTE( "17.3d",    0x000001, 0x040000, CRC(3a7ba822) SHA1(726db048ae3ab45cca45f631ad1f04b5cbc7f741) )
+	ROM_LOAD16_BYTE( "18.5d",    0x000000, 0x040000, CRC(e5f5f004) SHA1(4bd40ef88027554a0328df1cf6f1c9c975a7a73f) )
+
+	ROM_REGION( 0x10000, "audiocpu", 0 ) // sound cpu
+	ROM_LOAD( "kp_02-.10h",   0x000000, 0x010000, CRC(def035fa) SHA1(fd50314e5c94c25df109ee52c0ce701b0ff2140c) )
+
+	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_LOAD( "mbe-02.8h",    0x000000, 0x100000, CRC(5a6d3ac5) SHA1(738bb833e2c5d929ac75fe4e69ee0af88197d8a6) )
+
+	ROM_REGION( 0x200000, "gfx2", 0 )
+	ROM_LOAD( "mbe-00.14a",   0x000000, 0x100000, CRC(e33f5c93) SHA1(720904b54d02dace2310ac6bd07d5ed4bc4fd69c) )
+	ROM_LOAD( "mbe-01.16a",   0x100000, 0x100000, CRC(ef452ad7) SHA1(7fe49123b5c2778e46104eaa3a2104ce09e05705) )
+
+	ROM_REGION( 0x40000, "oki", 0 ) /* Oki samples */
+	ROM_LOAD( "kp_03-.16h",   0x000000, 0x020000, CRC(5d7f930d) SHA1(ad23aa804ea3ccbd7630ade9b53fc3ea2718a6ec) )
+	ROM_RELOAD(               0x020000, 0x020000 )
+
+	ROM_REGION( 0x600, "plds", 0 )
+	ROM_LOAD( "pal16l8-vg-00.1f",  0x000, 0x117, CRC(8c2849e5) SHA1(72c5142dd78ea7d009229bad9f1a5651eec1e858) )
+	ROM_LOAD( "pal16l8-vg-01.1h",  0x200, 0x117, CRC(04b0bab6) SHA1(6b1ad69506b385eeeac6cb952e166304bf6fbb40) )
+	ROM_LOAD( "pal16r8-vg-02.11b", 0x400, 0x117, NO_DUMP )
 ROM_END
 
 void dblewing_state::init_dblewing()
@@ -457,4 +493,6 @@ void dblewing_state::init_dblewing()
 }
 
 
-GAME( 1993, dblewing, 0, dblewing, dblewing, dblewing_state, init_dblewing, ROT90, "Mitchell", "Double Wings", MACHINE_SUPPORTS_SAVE )
+GAME( 1993, dblewing,  0,        dblewing, dblewing, dblewing_state, init_dblewing, ROT90, "Mitchell", "Double Wings (set 1)", MACHINE_SUPPORTS_SAVE )
+GAME( 1993, dblewinga, dblewing, dblewing, dblewing, dblewing_state, init_dblewing, ROT90, "Mitchell", "Double Wings (set 2)", MACHINE_SUPPORTS_SAVE )
+GAME( 1994, dblewingb, dblewing, dblewing, dblewing, dblewing_state, init_dblewing, ROT90, "Mitchell", "Double Wings (Asia)",  MACHINE_SUPPORTS_SAVE )

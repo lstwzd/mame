@@ -119,20 +119,20 @@ private:
 	output_finder<256> m_lamps;
 
 	template <unsigned N> DECLARE_WRITE_LINE_MEMBER(reel_optic_cb) { if (state) m_optic_pattern |= (1 << N); else m_optic_pattern &= ~(1 << N); }
-	DECLARE_WRITE8_MEMBER(watchdog_w);
-	DECLARE_READ8_MEMBER(irqlatch_r);
-	DECLARE_WRITE8_MEMBER(reel12_w);
-	DECLARE_WRITE8_MEMBER(reel34_w);
-	DECLARE_WRITE8_MEMBER(mmtr_w);
-	DECLARE_READ8_MEMBER(mmtr_r);
-	DECLARE_WRITE8_MEMBER(vfd_w);
-	DECLARE_WRITE8_MEMBER(mux_ctrl_w);
-	DECLARE_READ8_MEMBER(mux_ctrl_r);
-	DECLARE_WRITE8_MEMBER(mux_data_w);
-	DECLARE_READ8_MEMBER(mux_data_r);
-	DECLARE_WRITE8_MEMBER(mux_enable_w);
-	DECLARE_WRITE8_MEMBER(triac_w);
-	DECLARE_READ8_MEMBER(triac_r);
+	void watchdog_w(uint8_t data);
+	uint8_t irqlatch_r();
+	void reel12_w(uint8_t data);
+	void reel34_w(uint8_t data);
+	void mmtr_w(uint8_t data);
+	uint8_t mmtr_r();
+	void vfd_w(uint8_t data);
+	void mux_ctrl_w(uint8_t data);
+	uint8_t mux_ctrl_r();
+	void mux_data_w(uint8_t data);
+	uint8_t mux_data_r();
+	void mux_enable_w(uint8_t data);
+	void triac_w(uint8_t data);
+	uint8_t triac_r();
 	DECLARE_WRITE_LINE_MEMBER(sys85_data_w);
 	DECLARE_WRITE_LINE_MEMBER(write_acia_clock);
 	int b85_find_project_string();
@@ -181,7 +181,7 @@ void bfmsys85_state::machine_reset()
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::watchdog_w)
+void bfmsys85_state::watchdog_w(uint8_t data)
 {
 }
 
@@ -198,7 +198,7 @@ INTERRUPT_GEN_MEMBER(bfmsys85_state::timer_irq)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfmsys85_state::irqlatch_r)
+uint8_t bfmsys85_state::irqlatch_r()
 {
 	int result = m_irq_status | 0x02;
 
@@ -209,7 +209,7 @@ READ8_MEMBER(bfmsys85_state::irqlatch_r)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::reel12_w)
+void bfmsys85_state::reel12_w(uint8_t data)
 {
 	m_reel[0]->update((data>>4)&0x0f);
 	m_reel[1]->update( data    &0x0f);
@@ -220,7 +220,7 @@ WRITE8_MEMBER(bfmsys85_state::reel12_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::reel34_w)
+void bfmsys85_state::reel34_w(uint8_t data)
 {
 	m_reel[2]->update((data>>4)&0x0f);
 	m_reel[3]->update( data    &0x0f);
@@ -233,7 +233,7 @@ WRITE8_MEMBER(bfmsys85_state::reel34_w)
 // mechanical meters //////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::mmtr_w)
+void bfmsys85_state::mmtr_w(uint8_t data)
 {
 	int  changed = m_mmtr_latch ^ data;
 
@@ -247,13 +247,13 @@ WRITE8_MEMBER(bfmsys85_state::mmtr_w)
 }
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfmsys85_state::mmtr_r)
+uint8_t bfmsys85_state::mmtr_r()
 {
 	return m_mmtr_latch;
 }
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::vfd_w)
+void bfmsys85_state::vfd_w(uint8_t data)
 {
 //reset 0x20, clock 0x80, data 0x40
 
@@ -266,7 +266,7 @@ WRITE8_MEMBER(bfmsys85_state::vfd_w)
 // input / output multiplexers ///////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::mux_ctrl_w)
+void bfmsys85_state::mux_ctrl_w(uint8_t data)
 {
 	switch ( data & 0xF0 )
 	{
@@ -301,14 +301,14 @@ WRITE8_MEMBER(bfmsys85_state::mux_ctrl_w)
 	}
 }
 
-READ8_MEMBER(bfmsys85_state::mux_ctrl_r)
+uint8_t bfmsys85_state::mux_ctrl_r()
 {
 	// software waits for bit7 to become low
 
 	return 0;
 }
 
-WRITE8_MEMBER(bfmsys85_state::mux_data_w)
+void bfmsys85_state::mux_data_w(uint8_t data)
 {
 	int off = m_mux_output_strobe<<4;
 
@@ -319,14 +319,14 @@ WRITE8_MEMBER(bfmsys85_state::mux_data_w)
 	}
 }
 
-READ8_MEMBER(bfmsys85_state::mux_data_r)
+uint8_t bfmsys85_state::mux_data_r()
 {
 	return m_mux_input;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::mux_enable_w)
+void bfmsys85_state::mux_enable_w(uint8_t data)
 {
 }
 
@@ -334,14 +334,14 @@ WRITE8_MEMBER(bfmsys85_state::mux_enable_w)
 // payslide triacs ////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfmsys85_state::triac_w)
+void bfmsys85_state::triac_w(uint8_t data)
 {
 	m_triac_latch = data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfmsys85_state::triac_r)
+uint8_t bfmsys85_state::triac_r()
 {
 	return m_triac_latch;
 }
@@ -400,17 +400,19 @@ void bfmsys85_state::memmap(address_map &map)
 
 // machine driver for system85 board //////////////////////////////////////
 
-MACHINE_CONFIG_START(bfmsys85_state::bfmsys85)
-	MCFG_DEVICE_ADD("maincpu", M6809, MASTER_CLOCK/4)          // 6809 CPU at 1 Mhz
-	MCFG_DEVICE_PROGRAM_MAP(memmap)                        // setup read and write memorymap
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(bfmsys85_state, timer_irq,  1000)              // generate 1000 IRQ's per second
+void bfmsys85_state::bfmsys85(machine_config &config)
+{
+	MC6809(config, m_maincpu, MASTER_CLOCK);          // 6809 CPU, 1 Mhz Q/E
+	m_maincpu->set_addrmap(AS_PROGRAM, &bfmsys85_state::memmap);                        // setup read and write memorymap
+	m_maincpu->set_periodic_int(FUNC(bfmsys85_state::timer_irq), attotime::from_hz(1000));              // generate 1000 IRQ's per second
+
 	MSC1937(config, m_vfd);
 
 	ACIA6850(config, m_acia6850_0, 0);
 	m_acia6850_0->txd_handler().set(FUNC(bfmsys85_state::sys85_data_w));
 
-	MCFG_DEVICE_ADD("acia_clock", CLOCK, 31250*16) // What are the correct ACIA clocks ?
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, bfmsys85_state, write_acia_clock))
+	clock_device &acia_clock(CLOCK(config, "acia_clock", 31250*16)); // What are the correct ACIA clocks ?
+	acia_clock.signal_handler().set(FUNC(bfmsys85_state::write_acia_clock));
 
 	SPEAKER(config, "mono").front_center();
 	AY8912(config, "aysnd", MASTER_CLOCK/4).add_route(ALL_OUTPUTS, "mono", 0.25);
@@ -426,11 +428,10 @@ MACHINE_CONFIG_START(bfmsys85_state::bfmsys85)
 	REEL(config, m_reel[3], STARPOINT_48STEP_REEL, 1, 3, 0x09, 4);
 	m_reel[3]->optic_handler().set(FUNC(bfmsys85_state::reel_optic_cb<3>));
 
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(8)
+	METERS(config, m_meters, 0).set_number(8);
 
 	config.set_default_layout(layout_bfmsys85);
-MACHINE_CONFIG_END
+}
 
 // input ports for system85 board /////////////////////////////////////////
 

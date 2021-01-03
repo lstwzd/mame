@@ -9,7 +9,6 @@
 
 #include "emu.h"
 #include "magicsound.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 
@@ -20,7 +19,8 @@
 DEFINE_DEVICE_TYPE(AL_MAGICSOUND, al_magicsound_device, "al_magicsound", "Aleste Magic Sound Board")
 
 
-MACHINE_CONFIG_START(al_magicsound_device::device_add_mconfig)
+void al_magicsound_device::device_add_mconfig(machine_config &config)
+{
 	AM9517A(config, m_dmac, DERIVED_CLOCK(1, 1));  // CLK from expansion port
 	// According to the schematics, the TC pin (EOP on western chips) is connected to NMI on the expansion port.
 	// NMIs seem to occur too quickly when this is active, so either EOP is not triggered at the correct time, or
@@ -57,11 +57,9 @@ MACHINE_CONFIG_START(al_magicsound_device::device_add_mconfig)
 	m_timer2->set_clk<2>(4000000);
 
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.5) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
+	DAC_8BIT_R2R(config, m_dac, 0).add_route(ALL_OUTPUTS, "speaker", 0.5); // unknown DAC
 	// no pass-through(?)
-MACHINE_CONFIG_END
+}
 
 
 //**************************************************************************
@@ -87,17 +85,14 @@ void al_magicsound_device::device_start()
 {
 	m_slot = dynamic_cast<cpc_expansion_slot_device *>(owner());
 	address_space &space = m_slot->cpu().space(AS_IO);
-	space.install_readwrite_handler(0xf8d0,0xf8df,read8_delegate(FUNC(al_magicsound_device::dmac_r),this),write8_delegate(FUNC(al_magicsound_device::dmac_w),this));
-	space.install_write_handler(0xf9d0,0xf9df,write8_delegate(FUNC(al_magicsound_device::timer_w),this));
-	space.install_write_handler(0xfad0,0xfadf,write8_delegate(FUNC(al_magicsound_device::volume_w),this));
-	space.install_write_handler(0xfbd0,0xfbdf,write8_delegate(FUNC(al_magicsound_device::mapper_w),this));
+	space.install_readwrite_handler(0xf8d0,0xf8df, read8sm_delegate(*this, FUNC(al_magicsound_device::dmac_r)), write8sm_delegate(*this, FUNC(al_magicsound_device::dmac_w)));
+	space.install_write_handler(0xf9d0,0xf9df, write8sm_delegate(*this, FUNC(al_magicsound_device::timer_w)));
+	space.install_write_handler(0xfad0,0xfadf, write8sm_delegate(*this, FUNC(al_magicsound_device::volume_w)));
+	space.install_write_handler(0xfbd0,0xfbdf, write8sm_delegate(*this, FUNC(al_magicsound_device::mapper_w)));
 
 	m_ramptr = machine().device<ram_device>(":" RAM_TAG);
 
-	for(int x=0;x<4;x++)
-	{
-		save_item(NAME(m_output[x]),x);
-	}
+	save_item(NAME(m_output));
 }
 
 //-------------------------------------------------
@@ -111,17 +106,17 @@ void al_magicsound_device::device_reset()
 	set_timer_gate(false);
 }
 
-READ8_MEMBER(al_magicsound_device::dmac_r)
+uint8_t al_magicsound_device::dmac_r(offs_t offset)
 {
-	return m_dmac->read(space,offset);
+	return m_dmac->read(offset);
 }
 
-WRITE8_MEMBER(al_magicsound_device::dmac_w)
+void al_magicsound_device::dmac_w(offs_t offset, uint8_t data)
 {
-	m_dmac->write(space,offset,data);
+	m_dmac->write(offset,data);
 }
 
-WRITE8_MEMBER(al_magicsound_device::timer_w)
+void al_magicsound_device::timer_w(offs_t offset, uint8_t data)
 {
 	// can both PITs be selected at the same time?
 	if(offset & 0x08)
@@ -130,12 +125,12 @@ WRITE8_MEMBER(al_magicsound_device::timer_w)
 		m_timer2->write(offset & 0x03,data);
 }
 
-WRITE8_MEMBER(al_magicsound_device::volume_w)
+void al_magicsound_device::volume_w(offs_t offset, uint8_t data)
 {
 	m_volume[offset & 0x03] = data & 0x3f;
 }
 
-WRITE8_MEMBER(al_magicsound_device::mapper_w)
+void al_magicsound_device::mapper_w(offs_t offset, uint8_t data)
 {
 	uint8_t channel = (offset & 0x0c) >> 2;
 	uint8_t page = offset & 0x03;
@@ -160,7 +155,7 @@ WRITE_LINE_MEMBER(al_magicsound_device::sam1_w) { m_current_channel = 1; if(m_da
 WRITE_LINE_MEMBER(al_magicsound_device::sam2_w) { m_current_channel = 2; if(m_dack[2] && state) m_dmac->dreq2_w(1); }
 WRITE_LINE_MEMBER(al_magicsound_device::sam3_w) { m_current_channel = 3; if(m_dack[3] && state) m_dmac->dreq3_w(1); }
 
-READ8_MEMBER(al_magicsound_device::dma_read_byte)
+uint8_t al_magicsound_device::dma_read_byte(offs_t offset)
 {
 	uint8_t ret = 0xff;
 	uint8_t page = (offset & 0xc000) >> 14;
@@ -170,7 +165,7 @@ READ8_MEMBER(al_magicsound_device::dma_read_byte)
 	return ret;
 }
 
-WRITE8_MEMBER(al_magicsound_device::dma_write_byte)
+void al_magicsound_device::dma_write_byte(uint8_t data)
 {
 	m_output[m_current_channel] = data;
 }

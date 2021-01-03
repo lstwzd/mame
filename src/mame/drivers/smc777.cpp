@@ -7,8 +7,8 @@
     driver by Angelo Salese
 
     TODO:
-    - no real documentation, the entire driver is just a bunch of educated
-      guesses ...
+    - Implement SMC-70 specific features;
+    - Implement GFX modes other than 160x100x4
     - ROM/RAM bankswitch, it apparently happens after one instruction prefetching.
       We currently use an hackish implementation until the MAME/MESS framework can
       support that ...
@@ -77,41 +77,42 @@ protected:
 	virtual void video_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(mc6845_w);
-	DECLARE_READ8_MEMBER(vram_r);
-	DECLARE_READ8_MEMBER(attr_r);
-	DECLARE_READ8_MEMBER(pcg_r);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_WRITE8_MEMBER(attr_w);
-	DECLARE_WRITE8_MEMBER(pcg_w);
-	DECLARE_READ8_MEMBER(fbuf_r);
-	DECLARE_WRITE8_MEMBER(fbuf_w);
-	DECLARE_READ8_MEMBER(key_r);
-	DECLARE_WRITE8_MEMBER(key_w);
-	DECLARE_WRITE8_MEMBER(border_col_w);
-	DECLARE_READ8_MEMBER(system_input_r);
-	DECLARE_WRITE8_MEMBER(system_output_w);
-	DECLARE_WRITE8_MEMBER(color_mode_w);
-	DECLARE_WRITE8_MEMBER(ramdac_w);
-	DECLARE_READ8_MEMBER(display_reg_r);
-	DECLARE_WRITE8_MEMBER(display_reg_w);
-	DECLARE_READ8_MEMBER(smc777_mem_r);
-	DECLARE_WRITE8_MEMBER(smc777_mem_w);
-	DECLARE_READ8_MEMBER(irq_mask_r);
-	DECLARE_WRITE8_MEMBER(irq_mask_w);
+	void mc6845_w(offs_t offset, uint8_t data);
+	uint8_t vram_r(offs_t offset);
+	uint8_t attr_r(offs_t offset);
+	uint8_t pcg_r(offs_t offset);
+	void vram_w(offs_t offset, uint8_t data);
+	void attr_w(offs_t offset, uint8_t data);
+	void pcg_w(offs_t offset, uint8_t data);
+	uint8_t fbuf_r(offs_t offset);
+	void fbuf_w(offs_t offset, uint8_t data);
+	uint8_t key_r(offs_t offset);
+	void key_w(offs_t offset, uint8_t data);
+	void border_col_w(uint8_t data);
+	uint8_t io_status_1c_r();
+	uint8_t io_status_1d_r();
+	void io_control_w(uint8_t data);
+	void color_mode_w(uint8_t data);
+	void ramdac_w(offs_t offset, uint8_t data);
+	uint8_t gcw_r();
+	void gcw_w(uint8_t data);
+	uint8_t smc777_mem_r(offs_t offset);
+	void smc777_mem_w(offs_t offset, uint8_t data);
+	uint8_t vsync_irq_status_r();
+	void vsync_irq_enable_w(uint8_t data);
 	void smc777_palette(palette_device &palette) const;
 	uint32_t screen_update_smc777(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	INTERRUPT_GEN_MEMBER(vblank_irq);
+	DECLARE_WRITE_LINE_MEMBER(vsync_w);
 	TIMER_DEVICE_CALLBACK_MEMBER(keyboard_callback);
 
-	DECLARE_READ8_MEMBER(fdc_r);
-	DECLARE_WRITE8_MEMBER(fdc_w);
-	DECLARE_READ8_MEMBER(fdc_request_r);
-	DECLARE_WRITE8_MEMBER(floppy_select_w);
+	uint8_t fdc_r(offs_t offset);
+	void fdc_w(offs_t offset, uint8_t data);
+	uint8_t fdc1_fast_status_r();
+	void fdc1_select_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(fdc_intrq_w);
 	DECLARE_WRITE_LINE_MEMBER(fdc_drq_w);
 
-	DECLARE_QUICKLOAD_LOAD_MEMBER(smc777);
+	DECLARE_QUICKLOAD_LOAD_MEMBER(quickload_cb);
 
 	void smc777_io(address_map &map);
 	void smc777_mem(address_map &map);
@@ -144,11 +145,12 @@ private:
 	struct { uint8_t r,g,b; } m_pal;
 	uint8_t m_raminh,m_raminh_pending_change; //bankswitch
 	uint8_t m_raminh_prefetch;
-	uint8_t m_irq_mask;
 	uint8_t m_pal_mode;
 	uint8_t m_keyb_cmd;
 	uint8_t m_crtc_vreg[0x20];
 	uint8_t m_crtc_addr;
+	bool m_vsync_idf;
+	bool m_vsync_ief;
 };
 
 
@@ -162,47 +164,44 @@ void smc777_state::video_start()
 
 uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int x,y,yi;
 	uint16_t count;
-	int x_width;
 
 //  popmessage("%d %d %d %d",mc6845_v_char_total,mc6845_v_total_adj,mc6845_v_display,mc6845_v_sync_pos);
 
 	bitmap.fill(m_palette->pen(m_backdrop_pen), cliprect);
 
-	x_width = ((m_display_reg & 0x80) >> 7);
+	int x_width = ((m_display_reg & 0x80) >> 7);
 
 	count = 0x0000;
 
-	for(yi=0;yi<8;yi++)
+	for(int yi=0;yi<8;yi++)
 	{
-		for(y=0;y<200;y+=8)
+		for(int y=0;y<200;y+=8)
 		{
-			for(x=0;x<160;x++)
+			for(int x=0;x<160;x++)
 			{
-				uint16_t color;
+				uint16_t color = (m_gvram[count] & 0xf0) >> 4;
 
-				color = (m_gvram[count] & 0xf0) >> 4;
 				/* todo: clean this up! */
 				//if(x_width)
 				{
-					bitmap.pix16(y+yi+CRTC_MIN_Y, x*4+0+CRTC_MIN_X) = m_palette->pen(color);
-					bitmap.pix16(y+yi+CRTC_MIN_Y, x*4+1+CRTC_MIN_X) = m_palette->pen(color);
+					bitmap.pix(y+yi+CRTC_MIN_Y, x*4+0+CRTC_MIN_X) = m_palette->pen(color);
+					bitmap.pix(y+yi+CRTC_MIN_Y, x*4+1+CRTC_MIN_X) = m_palette->pen(color);
 				}
 				//else
 				//{
-				//  bitmap.pix16(y+yi+CRTC_MIN_Y, x*2+0+CRTC_MIN_X) = m_palette->pen(color);
+				//  bitmap.pix(y+yi+CRTC_MIN_Y, x*2+0+CRTC_MIN_X) = m_palette->pen(color);
 				//}
 
 				color = (m_gvram[count] & 0x0f) >> 0;
 				//if(x_width)
 				{
-					bitmap.pix16(y+yi+CRTC_MIN_Y, x*4+2+CRTC_MIN_X) = m_palette->pen(color);
-					bitmap.pix16(y+yi+CRTC_MIN_Y, x*4+3+CRTC_MIN_X) = m_palette->pen(color);
+					bitmap.pix(y+yi+CRTC_MIN_Y, x*4+2+CRTC_MIN_X) = m_palette->pen(color);
+					bitmap.pix(y+yi+CRTC_MIN_Y, x*4+3+CRTC_MIN_X) = m_palette->pen(color);
 				}
 				//else
 				//{
-				//  bitmap.pix16(y+yi+CRTC_MIN_Y, x*2+1+CRTC_MIN_X) = m_palette->pen(color);
+				//  bitmap.pix(y+yi+CRTC_MIN_Y, x*2+1+CRTC_MIN_X) = m_palette->pen(color);
 				//}
 
 				count++;
@@ -214,9 +213,9 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 
 	count = 0x0000;
 
-	for(y=0;y<25;y++)
+	for(int y=0;y<25;y++)
 	{
-		for(x=0;x<80/(x_width+1);x++)
+		for(int x=0;x<80/(x_width+1);x++)
 		{
 			/*
 			-x-- ---- blink
@@ -227,11 +226,9 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 			int color = m_attr[count] & 7;
 			int bk_color = (m_attr[count] & 0x18) >> 3;
 			int blink = m_attr[count] & 0x40;
-			int xi;
-			int bk_pen;
 			//int bk_struct[4] = { -1, 0x10, 0x11, (color & 7) ^ 8 };
 
-			bk_pen = -1;
+			int bk_pen = -1;
 			switch(bk_color & 3)
 			{
 				case 0: bk_pen = -1; break; //transparent
@@ -243,23 +240,21 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 			if(blink && m_screen->frame_number() & 0x10) //blinking, used by Dragon's Alphabet
 				color = bk_pen;
 
-			for(yi=0;yi<8;yi++)
+			for(int yi=0;yi<8;yi++)
 			{
-				for(xi=0;xi<8;xi++)
+				for(int xi=0;xi<8;xi++)
 				{
-					int pen;
-
-					pen = ((m_pcg[tile*8+yi]>>(7-xi)) & 1) ? (color+m_pal_mode) : bk_pen;
+					int pen = ((m_pcg[tile*8+yi]>>(7-xi)) & 1) ? (color+m_pal_mode) : bk_pen;
 
 					if (pen != -1)
 					{
 						if(x_width)
 						{
-							bitmap.pix16(y*8+CRTC_MIN_Y+yi, (x*8+xi)*2+0+CRTC_MIN_X) = m_palette->pen(pen);
-							bitmap.pix16(y*8+CRTC_MIN_Y+yi, (x*8+xi)*2+1+CRTC_MIN_X) = m_palette->pen(pen);
+							bitmap.pix(y*8+CRTC_MIN_Y+yi, (x*8+xi)*2+0+CRTC_MIN_X) = m_palette->pen(pen);
+							bitmap.pix(y*8+CRTC_MIN_Y+yi, (x*8+xi)*2+1+CRTC_MIN_X) = m_palette->pen(pen);
 						}
 						else
-							bitmap.pix16(y*8+CRTC_MIN_Y+yi, x*8+CRTC_MIN_X+xi) = m_palette->pen(pen);
+							bitmap.pix(y*8+CRTC_MIN_Y+yi, x*8+CRTC_MIN_X+xi) = m_palette->pen(pen);
 					}
 				}
 			}
@@ -267,9 +262,7 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 			// draw cursor
 			if(mc6845_cursor_addr == count)
 			{
-				int xc,yc,cursor_on;
-
-				cursor_on = 0;
+				int cursor_on = 0;
 				switch(mc6845_cursor_y_start & 0x60)
 				{
 					case 0x00: cursor_on = 1; break; //always on
@@ -280,17 +273,17 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 
 				if(cursor_on)
 				{
-					for(yc=0;yc<(8-(mc6845_cursor_y_start & 7));yc++)
+					for(int yc=0;yc<(8-(mc6845_cursor_y_start & 7));yc++)
 					{
-						for(xc=0;xc<8;xc++)
+						for(int xc=0;xc<8;xc++)
 						{
 							if(x_width)
 							{
-								bitmap.pix16(y*8+CRTC_MIN_Y-yc+7, (x*8+xc)*2+0+CRTC_MIN_X) = m_palette->pen(0x7);
-								bitmap.pix16(y*8+CRTC_MIN_Y-yc+7, (x*8+xc)*2+1+CRTC_MIN_X) = m_palette->pen(0x7);
+								bitmap.pix(y*8+CRTC_MIN_Y-yc+7, (x*8+xc)*2+0+CRTC_MIN_X) = m_palette->pen(0x7);
+								bitmap.pix(y*8+CRTC_MIN_Y-yc+7, (x*8+xc)*2+1+CRTC_MIN_X) = m_palette->pen(0x7);
 							}
 							else
-								bitmap.pix16(y*8+CRTC_MIN_Y-yc+7, x*8+CRTC_MIN_X+xc) = m_palette->pen(0x7);
+								bitmap.pix(y*8+CRTC_MIN_Y-yc+7, x*8+CRTC_MIN_X+xc) = m_palette->pen(0x7);
 						}
 					}
 				}
@@ -303,21 +296,21 @@ uint32_t smc777_state::screen_update_smc777(screen_device &screen, bitmap_ind16 
 	return 0;
 }
 
-WRITE8_MEMBER(smc777_state::mc6845_w)
+void smc777_state::mc6845_w(offs_t offset, uint8_t data)
 {
 	if(offset == 0)
 	{
 		m_crtc_addr = data;
-		m_crtc->address_w(space, 0,data);
+		m_crtc->address_w(data);
 	}
 	else
 	{
 		m_crtc_vreg[m_crtc_addr] = data;
-		m_crtc->register_w(space, 0,data);
+		m_crtc->register_w(data);
 	}
 }
 
-READ8_MEMBER(smc777_state::vram_r)
+uint8_t smc777_state::vram_r(offs_t offset)
 {
 	uint16_t vram_index;
 
@@ -327,7 +320,7 @@ READ8_MEMBER(smc777_state::vram_r)
 	return m_vram[vram_index];
 }
 
-READ8_MEMBER(smc777_state::attr_r)
+uint8_t smc777_state::attr_r(offs_t offset)
 {
 	uint16_t vram_index;
 
@@ -337,7 +330,7 @@ READ8_MEMBER(smc777_state::attr_r)
 	return m_attr[vram_index];
 }
 
-READ8_MEMBER(smc777_state::pcg_r)
+uint8_t smc777_state::pcg_r(offs_t offset)
 {
 	uint16_t vram_index;
 
@@ -347,7 +340,7 @@ READ8_MEMBER(smc777_state::pcg_r)
 	return m_pcg[vram_index];
 }
 
-WRITE8_MEMBER(smc777_state::vram_w)
+void smc777_state::vram_w(offs_t offset, uint8_t data)
 {
 	uint16_t vram_index;
 
@@ -357,7 +350,7 @@ WRITE8_MEMBER(smc777_state::vram_w)
 	m_vram[vram_index] = data;
 }
 
-WRITE8_MEMBER(smc777_state::attr_w)
+void smc777_state::attr_w(offs_t offset, uint8_t data)
 {
 	uint16_t vram_index;
 
@@ -367,7 +360,7 @@ WRITE8_MEMBER(smc777_state::attr_w)
 	m_attr[vram_index] = data;
 }
 
-WRITE8_MEMBER(smc777_state::pcg_w)
+void smc777_state::pcg_w(offs_t offset, uint8_t data)
 {
 	uint16_t vram_index;
 
@@ -379,7 +372,7 @@ WRITE8_MEMBER(smc777_state::pcg_w)
 	m_gfxdecode->gfx(0)->mark_dirty(vram_index >> 3);
 }
 
-READ8_MEMBER(smc777_state::fbuf_r)
+uint8_t smc777_state::fbuf_r(offs_t offset)
 {
 	uint16_t vram_index;
 
@@ -389,7 +382,7 @@ READ8_MEMBER(smc777_state::fbuf_r)
 	return m_gvram[vram_index];
 }
 
-WRITE8_MEMBER(smc777_state::fbuf_w)
+void smc777_state::fbuf_w(offs_t offset, uint8_t data)
 {
 	uint16_t vram_index;
 
@@ -411,7 +404,7 @@ WRITE8_MEMBER(smc777_state::fbuf_w)
 
 ************************************************************/
 
-QUICKLOAD_LOAD_MEMBER( smc777_state, smc777 )
+QUICKLOAD_LOAD_MEMBER(smc777_state::quickload_cb)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM);
 
@@ -446,36 +439,35 @@ QUICKLOAD_LOAD_MEMBER( smc777_state, smc777 )
 	return image_init_result::PASS;
 }
 
-READ8_MEMBER( smc777_state::fdc_r )
+uint8_t smc777_state::fdc_r(offs_t offset)
 {
 	return m_fdc->read(offset) ^ 0xff;
 }
 
-WRITE8_MEMBER( smc777_state::fdc_w )
+void smc777_state::fdc_w(offs_t offset, uint8_t data)
 {
 	m_fdc->write(offset, data ^ 0xff);
 }
 
-READ8_MEMBER( smc777_state::fdc_request_r )
+uint8_t smc777_state::fdc1_fast_status_r()
 {
 	uint8_t data = 0;
 
+	// TODO: inverted wrt documentation?
 	data |= !m_fdc_drq_flag << 6;
 	data |= m_fdc_irq_flag << 7;
 
 	return data;
 }
 
-WRITE8_MEMBER( smc777_state::floppy_select_w )
+void smc777_state::fdc1_select_w(uint8_t data)
 {
 	floppy_image_device *floppy = nullptr;
 
-	// ---- xxxx select floppy drive (yes, 15 of them, A to P)
-	switch (data & 0x01)
-	{
-	case 0: floppy = m_floppy0->get_device(); break;
-	case 1: floppy = m_floppy1->get_device(); break;
-	}
+	// x--- ---- SIDE1: [SMC-70] side select
+	// ---- --x- EXDS: [SMC-70] external drive select (0=internal, 1=external)
+	// ---- ---x DS01: select floppy drive
+	floppy = (data & 1 ? m_floppy1 : m_floppy0)->get_device();
 
 	m_fdc->set_floppy(floppy);
 
@@ -497,7 +489,7 @@ WRITE_LINE_MEMBER( smc777_state::fdc_drq_w )
 	m_fdc_drq_flag = state;
 }
 
-READ8_MEMBER(smc777_state::key_r)
+uint8_t smc777_state::key_r(offs_t offset)
 {
 	/*
 	-x-- ---- shift key
@@ -528,7 +520,7 @@ READ8_MEMBER(smc777_state::key_r)
 }
 
 /* TODO: the packet commands strikes me as something I've already seen before, don't remember where however ... */
-WRITE8_MEMBER(smc777_state::key_w)
+void smc777_state::key_w(offs_t offset, uint8_t data)
 {
 	if(offset == 1) //keyboard command
 		m_keyb_cmd = data;
@@ -538,7 +530,7 @@ WRITE8_MEMBER(smc777_state::key_w)
 	}
 }
 
-WRITE8_MEMBER(smc777_state::border_col_w)
+void smc777_state::border_col_w(uint8_t data)
 {
 	if(data & 0xf0)
 		printf("Special border color enabled %02x\n",data);
@@ -547,51 +539,81 @@ WRITE8_MEMBER(smc777_state::border_col_w)
 }
 
 
-READ8_MEMBER(smc777_state::system_input_r)
+uint8_t smc777_state::io_status_1c_r()
 {
-	printf("System FF R %02x\n",m_system_data & 0x0f);
+	/*
+	 * RES     x--- ---- Power On bit (1=reset switch)
+	 * HiZ     -x-- ---- [SMC-70] no drive (always '1'?)
+	 * LPH     --x- ---- [SMC-70] light pen H position
+	 * CP      ---x ---- [SMC-777] color board (active low)
+	 * LPV     ---x x--- [SMC-70] light pen V position
+	 * ID      ---- -x-- 0=SMC-777 1=SMC-70
+	 * MD      ---- --xx [SMC-70] boot mode (00=DISK; 10=ROM; 11=EXT)
+	 */
+	printf("System R\n");
 
-	switch(m_system_data & 0x0f)
-	{
-		case 0x00:
-			return ((m_raminh & 1) << 4); //unknown bit, Dragon's Alphabet and Bird Crush relies on this for correct colors
-	}
+	return 0;
+}
 
-	return m_system_data;
+uint8_t smc777_state::io_status_1d_r()
+{
+	/*
+	 * TCIN    x--- ---- CMT read data
+	 * HiZ     -x-- ---- [SMC-70] no drive (always '1'?)
+	 * LPIN    --x- ---- [SMC-70] light pen input
+	 * PR_BUSY ---x ---- printer busy
+	 * PR_ACK  ---- x--- printer ACK
+	 * ID      ---- -x-- 0=SMC-777 1=SMC-70
+	 * MD      ---- --xx [SMC-70] boot mode (00=DISK; 10=ROM; 11=EXT)
+	 */
+	return 0;
 }
 
 
-
-WRITE8_MEMBER(smc777_state::system_output_w)
+void smc777_state::io_control_w(uint8_t data)
 {
 	/*
-	---x 0000 ram inibit signal
-	---x 1001 beep
-	all the rest is unknown at current time
-	*/
+	 * flip-flop based
+	 * ---x -111 cassette write
+	 * ---x -110 printer strobe
+	 * ---x -101 beeper
+	 * ---x -100 cassette start (MONITOR_ON_OFF)
+	 * ---x -011 0=RGB 1=Component
+	 * ---x -010 0=525 lines 1=625 lines (NTSC/PAL switch?)
+	 * ---x -001 1=display disable
+	 * ---x -000 ram inibit signal
+	 */
 	m_system_data = data;
-	switch(m_system_data & 0x0f)
+	switch(m_system_data & 0x07)
 	{
 		case 0x00:
+			// "ROM / RAM register change is done at the beginning of the next M1 cycle"
 			m_raminh_pending_change = ((data & 0x10) >> 4) ^ 1;
 			m_raminh_prefetch = (uint8_t)(m_maincpu->state_int(Z80_R)) & 0x7f;
 			break;
-		case 0x02: printf("Interlace %s\n",data & 0x10 ? "on" : "off"); break;
+		case 0x02: printf("Screen line number %d\n",data & 0x10 ? 625 : 525); break;
 		case 0x05: m_beeper->set_state(data & 0x10); break;
 		default: printf("System FF W %02x\n",data); break;
 	}
 }
 
-WRITE8_MEMBER(smc777_state::color_mode_w)
+void smc777_state::color_mode_w(uint8_t data)
 {
-	switch(data & 0x0f)
+	/*
+	 * ---x -111 gfx palette select
+	 * ---x -110 text palette select
+	 * ---x -101 joy 2 out
+	 * ...
+	 * ---x -000 joy 2 out
+	 */
+	switch(data & 0x07)
 	{
 		case 0x06: m_pal_mode = (data & 0x10) ^ 0x10; break;
 		default: printf("Color FF %02x\n",data); break;
 	}
 }
 
-WRITE8_MEMBER(smc777_state::ramdac_w)
+void smc777_state::ramdac_w(offs_t offset, uint8_t data)
 {
 	uint8_t pal_index;
 	pal_index = (offset & 0xf00) >> 8;
@@ -608,27 +630,39 @@ WRITE8_MEMBER(smc777_state::ramdac_w)
 	}
 }
 
-READ8_MEMBER(smc777_state::display_reg_r)
+uint8_t smc777_state::gcw_r()
 {
 	return m_display_reg;
 }
 
 /* x */
-WRITE8_MEMBER(smc777_state::display_reg_w)
+void smc777_state::gcw_w(uint8_t data)
 {
 	/*
-	x--- ---- width 80 / 40 switch (0 = 640 x 200 1 = 320 x 200)
-	---- -x-- mode select?
-	*/
+	 * x--- ---- text mode (0 = 80x25 1 = 40x25)
+	 * -x-- ---- text page (in 40x25 mode)
+	 * --x- ---- color mode (1=for 2bpp mode, blue is replaced with white)
+	 * ---x ---- [SMC-70] interlace
+	 * ---- xxyy gfx mode (model dependant)
+	 * [SMC-70]
+	 * ---- 11-- 640x400x1 bpp
+	 * ---- 10-- 640x200x2 bpp
+	 * ---- 01-- 320x200x4 bpp
+	 * ---- 00yy 160x100x4 bpp, bits 0-1 selects page
+	 * [SMC-777]
+	 * ---- 1--- 640x200x2 bpp
+	 * ---- 0--- 320x200x4 bpp
+	 */
 
 	m_display_reg = data;
 }
 
-READ8_MEMBER(smc777_state::smc777_mem_r)
+uint8_t smc777_state::smc777_mem_r(offs_t offset)
 {
 	uint8_t z80_r;
 
-	if(m_raminh_prefetch != 0xff) //do the bankswitch AFTER that the prefetch instruction is executed (FIXME: this is an hackish implementation)
+	// TODO: do the bankswitch AFTER that the prefetch instruction is executed (hackish implementation)
+	if(m_raminh_prefetch != 0xff)
 	{
 		z80_r = (uint8_t)m_maincpu->state_int(Z80_R);
 
@@ -645,22 +679,30 @@ READ8_MEMBER(smc777_state::smc777_mem_r)
 	return m_work_ram[offset];
 }
 
-WRITE8_MEMBER(smc777_state::smc777_mem_w)
+void smc777_state::smc777_mem_w(offs_t offset, uint8_t data)
 {
 	m_work_ram[offset] = data;
 }
 
-READ8_MEMBER(smc777_state::irq_mask_r)
+uint8_t smc777_state::vsync_irq_status_r()
 {
-	return m_irq_mask;
+	if (m_vsync_idf == true)
+	{
+		m_vsync_idf = false;
+		return 1;
+	}
+
+	return 0;
 }
 
-WRITE8_MEMBER(smc777_state::irq_mask_w)
+void smc777_state::vsync_irq_enable_w(uint8_t data)
 {
 	if(data & 0xfe)
-		printf("Irq mask = %02x\n",data & 0xfe);
+		logerror("Irq mask = %02x\n",data & 0xfe);
 
-	m_irq_mask = data & 1;
+	// IRQ mask
+	m_vsync_ief = BIT(data,0);
+	// TODO: clear idf on 1->0 irq mask transition?
 }
 
 void smc777_state::smc777_mem(address_map &map)
@@ -677,34 +719,40 @@ void smc777_state::smc777_io(address_map &map)
 	map(0x10, 0x17).select(0xff00).rw(FUNC(smc777_state::pcg_r), FUNC(smc777_state::pcg_w));
 	map(0x18, 0x19).mirror(0xff00).w(FUNC(smc777_state::mc6845_w));
 	map(0x1a, 0x1b).mirror(0xff00).rw(FUNC(smc777_state::key_r), FUNC(smc777_state::key_w));
-	map(0x1c, 0x1c).mirror(0xff00).rw(FUNC(smc777_state::system_input_r), FUNC(smc777_state::system_output_w));
-//  AM_RANGE(0x1d, 0x1d) system and control read, printer strobe write
-//  AM_RANGE(0x1e, 0x1f) rs232 irq control
-	map(0x20, 0x20).mirror(0xff00).rw(FUNC(smc777_state::display_reg_r), FUNC(smc777_state::display_reg_w));
-	map(0x21, 0x21).mirror(0xff00).rw(FUNC(smc777_state::irq_mask_r), FUNC(smc777_state::irq_mask_w));
-//  AM_RANGE(0x22, 0x22) printer output data
+	map(0x1c, 0x1c).mirror(0xff00).rw(FUNC(smc777_state::io_status_1c_r), FUNC(smc777_state::io_control_w));
+	map(0x1d, 0x1d).mirror(0xff00).rw(FUNC(smc777_state::io_status_1d_r), FUNC(smc777_state::io_control_w));
+//  map(0x1e, 0x1f) rs232 irq control
+	map(0x20, 0x20).mirror(0xff00).rw(FUNC(smc777_state::gcw_r), FUNC(smc777_state::gcw_w));
+	map(0x21, 0x21).mirror(0xff00).rw(FUNC(smc777_state::vsync_irq_status_r), FUNC(smc777_state::vsync_irq_enable_w));
+//  map(0x22, 0x22) printer output data
 	map(0x23, 0x23).mirror(0xff00).w(FUNC(smc777_state::border_col_w));
-//  AM_RANGE(0x24, 0x24) rtc write address
-//  AM_RANGE(0x25, 0x25) rtc read
-//  AM_RANGE(0x26, 0x26) rs232 #1
-//  AM_RANGE(0x28, 0x2c) fdc #2
-//  AM_RANGE(0x2d, 0x2f) rs232 #2
+//  map(0x24, 0x24) rtc write address (M5M58321RS)
+//  map(0x25, 0x25) rtc read
+//  map(0x26, 0x26) rs232 #1
+//  map(0x28, 0x2c) fdc #2 (8")
+//  map(0x2d, 0x2f) rs232 #2
 	map(0x30, 0x33).mirror(0xff00).rw(FUNC(smc777_state::fdc_r), FUNC(smc777_state::fdc_w));
-	map(0x34, 0x34).mirror(0xff00).rw(FUNC(smc777_state::fdc_request_r), FUNC(smc777_state::floppy_select_w));
-//  AM_RANGE(0x35, 0x37) rs232 #3
-//  AM_RANGE(0x38, 0x3b) cache disk unit
-//  AM_RANGE(0x3c, 0x3d) rgb superimposer
-//  AM_RANGE(0x40, 0x47) ieee-488
-//  AM_RANGE(0x48, 0x4f) hdd (winchester)
+	map(0x34, 0x34).mirror(0xff00).rw(FUNC(smc777_state::fdc1_fast_status_r), FUNC(smc777_state::fdc1_select_w));
+//  map(0x35, 0x37) rs232 #3
+//  map(0x38, 0x3b) cache disk unit
+	// 0x38 (R) CDSTS status port (W) CDCMD command port
+	// 0x39 (W) track register
+	// 0x3a (W) sector register
+	// 0x3b (RW) data port
+//  map(0x3c, 0x3d) rgb superimposer / genlock control
+//  map(0x40, 0x47) ieee-488 / TMS9914A I/F
+	map(0x44, 0x44).mirror(0xff00).portr("GPDSW"); // normally unmapped in GPIB interface
+//  map(0x48, 0x49) hdd (winchester)
+	// TODO: address bit 8 selects joy port 2
 	map(0x51, 0x51).mirror(0xff00).portr("JOY_1P").w(FUNC(smc777_state::color_mode_w));
 	map(0x52, 0x52).select(0xff00).w(FUNC(smc777_state::ramdac_w));
-	map(0x53, 0x53).mirror(0xff00).w("sn1", FUNC(sn76489a_device::command_w));
-//  AM_RANGE(0x54, 0x59) vrt controller
-//  AM_RANGE(0x5a, 0x5b) ram banking
-//  AM_RANGE(0x70, 0x70) auto-start rom
-//  AM_RANGE(0x74, 0x74) ieee-488 rom
-//  AM_RANGE(0x75, 0x75) vrt controller rom
-//  AM_RANGE(0x7e, 0x7f) kanji rom
+	map(0x53, 0x53).mirror(0xff00).w("sn1", FUNC(sn76489a_device::write));
+//  map(0x54, 0x59) vrt controller
+//  map(0x5a, 0x5b) ram banking
+//  map(0x70, 0x70) auto-start ROM (ext-ROM)
+//  map(0x74, 0x74) ieee-488 GPIB ROM port
+//  map(0x75, 0x75) vrt controller ROM
+//  map(0x7e, 0x7f) kanji ROM
 	map(0x80, 0xff).select(0xff00).rw(FUNC(smc777_state::fbuf_r), FUNC(smc777_state::fbuf_w));
 }
 
@@ -841,6 +889,32 @@ static INPUT_PORTS_START( smc777 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH,IPT_UNKNOWN ) //status?
+
+	PORT_START("GPDSW")
+	PORT_DIPNAME( 0x01, 0x00, "GPDSW" )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 INPUT_PORTS_END
 
 /*
@@ -988,6 +1062,7 @@ void smc777_state::machine_reset()
 	m_raminh_pending_change = 1;
 	m_raminh_prefetch = 0xff;
 	m_pal_mode = 0x10;
+	m_vsync_idf = false;
 
 	m_beeper->set_state(0);
 }
@@ -1008,10 +1083,13 @@ void smc777_state::smc777_palette(palette_device &palette) const
 }
 
 
-INTERRUPT_GEN_MEMBER(smc777_state::vblank_irq)
+WRITE_LINE_MEMBER(smc777_state::vsync_w)
 {
-	if(m_irq_mask)
-		device.execute().set_input_line(0,HOLD_LINE);
+	if (state && m_vsync_ief)
+	{
+		m_maincpu->set_input_line(0,HOLD_LINE);
+		m_vsync_idf = true;
+	}
 }
 
 
@@ -1021,30 +1099,31 @@ static void smc777_floppies(device_slot_interface &device)
 }
 
 
-MACHINE_CONFIG_START(smc777_state::smc777)
+void smc777_state::smc777(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",Z80, MASTER_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(smc777_mem)
-	MCFG_DEVICE_IO_MAP(smc777_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", smc777_state, vblank_irq)
+	Z80(config, m_maincpu, MASTER_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &smc777_state::smc777_mem);
+	m_maincpu->set_addrmap(AS_IO, &smc777_state::smc777_io);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(0x400, 400)
-	MCFG_SCREEN_VISIBLE_AREA(0, 660-1, 0, 220-1) //normal 640 x 200 + 20 pixels for border color
-	MCFG_SCREEN_UPDATE_DRIVER(smc777_state, screen_update_smc777)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	m_screen->set_size(0x400, 400);
+	m_screen->set_visarea(0, 660-1, 0, 220-1); //normal 640 x 200 + 20 pixels for border color
+	m_screen->set_screen_update(FUNC(smc777_state::screen_update_smc777));
+	m_screen->set_palette(m_palette);
 
 	PALETTE(config, m_palette, FUNC(smc777_state::smc777_palette), 0x20); // 16 + 8 colors (SMC-777 + SMC-70) + 8 empty entries (SMC-70)
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfxdecode_device::empty);
 
-	H46505(config, m_crtc, MASTER_CLOCK/2);    /* unknown clock, hand tuned to get ~60 fps */
+	HD6845S(config, m_crtc, MASTER_CLOCK/2);    /* HD68A45SP; unknown clock, hand tuned to get ~60 fps */
 	m_crtc->set_screen(m_screen);
 	m_crtc->set_show_border_area(true);
 	m_crtc->set_char_width(8);
+	m_crtc->out_vsync_callback().set(FUNC(smc777_state::vsync_w));
 
 	// floppy controller
 	MB8876(config, m_fdc, 1_MHz_XTAL);
@@ -1052,23 +1131,22 @@ MACHINE_CONFIG_START(smc777_state::smc777)
 	m_fdc->drq_wr_callback().set(FUNC(smc777_state::fdc_drq_w));
 
 	// does it really support 16 of them?
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", smc777_floppies, "ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", smc777_floppies, "ssdd", floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, "fdc:0", smc777_floppies, "ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:1", smc777_floppies, "ssdd", floppy_image_device::default_floppy_formats);
 
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "smc777")
-	MCFG_QUICKLOAD_ADD("quickload", smc777_state, smc777, "com,cpm", 3)
+	SOFTWARE_LIST(config, "flop_list").set_original("smc777");
+	QUICKLOAD(config, "quickload", "com,cpm", attotime::from_seconds(3)).set_load_callback(FUNC(smc777_state::quickload_cb));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("sn1", SN76489A, MASTER_CLOCK) // unknown clock / divider
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	SN76489A(config, "sn1", MASTER_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.50); // unknown clock / divider
 
 	BEEP(config, m_beeper, 300); // TODO: correct frequency
 	m_beeper->add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("keyboard_timer", smc777_state, keyboard_callback, attotime::from_hz(240/32))
-MACHINE_CONFIG_END
+	TIMER(config, "keyboard_timer").configure_periodic(FUNC(smc777_state::keyboard_callback), attotime::from_hz(240/32));
+}
 
 /* ROM definition */
 ROM_START( smc777 )
@@ -1079,8 +1157,8 @@ ROM_START( smc777 )
 	ROM_SYSTEM_BIOS(1, "2nd", "2nd rev.")
 	ROMX_LOAD( "smcrom.v2",  0x0000, 0x4000, CRC(c1494b8f) SHA1(a7396f5c292f11639ffbf0b909e8473c5aa63518), ROM_BIOS(1))
 
-	ROM_REGION( 0x800, "mcu", ROMREGION_ERASEFF )
-	ROM_LOAD( "i80xx", 0x000, 0x800, NO_DUMP ) // keyboard mcu, needs decapping
+	ROM_REGION( 0x400, "mcu", ROMREGION_ERASEFF )
+	ROM_LOAD( "m5l8041a-077p.bin", 0x000, 0x400, NO_DUMP ) // 8041 keyboard mcu, needs decapping
 ROM_END
 
 /* Driver */

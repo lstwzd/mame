@@ -28,7 +28,7 @@ DEFINE_DEVICE_TYPE(BBC_OPUS1770, bbc_opus1770_device, "bbc_opus1770", "Opus D-DO
 
 
 //-------------------------------------------------
-//  MACHINE_DRIVER( opus2791 )
+//  FLOPPY_FORMATS( floppy_formats )
 //-------------------------------------------------
 
 FLOPPY_FORMATS_MEMBER( bbc_opusfdc_device::floppy_formats )
@@ -37,7 +37,7 @@ FLOPPY_FORMATS_MEMBER( bbc_opusfdc_device::floppy_formats )
 	FLOPPY_FSD_FORMAT,
 	FLOPPY_OPUS_DDOS_FORMAT,
 	FLOPPY_OPUS_DDCPM_FORMAT
-FLOPPY_FORMATS_END0
+FLOPPY_FORMATS_END
 
 static void bbc_floppies_525(device_slot_interface &device)
 {
@@ -47,6 +47,10 @@ static void bbc_floppies_525(device_slot_interface &device)
 	device.option_add("525dd",   FLOPPY_525_DD);
 	device.option_add("525qd",   FLOPPY_525_QD);
 }
+
+//-------------------------------------------------
+//  ROM( opus )
+//-------------------------------------------------
 
 ROM_START( opus8272 )
 	ROM_REGION(0x4000, "dfs_rom", 0)
@@ -212,7 +216,7 @@ void bbc_opusfdc_device::device_start()
 //  IMPLEMENTATION
 //**************************************************************************
 
-READ8_MEMBER(bbc_opus8272_device::read)
+uint8_t bbc_opus8272_device::read(offs_t offset)
 {
 	uint8_t data = 0xff;
 
@@ -226,21 +230,23 @@ READ8_MEMBER(bbc_opus8272_device::read)
 	case 0x06:
 		if (m_floppy0->get_device()) m_floppy0->get_device()->mon_w(1);
 		if (m_floppy1->get_device()) m_floppy1->get_device()->mon_w(1);
+		[[fallthrough]];
 	case 0x04:
-		data = m_fdc->msr_r(space, 0);
+		data = m_fdc->msr_r();
 		break;
 
 	case 0x05:
 		if (m_floppy0->get_device()) m_floppy0->get_device()->mon_w(0);
 		if (m_floppy1->get_device()) m_floppy1->get_device()->mon_w(0);
+		[[fallthrough]];
 	case 0x07:
-		data = m_fdc->fifo_r(space, 0);
+		data = m_fdc->fifo_r();
 		break;
 	}
 	return data;
 }
 
-WRITE8_MEMBER(bbc_opus8272_device::write)
+void bbc_opus8272_device::write(offs_t offset, uint8_t data)
 {
 	floppy_image_device *floppy = nullptr;
 
@@ -258,14 +264,15 @@ WRITE8_MEMBER(bbc_opus8272_device::write)
 	case 0x05:
 		if (m_floppy0->get_device()) m_floppy0->get_device()->mon_w(0);
 		if (m_floppy1->get_device()) m_floppy1->get_device()->mon_w(0);
+		[[fallthrough]];
 	case 0x07:
-		m_fdc->fifo_w(space, 0, data);
+		m_fdc->fifo_w(data);
 		break;
 	}
 }
 
 
-READ8_MEMBER(bbc_opusfdc_device::read)
+uint8_t bbc_opusfdc_device::read(offs_t offset)
 {
 	uint8_t data;
 
@@ -280,7 +287,7 @@ READ8_MEMBER(bbc_opusfdc_device::read)
 	return data;
 }
 
-WRITE8_MEMBER(bbc_opusfdc_device::write)
+void bbc_opusfdc_device::write(offs_t offset, uint8_t data)
 {
 	if (offset & 0x04)
 	{

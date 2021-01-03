@@ -39,6 +39,18 @@
 
 */
 
+/*
+ * The EISA_DMA device represents the 82C37A-compatible DMA devices present in
+ * EISA bus systems, in particular those embedded within the i82357 Integrated
+ * System Peripheral. The device supports 32 bit addressing, 32 bit data sizes,
+ * and 24 bit transfer counts, allowing DMA across 64k boundaries. It also adds
+ * stop registers, supporting ring-buffer memory arrangements.
+ *
+ * TODO
+ *   - stop registers
+ *   - 16/32-bit transfer sizes
+ */
+
 #include "emu.h"
 #include "am9517a.h"
 
@@ -54,6 +66,7 @@
 DEFINE_DEVICE_TYPE(AM9517A,      am9517a_device,      "am9517a",  "AM9517A")
 DEFINE_DEVICE_TYPE(V5X_DMAU,     v5x_dmau_device,     "v5x_dmau", "V5X DMAU")
 DEFINE_DEVICE_TYPE(PCXPORT_DMAC, pcxport_dmac_device, "pcx_dmac", "PC Transporter DMAC")
+DEFINE_DEVICE_TYPE(EISA_DMA,     eisa_dma_device,     "eisa_dma", "EISA DMA")
 
 
 //**************************************************************************
@@ -290,8 +303,6 @@ inline void am9517a_device::dma_advance()
 {
 	bool msb_changed = false;
 
-	m_channel[m_current_channel].m_count--;
-
 	if (m_current_channel || !COMMAND_MEM_TO_MEM || !COMMAND_CH0_ADDRESS_HOLD)
 	{
 		if (MODE_ADDRESS_DECREMENT)
@@ -316,7 +327,7 @@ inline void am9517a_device::dma_advance()
 		}
 	}
 
-	if (m_channel[m_current_channel].m_count == 0xffff)
+	if (m_channel[m_current_channel].m_count-- == 0)
 	{
 		end_of_process();
 	}
@@ -386,8 +397,7 @@ void am9517a_device::end_of_process()
 		m_mask |= 1 << m_current_channel;
 	}
 
-	// signal end of process
-	set_eop(ASSERT_LINE);
+	set_eop(CLEAR_LINE);
 	set_hreq(0);
 
 	m_current_channel = -1;
@@ -418,9 +428,9 @@ am9517a_device::am9517a_device(const machine_config &mconfig, device_type type, 
 		m_out_eop_cb(*this),
 		m_in_memr_cb(*this),
 		m_out_memw_cb(*this),
-		m_in_ior_cb{ { *this }, { *this }, { *this }, { *this } },
-		m_out_iow_cb{ { *this }, { *this }, { *this }, { *this } },
-		m_out_dack_cb{ { *this }, { *this }, { *this }, { *this } }
+		m_in_ior_cb(*this),
+		m_out_iow_cb(*this),
+		m_out_dack_cb(*this)
 {
 }
 
@@ -434,8 +444,8 @@ v5x_dmau_device::v5x_dmau_device(const machine_config &mconfig, const char *tag,
 	: am9517a_device(mconfig, V5X_DMAU, tag, owner, clock)
 	, m_in_mem16r_cb(*this)
 	, m_out_mem16w_cb(*this)
-	, m_in_io16r_cb{ { *this },{ *this },{ *this },{ *this } }
-	, m_out_io16w_cb{ { *this },{ *this },{ *this },{ *this } }
+	, m_in_io16r_cb(*this)
+	, m_out_io16w_cb(*this)
 
 {
 }
@@ -459,12 +469,9 @@ void am9517a_device::device_start()
 	m_out_eop_cb.resolve_safe();
 	m_in_memr_cb.resolve_safe(0);
 	m_out_memw_cb.resolve_safe();
-	for(auto &cb : m_in_ior_cb)
-		cb.resolve_safe(0);
-	for(auto &cb : m_out_iow_cb)
-		cb.resolve_safe();
-	for(auto &cb : m_out_dack_cb)
-		cb.resolve_safe();
+	m_in_ior_cb.resolve_all_safe(0);
+	m_out_iow_cb.resolve_all_safe();
+	m_out_dack_cb.resolve_all_safe();
 
 	for(auto &elem : m_channel)
 	{
@@ -490,17 +497,16 @@ void am9517a_device::device_start()
 	save_item(NAME(m_temp));
 	save_item(NAME(m_request));
 
-	for (int i = 0; i < 4; i++)
-	{
-		save_item(NAME(m_channel[i].m_address), i);
-		save_item(NAME(m_channel[i].m_count), i);
-		save_item(NAME(m_channel[i].m_base_address), i);
-		save_item(NAME(m_channel[i].m_base_count), i);
-		save_item(NAME(m_channel[i].m_mode), i);
-	}
+	save_item(STRUCT_MEMBER(m_channel, m_address));
+	save_item(STRUCT_MEMBER(m_channel, m_count));
+	save_item(STRUCT_MEMBER(m_channel, m_base_address));
+	save_item(STRUCT_MEMBER(m_channel, m_base_count));
+	save_item(STRUCT_MEMBER(m_channel, m_mode));
 
 	m_address_mask = 0xffff;
 
+	// force clear upon initial reset
+	m_eop = ASSERT_LINE;
 }
 
 
@@ -520,10 +526,9 @@ void am9517a_device::device_reset()
 	m_current_channel = -1;
 	m_last_channel = 3;
 	m_hreq = -1;
-	m_eop = 0;
 
 	set_hreq(0);
-	set_eop(ASSERT_LINE);
+	set_eop(CLEAR_LINE);
 
 	set_dack();
 }
@@ -540,8 +545,6 @@ void am9517a_device::execute_run()
 		switch (m_state)
 		{
 		case STATE_SI:
-			set_eop(CLEAR_LINE);
-
 			if (!COMMAND_DISABLE)
 			{
 				int priority[] = { 0, 1, 2, 3 };
@@ -617,10 +620,23 @@ void am9517a_device::execute_run()
 
 		case STATE_S2:
 			set_dack();
-			m_state = COMMAND_COMPRESSED_TIMING ? STATE_S4 : STATE_S3;
+			if (COMMAND_COMPRESSED_TIMING)
+			{
+				// signal end of process during last cycle
+				if (m_channel[m_current_channel].m_count == 0)
+					set_eop(ASSERT_LINE);
+
+				m_state = STATE_S4;
+			}
+			else
+				m_state = STATE_S3;
 			break;
 
 		case STATE_S3:
+			// signal end of process during last cycle
+			if (m_channel[m_current_channel].m_count == 0)
+				set_eop(ASSERT_LINE);
+
 			dma_read();
 
 			if (COMMAND_EXTENDED_WRITE)
@@ -680,6 +696,10 @@ void am9517a_device::execute_run()
 			break;
 
 		case STATE_S23:
+			// signal end of process during last cycle
+			if (m_channel[m_current_channel].m_count == 0)
+				set_eop(ASSERT_LINE);
+
 			m_state = STATE_S24;
 			break;
 
@@ -712,7 +732,7 @@ void am9517a_device::execute_run()
 //  read -
 //-------------------------------------------------
 
-READ8_MEMBER( am9517a_device::read )
+uint8_t am9517a_device::read(offs_t offset)
 {
 	uint8_t data = 0;
 
@@ -776,7 +796,7 @@ READ8_MEMBER( am9517a_device::read )
 //  write -
 //-------------------------------------------------
 
-WRITE8_MEMBER( am9517a_device::write )
+void am9517a_device::write(offs_t offset, uint8_t data)
 {
 	if (!BIT(offset, 3))
 	{
@@ -833,15 +853,11 @@ WRITE8_MEMBER( am9517a_device::write )
 
 				if (BIT(data, 2))
 				{
-					m_request |= (1 << (channel + 4));
-					if (COMMAND_MEM_TO_MEM)
-					{
-						m_request |= (1 << channel);
-					}
+					m_request |= (1 << channel);
 				}
 				else
 				{
-					m_request &= ~(1 << (channel + 4));
+					m_request &= ~(1 << channel);
 				}
 
 				LOG("AM9517A Request Register: %01x\n", m_request);
@@ -992,10 +1008,8 @@ void v5x_dmau_device::device_start()
 
 	m_in_mem16r_cb.resolve_safe(0);
 	m_out_mem16w_cb.resolve_safe();
-	for (auto &cb : m_in_io16r_cb)
-		cb.resolve_safe(0);
-	for (auto &cb : m_out_io16w_cb)
-		cb.resolve_safe();
+	m_in_io16r_cb.resolve_all_safe(0);
+	m_out_io16w_cb.resolve_all_safe();
 
 	m_selected_channel = 0;
 	m_base = 0;
@@ -1013,7 +1027,7 @@ void v5x_dmau_device::device_reset()
 }
 
 
-READ8_MEMBER(v5x_dmau_device::read)
+uint8_t v5x_dmau_device::read(offs_t offset)
 {
 	uint8_t ret = 0;
 	int channel = m_selected_channel;
@@ -1097,7 +1111,7 @@ READ8_MEMBER(v5x_dmau_device::read)
 	return ret;
 }
 
-WRITE8_MEMBER(v5x_dmau_device::write)
+void v5x_dmau_device::write(offs_t offset, uint8_t data)
 {
 	int channel = m_selected_channel;
 
@@ -1108,12 +1122,12 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			//m_buswidth = data & 0x02;
 			//if (data & 0x01)
 			//  soft_reset();
-			logerror("DMA: Initialise [%02x]\n", data);
+			LOG("DMA: Initialise [%02x]\n", data);
 			break;
 		case 0x01:  // Channel
 			m_selected_channel = data & 0x03;
 			m_base = data & 0x04;
-			logerror("DMA: Channel selected [%02x]\n", data);
+			LOG("DMA: Channel selected [%02x]\n", data);
 			break;
 		case 0x02:  // Count (low)
 			m_channel[channel].m_base_count =
@@ -1121,7 +1135,7 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_count =
 				(m_channel[channel].m_count & 0xff00) | data;
-			logerror("DMA: Channel %i Counter set [%04x]\n", m_selected_channel, m_channel[channel].m_base_count);
+			LOG("DMA: Channel %i Counter set [%04x]\n", m_selected_channel, m_channel[channel].m_base_count);
 			break;
 		case 0x03:  // Count (high)
 			m_channel[channel].m_base_count =
@@ -1129,7 +1143,7 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_count =
 				(m_channel[channel].m_count & 0x00ff) | (data << 8);
-			logerror("DMA: Channel %i Counter set [%04x]\n", m_selected_channel, m_channel[channel].m_base_count);
+			LOG("DMA: Channel %i Counter set [%04x]\n", m_selected_channel, m_channel[channel].m_base_count);
 			break;
 		case 0x04:  // Address (low)
 			m_channel[channel].m_base_address =
@@ -1137,7 +1151,7 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_address =
 				(m_channel[channel].m_address & 0xffffff00) | data;
-			logerror("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
+			LOG("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
 			break;
 		case 0x05:  // Address (mid)
 			m_channel[channel].m_base_address =
@@ -1145,7 +1159,7 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_address =
 				(m_channel[channel].m_address & 0xffff00ff) | (data << 8);
-			logerror("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
+			LOG("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
 			break;
 		case 0x06:  // Address (high)
 			m_channel[channel].m_base_address =
@@ -1153,7 +1167,7 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_address =
 				(m_channel[channel].m_address & 0xff00ffff) | (data << 16);
-			logerror("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
+			LOG("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
 			break;
 		case 0x07:  // Address (highest)
 			m_channel[channel].m_base_address =
@@ -1161,31 +1175,31 @@ WRITE8_MEMBER(v5x_dmau_device::write)
 			if (m_base == 0)
 				m_channel[channel].m_address =
 				(m_channel[channel].m_address & 0x00ffffff) | (data << 24);
-			logerror("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
+			LOG("DMA: Channel %i Address set [%08x]\n", m_selected_channel, m_channel[channel].m_base_address);
 			break;
 		case 0x0a:  // Mode control
 			m_channel[channel].m_mode = data;
 			// clear terminal count
 			m_status &= ~(1 << channel);
 
-			logerror("DMA: Channel %i Mode control set [%02x]\n",m_selected_channel,m_channel[channel].m_mode);
+			LOG("DMA: Channel %i Mode control set [%02x]\n",m_selected_channel,m_channel[channel].m_mode);
 			break;
 
 		case 0x08:  // Device control (low)
 			m_command = data;
-			logerror("DMA: Device control low set [%02x]\n",data);
+			LOG("DMA: Device control low set [%02x]\n",data);
 			break;
 		case 0x09:  // Device control (high)
 			m_command_high = data;
-			logerror("DMA: Device control high set [%02x]\n",data);
+			LOG("DMA: Device control high set [%02x]\n",data);
 			break;
 		case 0x0e:  // Request
 			//m_reg.request = data;
-			logerror("(invalid) DMA: Request set [%02x]\n",data); // no software requests on the v53 integrated version
+			LOG("(invalid) DMA: Request set [%02x]\n",data); // no software requests on the v53 integrated version
 			break;
 		case 0x0f:  // Mask
 			m_mask = data & 0x0f;
-			logerror("DMA: Mask set [%02x]\n",data);
+			LOG("DMA: Mask set [%02x]\n",data);
 			break;
 
 
@@ -1257,10 +1271,9 @@ void pcxport_dmac_device::device_reset()
 	m_current_channel = -1;
 	m_last_channel = 3;
 	m_hreq = -1;
-	m_eop = 0;
 
 	set_hreq(0);
-	set_eop(ASSERT_LINE);
+	set_eop(CLEAR_LINE);
 
 	set_dack();
 }
@@ -1289,12 +1302,26 @@ void pcxport_dmac_device::end_of_process()
 	}
 	// don't mask out channel if not autoinitialize
 
-	// signal end of process
-	set_eop(ASSERT_LINE);
+	set_eop(CLEAR_LINE);
 	set_hreq(0);
 
 	m_current_channel = -1;
 	set_dack();
 
 	m_state = STATE_SI;
+}
+
+eisa_dma_device::eisa_dma_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: am9517a_device(mconfig, EISA_DMA, tag, owner, clock)
+{
+}
+
+void eisa_dma_device::device_start()
+{
+	am9517a_device::device_start();
+
+	m_address_mask = 0xffffffffU;
+
+	save_item(NAME(m_stop));
+	save_item(NAME(m_ext_mode));
 }

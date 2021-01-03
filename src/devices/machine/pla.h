@@ -11,24 +11,6 @@
 
 #pragma once
 
-///*************************************************************************
-//  INTERFACE CONFIGURATION MACROS
-///*************************************************************************
-
-#define MCFG_PLA_ADD(tag, inputs, outputs, terms) \
-		MCFG_DEVICE_ADD((tag), PLA, 0) \
-		downcast<pla_device &>(*device).set_num_inputs((inputs)); \
-		downcast<pla_device &>(*device).set_num_outputs((outputs)); \
-		downcast<pla_device &>(*device).set_num_terms((terms));
-
-#define MCFG_PLA_INPUTMASK(mask) \
-		downcast<pla_device &>(*device).set_inputmask((mask));
-
-#define MCFG_PLA_FILEFORMAT(format) \
-		downcast<pla_device &>(*device).set_format((pla_device::FMT::format));
-
-
-// macros for known (and used) devices
 
 // 82S100, 82S101, PLS100, PLS101
 // 16x48x8 PLA, 28-pin:
@@ -48,8 +30,7 @@
      F4  13 |             | 16  F2
     GND  14 |_____________| 15  F3
 */
-#define MCFG_PLS100_ADD(tag) \
-	MCFG_DEVICE_ADD((tag), PLS100)
+
 
 ///*************************************************************************
 //  TYPE DEFINITIONS
@@ -88,6 +69,7 @@ public:
 	uint32_t outputs() { return m_outputs; }
 
 	uint32_t read(uint32_t input);
+	bool reinit();
 
 protected:
 	// device-level overrides
@@ -98,7 +80,7 @@ private:
 	static constexpr unsigned MAX_CACHE_BITS  = 20;
 	static constexpr unsigned CACHE2_SIZE     = 8;
 
-	void parse_fusemap();
+	int parse_fusemap();
 
 	required_memory_region m_region;
 

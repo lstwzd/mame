@@ -8,7 +8,7 @@
 
 #include "machine/nscsi_bus.h"
 
-class aic6250_device : public nscsi_device
+class aic6250_device : public nscsi_device, public nscsi_slot_card_interface
 {
 public:
 	aic6250_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
@@ -25,8 +25,8 @@ public:
 
 	DECLARE_WRITE_LINE_MEMBER(back_w);
 
-	DECLARE_READ8_MEMBER(read);
-	DECLARE_WRITE8_MEMBER(write);
+	u8 read(address_space &space, offs_t offset);
+	void write(offs_t offset, u8 data);
 
 	u8 dma_r();
 	u16 dma16_r();
@@ -34,6 +34,8 @@ public:
 	void dma16_w(u16 data);
 
 protected:
+	aic6250_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+
 	// standard device_interface overrides
 	virtual void device_start() override;
 	virtual void device_reset() override;
@@ -52,11 +54,11 @@ protected:
 	u8 status_reg_1_r();
 	u8 scsi_signal_reg_r();
 	u8 scsi_id_data_r();
-	u8 source_dest_id_r() { logerror("source_dest_id_r\n"); return m_source_dest_id; }
+	u8 source_dest_id_r() { return m_source_dest_id; }
 	u8 memory_data_r();
 	u8 port_a_r();
 	u8 port_b_r();
-	u8 scsi_latch_data_r() { logerror("scsi_latch_data_r 0x%02x\n", m_scsi_latch_data); return m_scsi_latch_data; }
+	u8 scsi_latch_data_r() { return m_scsi_latch_data; }
 
 	void dma_count_l_w(u8 data) { m_dma_count &= ~0x0000ff; m_dma_count |= (data << 0); }
 	void dma_count_m_w(u8 data) { m_dma_count &= ~0x00ff00; m_dma_count |= (data << 8); }
@@ -277,6 +279,13 @@ private:
 	util::fifo <u8, 8> m_fifo;
 };
 
+class aic6251a_device : public aic6250_device
+{
+public:
+	aic6251a_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+};
+
 DECLARE_DEVICE_TYPE(AIC6250, aic6250_device)
+DECLARE_DEVICE_TYPE(AIC6251A, aic6251a_device)
 
 #endif // MAME_MACHINE_AIC6250_H

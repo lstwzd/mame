@@ -18,17 +18,6 @@
 
 
 //**************************************************************************
-//  INTERFACE CONFIGURATION MACROS
-//**************************************************************************
-
-#define MCFG_HUC6272_IRQ_CHANGED_CB(cb) \
-		downcast<huc6272_device &>(*device).set_irq_changed_callback((DEVCB_##cb));
-
-#define MCFG_HUC6272_RAINBOW(tag) \
-		downcast<huc6272_device &>(*device).set_rainbow_tag((tag));
-
-
-//**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
 
@@ -38,22 +27,24 @@ class huc6272_device :  public device_t,
 						public device_memory_interface
 {
 public:
+	static constexpr feature_type imperfect_features() { return feature::SOUND | feature::GRAPHICS; } // Incorrect ADPCM and Graphics
+
 	// construction/destruction
 	huc6272_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	template <class Object> devcb_base &set_irq_changed_callback(Object &&cb) { return m_irq_changed_cb.set_callback(std::forward<Object>(cb)); }
+	auto irq_changed_callback() { return m_irq_changed_cb.bind(); }
 	template <typename T> void set_rainbow_tag(T &&tag) { m_huc6271.set_tag(std::forward<T>(tag)); }
 
 	// I/O operations
-	DECLARE_WRITE32_MEMBER( write );
-	DECLARE_READ32_MEMBER( read );
+	void write(offs_t offset, uint32_t data);
+	uint32_t read(offs_t offset);
 
 	// ADPCM operations
-	DECLARE_READ8_MEMBER( adpcm_update_0 );
-	DECLARE_READ8_MEMBER( adpcm_update_1 );
+	uint8_t adpcm_update_0();
+	uint8_t adpcm_update_1();
 
 	// CD-DA operations
-	DECLARE_WRITE8_MEMBER( cdda_update );
+	void cdda_update(offs_t offset, uint8_t data);
 
 	static void cdrom_config(device_t *device);
 

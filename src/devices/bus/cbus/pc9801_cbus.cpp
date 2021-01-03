@@ -55,8 +55,9 @@ device_pc9801cbus_card_interface::~device_pc9801cbus_card_interface()
 pc9801_slot_device::pc9801_slot_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, PC9801CBUS_SLOT, tag, owner, clock),
 	device_slot_interface(mconfig, *this),
-	m_cpu(*this, finder_base::DUMMY_TAG),
-	m_int_callback{{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}}
+	m_memspace(*this, finder_base::DUMMY_TAG, -1),
+	m_iospace(*this, finder_base::DUMMY_TAG, -1),
+	m_int_callback(*this)
 {
 }
 
@@ -81,8 +82,7 @@ void pc9801_slot_device::device_config_complete()
 
 void pc9801_slot_device::device_resolve_objects()
 {
-	for (auto &cb : m_int_callback)
-		cb.resolve_safe();
+	m_int_callback.resolve_all_safe();
 }
 
 
@@ -95,21 +95,26 @@ void pc9801_slot_device::device_start()
 //  m_card = dynamic_cast<device_pc9801_slot_card_interface *>(get_card_device());
 }
 
-void pc9801_slot_device::install_io(offs_t start, offs_t end, read8_delegate rhandler, write8_delegate whandler)
+template<typename R, typename W> void pc9801_slot_device::install_io(offs_t start, offs_t end, R rhandler, W whandler)
 {
-	int buswidth = this->io_space().data_width();
+	int buswidth = m_iospace->data_width();
 	switch(buswidth)
 	{
 		case 8:
-			this->io_space().install_readwrite_handler(start, end, rhandler, whandler, 0);
+			m_iospace->install_readwrite_handler(start, end, rhandler, whandler, 0);
 			break;
 		case 16:
-			this->io_space().install_readwrite_handler(start, end, rhandler, whandler, 0xffff);
+			m_iospace->install_readwrite_handler(start, end, rhandler, whandler, 0xffff);
 			break;
 		case 32:
-			this->io_space().install_readwrite_handler(start, end, rhandler, whandler, 0xffffffff);
+			m_iospace->install_readwrite_handler(start, end, rhandler, whandler, 0xffffffff);
 			break;
 		default:
 			fatalerror("PC-9801-26: Bus width %d not supported\n", buswidth);
 	}
 }
+
+template void pc9801_slot_device::install_io<read8_delegate,    write8_delegate   >(offs_t start, offs_t end, read8_delegate rhandler,    write8_delegate whandler);
+template void pc9801_slot_device::install_io<read8s_delegate,   write8s_delegate  >(offs_t start, offs_t end, read8s_delegate rhandler,   write8s_delegate whandler);
+template void pc9801_slot_device::install_io<read8sm_delegate,  write8sm_delegate >(offs_t start, offs_t end, read8sm_delegate rhandler,  write8sm_delegate whandler);
+template void pc9801_slot_device::install_io<read8smo_delegate, write8smo_delegate>(offs_t start, offs_t end, read8smo_delegate rhandler, write8smo_delegate whandler);

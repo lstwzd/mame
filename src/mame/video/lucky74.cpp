@@ -82,7 +82,7 @@
                                            _
 
 
-    Regarding the abobe diagram, there are 2 different states controlled by both 06B53P.
+    Regarding the above diagram, there are 2 different states controlled by both 06B53P.
     Each state arrange a different palette that will be assigned to each graphics bank.
 
     As we can see here, same pin of different PROMs are connected together in parallel.
@@ -100,32 +100,32 @@
 #include "includes/lucky74.h"
 
 
-WRITE8_MEMBER(lucky74_state::lucky74_fg_videoram_w)
+void lucky74_state::fg_videoram_w(offs_t offset, uint8_t data)
 {
 	m_fg_videoram[offset] = data;
 	m_fg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(lucky74_state::lucky74_fg_colorram_w)
+void lucky74_state::fg_colorram_w(offs_t offset, uint8_t data)
 {
 	m_fg_colorram[offset] = data;
 	m_fg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(lucky74_state::lucky74_bg_videoram_w)
+void lucky74_state::bg_videoram_w(offs_t offset, uint8_t data)
 {
 	m_bg_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(lucky74_state::lucky74_bg_colorram_w)
+void lucky74_state::bg_colorram_w(offs_t offset, uint8_t data)
 {
 	m_bg_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
 
-void lucky74_state::lucky74_palette(palette_device &palette) const
+void lucky74_state::palette(palette_device &palette) const
 {
 	// There are 2 states (see the technical notes).
 	// We're constructing a double-sized palette with one half for each state.
@@ -147,42 +147,42 @@ void lucky74_state::lucky74_palette(palette_device &palette) const
 		bit1 = BIT(color_prom[0x000 + i], 1);
 		bit2 = BIT(color_prom[0x000 + i], 2);
 		bit3 = BIT(color_prom[0x000 + i], 3);
-		int const r1 = combine_4_weights(weights_r, bit0, bit1, bit2, bit3);
+		int const r1 = combine_weights(weights_r, bit0, bit1, bit2, bit3);
 
 		// red component (this 2, PROM E7)
 		bit0 = BIT(color_prom[0x100 + i], 0);
 		bit1 = BIT(color_prom[0x100 + i], 1);
 		bit2 = BIT(color_prom[0x100 + i], 2);
 		bit3 = BIT(color_prom[0x100 + i], 3);
-		int const r2 = combine_4_weights(weights_r, bit0, bit1, bit2, bit3);
+		int const r2 = combine_weights(weights_r, bit0, bit1, bit2, bit3);
 
 		// green component (this 1, PROM D6)
 		bit0 = BIT(color_prom[0x200 + i], 0);
 		bit1 = BIT(color_prom[0x200 + i], 1);
 		bit2 = BIT(color_prom[0x200 + i], 2);
 		bit3 = BIT(color_prom[0x200 + i], 3);
-		int const g1 = combine_4_weights(weights_g, bit0, bit1, bit2, bit3);
+		int const g1 = combine_weights(weights_g, bit0, bit1, bit2, bit3);
 
 		// green component (this 2, PROM D7)
 		bit0 = BIT(color_prom[0x300 + i], 0);
 		bit1 = BIT(color_prom[0x300 + i], 1);
 		bit2 = BIT(color_prom[0x300 + i], 2);
 		bit3 = BIT(color_prom[0x300 + i], 3);
-		int const g2 = combine_4_weights(weights_g, bit0, bit1, bit2, bit3);
+		int const g2 = combine_weights(weights_g, bit0, bit1, bit2, bit3);
 
 		// blue component (this 1, PROM C6)
 		bit0 = BIT(color_prom[0x400 + i], 0);
 		bit1 = BIT(color_prom[0x400 + i], 1);
 		bit2 = BIT(color_prom[0x400 + i], 2);
 		bit3 = BIT(color_prom[0x400 + i], 3);
-		int const b1 = combine_4_weights(weights_b, bit0, bit1, bit2, bit3);
+		int const b1 = combine_weights(weights_b, bit0, bit1, bit2, bit3);
 
 		// blue component (this 2, PROM C7)
 		bit0 = BIT(color_prom[0x500 + i], 0);
 		bit1 = BIT(color_prom[0x500 + i], 1);
 		bit2 = BIT(color_prom[0x500 + i], 2);
 		bit3 = BIT(color_prom[0x500 + i], 3);
-		int const b2 = combine_4_weights(weights_b, bit0, bit1, bit2, bit3);
+		int const b2 = combine_weights(weights_b, bit0, bit1, bit2, bit3);
 
 
 		// PROMs circuitry, 1st state
@@ -206,7 +206,7 @@ TILE_GET_INFO_MEMBER(lucky74_state::get_fg_tile_info)
 	int code = m_fg_videoram[tile_index] + ((attr & 0xf0) << 4);
 	int color = (attr & 0x0f);
 
-	SET_TILE_INFO_MEMBER(bank, code, color, 0);
+	tileinfo.set(bank, code, color, 0);
 }
 
 TILE_GET_INFO_MEMBER(lucky74_state::get_bg_tile_info)
@@ -221,19 +221,19 @@ TILE_GET_INFO_MEMBER(lucky74_state::get_bg_tile_info)
 	int code = m_bg_videoram[tile_index] + ((attr & 0xf0) << 4);
 	int color = (attr & 0x0f);
 
-	SET_TILE_INFO_MEMBER(bank, code, color, 0);
+	tileinfo.set(bank, code, color, 0);
 }
 
 
 void lucky74_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(lucky74_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
-	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(lucky74_state::get_fg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(lucky74_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(lucky74_state::get_fg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
 
 	m_fg_tilemap->set_transparent_pen(0);
 }
 
-uint32_t lucky74_state::screen_update_lucky74(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t lucky74_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	m_bg_tilemap->draw(screen, bitmap, cliprect, 0, 0);
 	m_fg_tilemap->draw(screen, bitmap, cliprect, 0, 0);

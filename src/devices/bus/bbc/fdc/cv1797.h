@@ -27,8 +27,6 @@ class bbc_cv1797_device :
 	public device_bbc_fdc_interface
 {
 public:
-	static constexpr feature_type imperfect_features() { return feature::DISK; }
-
 	// construction/destruction
 	bbc_cv1797_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
@@ -40,19 +38,18 @@ protected:
 	virtual void device_add_mconfig(machine_config &config) override;
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
-	virtual DECLARE_READ8_MEMBER(read) override;
-	virtual DECLARE_WRITE8_MEMBER(write) override;
+	virtual uint8_t read(offs_t offset) override;
+	virtual void write(offs_t offset, uint8_t data) override;
 
 private:
 	DECLARE_FLOPPY_FORMATS(floppy_formats);
 
-	DECLARE_WRITE_LINE_MEMBER(motor_w);
+	DECLARE_WRITE_LINE_MEMBER(fdc_sso_w);
+	DECLARE_WRITE_LINE_MEMBER(fdc_hld_w);
 
 	required_device<fd1797_device> m_fdc;
-	required_device<floppy_connector> m_floppy0;
-	optional_device<floppy_connector> m_floppy1;
-
-	int m_drive_control;
+	required_device_array<floppy_connector, 2> m_floppies;
+	floppy_image_device* m_floppy;
 };
 
 

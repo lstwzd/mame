@@ -32,7 +32,7 @@
 
 DEFINE_DEVICE_TYPE_NS(TI99_MYARCMEM, bus::ti99::peb, myarc_memory_expansion_device, "ti99_myarcmem", "Myarc Memory expansion card MEXP-1")
 
-namespace bus { namespace ti99 { namespace peb {
+namespace bus::ti99::peb {
 
 /* This card has two CRU bases where it answers. */
 #define MYARCMEM_CRU_BASE1 0x1000
@@ -72,7 +72,7 @@ int myarc_memory_expansion_device::get_base(int offset)
     RAM is at 2000-3fff, a000-ffff;
     ROM is at 4000-5fff (if CRU bit 0 is set)
 */
-READ8Z_MEMBER(myarc_memory_expansion_device::readz)
+void myarc_memory_expansion_device::readz(offs_t offset, uint8_t *value)
 {
 	int base = get_base(offset);
 
@@ -101,7 +101,7 @@ READ8Z_MEMBER(myarc_memory_expansion_device::readz)
 /*
     Memory write access. DSRROM does not allow writing.
 */
-WRITE8_MEMBER(myarc_memory_expansion_device::write)
+void myarc_memory_expansion_device::write(offs_t offset, uint8_t data)
 {
 	int base = get_base(offset);
 
@@ -127,7 +127,7 @@ WRITE8_MEMBER(myarc_memory_expansion_device::write)
 /*
     CRU read. None here.
 */
-READ8Z_MEMBER(myarc_memory_expansion_device::crureadz)
+void myarc_memory_expansion_device::crureadz(offs_t offset, uint8_t *value)
 {
 }
 
@@ -142,7 +142,7 @@ READ8Z_MEMBER(myarc_memory_expansion_device::crureadz)
         1006 = bit 2 of RAM bank value (512K)
         1008 = bit 3 of RAM bank value (512K)
 */
-WRITE8_MEMBER(myarc_memory_expansion_device::cruwrite)
+void myarc_memory_expansion_device::cruwrite(offs_t offset, uint8_t data)
 {
 	if (((offset & 0xff00)==MYARCMEM_CRU_BASE1)||((offset & 0xff00)==MYARCMEM_CRU_BASE2))
 	{
@@ -211,4 +211,4 @@ ioport_constructor myarc_memory_expansion_device::device_input_ports() const
 	return INPUT_PORTS_NAME(myarc_exp);
 }
 
-} } } // end namespace bus::ti99::peb
+} // end namespace bus::ti99::peb

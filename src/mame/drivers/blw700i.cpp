@@ -34,12 +34,12 @@ public:
 
 	void lw700i(machine_config &config);
 
-	DECLARE_READ16_MEMBER(status_r) { return 0x8080; }  // "ready"
-	DECLARE_WRITE16_MEMBER(data_w) { }
+	uint16_t status_r() { return 0x8080; }  // "ready"
+	void data_w(uint16_t data) { }
 
-	DECLARE_READ8_MEMBER(p7_r);
-	DECLARE_READ8_MEMBER(pb_r);
-	DECLARE_WRITE8_MEMBER(pb_w);
+	uint8_t p7_r();
+	uint8_t pb_r();
+	void pb_w(uint8_t data);
 
 private:
 	virtual void machine_reset() override;
@@ -64,7 +64,7 @@ private:
 	uint8_t m_keyrow;
 };
 
-READ8_MEMBER(lw700i_state::p7_r)
+uint8_t lw700i_state::p7_r()
 {
 	//("Read P7 (PC=%x)\n", m_maincpu->pc());
 	// must be non-zero; f0 = French, fe = German, ff = English
@@ -81,12 +81,12 @@ READ8_MEMBER(lw700i_state::p7_r)
 	return 0xff;
 }
 
-READ8_MEMBER(lw700i_state::pb_r)
+uint8_t lw700i_state::pb_r()
 {
 	return 0;
 }
 
-WRITE8_MEMBER(lw700i_state::pb_w)
+void lw700i_state::pb_w(uint8_t data)
 {
 	//printf("%x to keyboard row\n", data);
 	m_keyrow = data;
@@ -122,29 +122,24 @@ void lw700i_state::video_start()
 
 uint32_t lw700i_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	uint32_t *scanline;
-	int x, y;
-	uint8_t pixels;
 	static const uint32_t palette[2] = { 0xffffff, 0 };
-	uint8_t *pVRAM = (uint8_t *)m_mainram.target();
+	uint8_t const *const pVRAM = (uint8_t *)m_mainram.target() + 0x3e200;
 
-	pVRAM += 0x3e200;
-
-	for (y = 0; y < 128; y++)
+	for (int y = 0; y < 128; y++)
 	{
-		scanline = &bitmap.pix32(y);
-		for (x = 0; x < 480/8; x++)
+		uint32_t *scanline = &bitmap.pix(y);
+		for (int x = 0; x < 480/8; x++)
 		{
-			pixels = pVRAM[(y * (480/8)) + (BYTE_XOR_BE(x))];
+			uint8_t const pixels = pVRAM[(y * (480/8)) + (BYTE_XOR_BE(x))];
 
-			*scanline++ = palette[(pixels>>7)&1];
-			*scanline++ = palette[(pixels>>6)&1];
-			*scanline++ = palette[(pixels>>5)&1];
-			*scanline++ = palette[(pixels>>4)&1];
-			*scanline++ = palette[(pixels>>3)&1];
-			*scanline++ = palette[(pixels>>2)&1];
-			*scanline++ = palette[(pixels>>1)&1];
-			*scanline++ = palette[(pixels&1)];
+			*scanline++ = palette[BIT(pixels, 7)];
+			*scanline++ = palette[BIT(pixels, 6)];
+			*scanline++ = palette[BIT(pixels, 5)];
+			*scanline++ = palette[BIT(pixels, 4)];
+			*scanline++ = palette[BIT(pixels, 3)];
+			*scanline++ = palette[BIT(pixels, 2)];
+			*scanline++ = palette[BIT(pixels, 1)];
+			*scanline++ = palette[BIT(pixels, 0)];
 		}
 	}
 
@@ -268,19 +263,20 @@ static INPUT_PORTS_START( lw700i )
 
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(lw700i_state::lw700i)
-	MCFG_DEVICE_ADD("maincpu", H83003, XTAL(16'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_IO_MAP(io_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", lw700i_state, vbl_interrupt, "screen", 0, 1)
+void lw700i_state::lw700i(machine_config &config)
+{
+	H83003(config, m_maincpu, XTAL(16'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &lw700i_state::main_map);
+	m_maincpu->set_addrmap(AS_IO, &lw700i_state::io_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(lw700i_state::vbl_interrupt), "screen", 0, 1);
 
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_UPDATE_DRIVER(lw700i_state, screen_update)
-	MCFG_SCREEN_SIZE(640, 400)
-	MCFG_SCREEN_VISIBLE_AREA(0, 480, 0, 128)
-MACHINE_CONFIG_END
+	SCREEN(config, m_screen, SCREEN_TYPE_LCD);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	m_screen->set_screen_update(FUNC(lw700i_state::screen_update));
+	m_screen->set_size(640, 400);
+	m_screen->set_visarea(0, 480, 0, 128);
+}
 
 ROM_START(blw700i)
 	ROM_REGION(0x200000, "maincpu", 0)      /* H8/3003 program ROM */

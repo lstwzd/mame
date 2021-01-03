@@ -48,7 +48,7 @@ void md_rom_sk_device::device_start()
  mapper specific handlers
  -------------------------------------------------*/
 
-READ16_MEMBER(md_rom_sk_device::read)
+uint16_t md_rom_sk_device::read(offs_t offset)
 {
 	if (m_exp->m_cart != nullptr && m_exp->m_cart->get_rom_base() != nullptr && offset >= 0x200000/2 && offset < (0x200000 + m_exp->m_cart->get_rom_size())/2)
 		return m_exp->m_cart->m_rom[offset - 0x200000/2];
@@ -58,7 +58,7 @@ READ16_MEMBER(md_rom_sk_device::read)
 		return 0xffff;
 }
 
-WRITE16_MEMBER(md_rom_sk_device::write)
+void md_rom_sk_device::write(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 // should there be anything here?
 }
@@ -79,7 +79,8 @@ static void sk_sub_cart(device_slot_interface &device)
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(md_rom_sk_device::device_add_mconfig)
-	MCFG_MD_CARTRIDGE_ADD("subslot", sk_sub_cart, nullptr)
-	MCFG_MD_CARTRIDGE_NOT_MANDATORY
-MACHINE_CONFIG_END
+void md_rom_sk_device::device_add_mconfig(machine_config &config)
+{
+	MD_CART_SLOT(config, m_exp, sk_sub_cart, nullptr);
+	m_exp->set_must_be_loaded(false);
+}

@@ -71,12 +71,11 @@ REAR BOARD      1C026           N/U       (CUSTOM ON ORIGINAL)
 #include "machine/watchdog.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "screen.h"
 #include "speaker.h"
 
 
-READ8_MEMBER(megazone_state::megazone_port_a_r)
+uint8_t megazone_state::megazone_port_a_r()
 {
 	int clock, timer;
 
@@ -95,7 +94,7 @@ READ8_MEMBER(megazone_state::megazone_port_a_r)
 	return (timer << 4) | m_i8039_status;
 }
 
-WRITE8_MEMBER(megazone_state::megazone_port_b_w)
+void megazone_state::megazone_port_b_w(uint8_t data)
 {
 	for (int i = 0; i < 3; i++)
 	{
@@ -110,12 +109,12 @@ WRITE8_MEMBER(megazone_state::megazone_port_b_w)
 	}
 }
 
-WRITE8_MEMBER(megazone_state::megazone_i8039_irq_w)
+void megazone_state::megazone_i8039_irq_w(uint8_t data)
 {
 	m_daccpu->set_input_line(0, ASSERT_LINE);
 }
 
-WRITE8_MEMBER(megazone_state::i8039_irqen_and_status_w)
+void megazone_state::i8039_irqen_and_status_w(uint8_t data)
 {
 	if ((data & 0x80) == 0)
 		m_daccpu->set_input_line(0, CLEAR_LINE);
@@ -149,7 +148,7 @@ void megazone_state::megazone_map(address_map &map)
 	map(0x2800, 0x2bff).ram().share("colorram");
 	map(0x2c00, 0x2fff).ram().share("colorram2");
 	map(0x3000, 0x33ff).ram().share("spriteram");
-	map(0x3800, 0x3fff).ram().share("share1");
+	map(0x3800, 0x3fff).lrw8([this](offs_t off) { return m_share1[off]; }, "share_r", [this](offs_t off, u8 data) { m_share1[off] = data; }, "share_w");
 	map(0x4000, 0xffff).rom();     /* 4000->5FFF is a debug rom */
 }
 
@@ -293,15 +292,15 @@ WRITE_LINE_MEMBER(megazone_state::vblank_irq)
 }
 
 
-MACHINE_CONFIG_START(megazone_state::megazone)
-
+void megazone_state::megazone(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", KONAMI1, XTAL(18'432'000)/9)        /* 2.048 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(megazone_map)
+	KONAMI1(config, m_maincpu, XTAL(18'432'000)/9);        /* 2.048 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &megazone_state::megazone_map);
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, XTAL(18'432'000)/6)     /* Z80 Clock is derived from the H1 signal */
-	MCFG_DEVICE_PROGRAM_MAP(megazone_sound_map)
-	MCFG_DEVICE_IO_MAP(megazone_sound_io_map)
+	Z80(config, m_audiocpu, XTAL(18'432'000)/6);     /* Z80 Clock is derived from the H1 signal */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &megazone_state::megazone_sound_map);
+	m_audiocpu->set_addrmap(AS_IO, &megazone_state::megazone_sound_io_map);
 
 	I8039(config, m_daccpu, XTAL(14'318'181)/2);    /* 7.15909MHz */
 	m_daccpu->set_addrmap(AS_PROGRAM, &megazone_state::megazone_i8039_map);
@@ -309,7 +308,7 @@ MACHINE_CONFIG_START(megazone_state::megazone)
 	m_daccpu->p1_out_cb().set("dac", FUNC(dac_byte_interface::data_w));
 	m_daccpu->p2_out_cb().set(FUNC(megazone_state::i8039_irqen_and_status_w));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(900))
+	config.set_maximum_quantum(attotime::from_hz(900));
 
 	ls259_device &mainlatch(LS259(config, "mainlatch")); // 13A
 	mainlatch.q_out_cb<0>().set(FUNC(megazone_state::coin_counter_2_w));
@@ -320,14 +319,14 @@ MACHINE_CONFIG_START(megazone_state::megazone)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(36*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(megazone_state, screen_update_megazone)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, megazone_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(36*8, 32*8);
+	screen.set_visarea(0*8, 36*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(megazone_state::screen_update_megazone));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(megazone_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_megazone);
 	PALETTE(config, m_palette, FUNC(megazone_state::megazone_palette), 16*16+16*16, 32);
@@ -344,17 +343,12 @@ MACHINE_CONFIG_START(megazone_state::megazone)
 	aysnd.add_route(1, "filter.0.1", 0.30);
 	aysnd.add_route(2, "filter.0.2", 0.30);
 
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
+	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // unknown DAC
 
-	MCFG_DEVICE_ADD("filter.0.0", FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
-	MCFG_DEVICE_ADD("filter.0.1", FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
-	MCFG_DEVICE_ADD("filter.0.2", FILTER_RC)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
-MACHINE_CONFIG_END
+	FILTER_RC(config, m_filter[0]).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	FILTER_RC(config, m_filter[1]).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	FILTER_RC(config, m_filter[2]).add_route(ALL_OUTPUTS, "speaker", 1.0);
+}
 
 
 

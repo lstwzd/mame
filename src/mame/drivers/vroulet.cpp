@@ -44,6 +44,7 @@ Tomasz Slanina 20050225
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class vroulet_state : public driver_device
@@ -73,12 +74,12 @@ private:
 
 	tilemap_t *m_bg_tilemap;
 
-	DECLARE_WRITE8_MEMBER(paletteram_w);
-	DECLARE_WRITE8_MEMBER(videoram_w);
-	DECLARE_WRITE8_MEMBER(colorram_w);
-	DECLARE_WRITE8_MEMBER(ppi8255_a_w);
-	DECLARE_WRITE8_MEMBER(ppi8255_b_w);
-	DECLARE_WRITE8_MEMBER(ppi8255_c_w);
+	void paletteram_w(offs_t offset, uint8_t data);
+	void videoram_w(offs_t offset, uint8_t data);
+	void colorram_w(offs_t offset, uint8_t data);
+	void ppi8255_a_w(uint8_t data);
+	void ppi8255_b_w(uint8_t data);
+	void ppi8255_c_w(uint8_t data);
 
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 
@@ -93,7 +94,7 @@ private:
 /* video */
 
 
-WRITE8_MEMBER(vroulet_state::paletteram_w)
+void vroulet_state::paletteram_w(offs_t offset, uint8_t data)
 {
 	/*
 	 paletteram_xxxxBBBBGGGGRRRR_byte_be_w
@@ -113,13 +114,13 @@ WRITE8_MEMBER(vroulet_state::paletteram_w)
 	}
 }
 
-WRITE8_MEMBER(vroulet_state::videoram_w)
+void vroulet_state::videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(vroulet_state::colorram_w)
+void vroulet_state::colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -131,14 +132,14 @@ TILE_GET_INFO_MEMBER(vroulet_state::get_bg_tile_info)
 	int code = m_videoram[tile_index] + ((attr & 0xc0) << 2);
 	int color = attr & 0x1f;
 
-	SET_TILE_INFO_MEMBER(0, code, color, 0);
+	tileinfo.set(0, code, color, 0);
 }
 
 void vroulet_state::video_start()
 {
 	m_bg_tilemap = &machine().tilemap().create(
 			*m_gfxdecode,
-			tilemap_get_info_delegate(FUNC(vroulet_state::get_bg_tile_info),this),
+			tilemap_get_info_delegate(*this, FUNC(vroulet_state::get_bg_tile_info)),
 			TILEMAP_SCAN_ROWS,
 			8, 8, 32, 32);
 }
@@ -273,18 +274,19 @@ GFXDECODE_END
 
 /* PPI8255 Interface */
 
-WRITE8_MEMBER(vroulet_state::ppi8255_a_w){}// watchdog ?
-WRITE8_MEMBER(vroulet_state::ppi8255_b_w){}// lamps ?
-WRITE8_MEMBER(vroulet_state::ppi8255_c_w){}
+void vroulet_state::ppi8255_a_w(uint8_t data) {}// watchdog ?
+void vroulet_state::ppi8255_b_w(uint8_t data) {}// lamps ?
+void vroulet_state::ppi8255_c_w(uint8_t data) {}
 
 /* Machine Driver */
 
-MACHINE_CONFIG_START(vroulet_state::vroulet)
+void vroulet_state::vroulet(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", Z80, 4000000)   //???
-	MCFG_DEVICE_PROGRAM_MAP(vroulet_map)
-	MCFG_DEVICE_IO_MAP(vroulet_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", vroulet_state,  irq0_line_hold)
+	Z80(config, m_maincpu, 4000000);   //???
+	m_maincpu->set_addrmap(AS_PROGRAM, &vroulet_state::vroulet_map);
+	m_maincpu->set_addrmap(AS_IO, &vroulet_state::vroulet_io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(vroulet_state::irq0_line_hold));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_1);
 
@@ -299,16 +301,16 @@ MACHINE_CONFIG_START(vroulet_state::vroulet)
 	ppi1.out_pc_callback().set(FUNC(vroulet_state::ppi8255_c_w));
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(vroulet_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(vroulet_state::screen_update));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_vroulet)
-	MCFG_PALETTE_ADD("palette", 128*4)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_vroulet);
+	PALETTE(config, m_palette).set_entries(128*4);
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
@@ -317,8 +319,7 @@ MACHINE_CONFIG_START(vroulet_state::vroulet)
 	aysnd.port_a_read_callback().set_ioport("DSWA");
 	aysnd.port_b_read_callback().set_ioport("DSWB");
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.25);
-
-MACHINE_CONFIG_END
+}
 
 /* ROMs */
 

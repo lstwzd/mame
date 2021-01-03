@@ -50,21 +50,21 @@ void sbasketb_state::sbasketb_palette(palette_device &palette) const
 		bit1 = BIT(color_prom[i | 0x000], 1);
 		bit2 = BIT(color_prom[i | 0x000], 2);
 		bit3 = BIT(color_prom[i | 0x000], 3);
-		int const r = combine_4_weights(rweights, bit0, bit1, bit2, bit3);
+		int const r = combine_weights(rweights, bit0, bit1, bit2, bit3);
 
 		// green component
 		bit0 = BIT(color_prom[i | 0x100], 0);
 		bit1 = BIT(color_prom[i | 0x100], 1);
 		bit2 = BIT(color_prom[i | 0x100], 2);
 		bit3 = BIT(color_prom[i | 0x100], 3);
-		int const g = combine_4_weights(gweights, bit0, bit1, bit2, bit3);
+		int const g = combine_weights(gweights, bit0, bit1, bit2, bit3);
 
 		// blue component
 		bit0 = BIT(color_prom[i | 0x200], 0);
 		bit1 = BIT(color_prom[i | 0x200], 1);
 		bit2 = BIT(color_prom[i | 0x200], 2);
 		bit3 = BIT(color_prom[i | 0x200], 3);
-		int const b = combine_4_weights(bweights, bit0, bit1, bit2, bit3);
+		int const b = combine_weights(bweights, bit0, bit1, bit2, bit3);
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -90,13 +90,13 @@ void sbasketb_state::sbasketb_palette(palette_device &palette) const
 	}
 }
 
-WRITE8_MEMBER(sbasketb_state::sbasketb_videoram_w)
+void sbasketb_state::sbasketb_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(sbasketb_state::sbasketb_colorram_w)
+void sbasketb_state::sbasketb_colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -119,12 +119,12 @@ TILE_GET_INFO_MEMBER(sbasketb_state::get_bg_tile_info)
 	int color = m_colorram[tile_index] & 0x0f;
 	int flags = ((m_colorram[tile_index] & 0x40) ? TILE_FLIPX : 0) | ((m_colorram[tile_index] & 0x80) ? TILE_FLIPY : 0);
 
-	SET_TILE_INFO_MEMBER(0, code, color, flags);
+	tileinfo.set(0, code, color, flags);
 }
 
 void sbasketb_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(sbasketb_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(sbasketb_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 	m_bg_tilemap->set_scroll_cols(32);
 
 	save_item(NAME(m_spriteram_select));

@@ -229,11 +229,11 @@ void md_boot_state::puckpkmn_map(address_map &map)
 
 	/* Unknown reads/writes: */
 	map(0xa00000, 0xa00551).nopw();                            /* ? */
-//  AM_RANGE(0xa10000, 0xa10001) AM_READNOP                                             /* ? once */
+//  map(0xa10000, 0xa10001).nopr();                                             /* ? once */
 	map(0xa10002, 0xa10005).noprw();                             /* ? alternative way of reading inputs ? */
 	map(0xa11100, 0xa11101).noprw();                             /* ? */
-//  AM_RANGE(0xa10008, 0xa1000d) AM_WRITENOP                                            /* ? once */
-//  AM_RANGE(0xa14000, 0xa14003) AM_WRITENOP                                            /* ? once */
+//  map(0xa10008, 0xa1000d).nopw();                                            /* ? once */
+//  map(0xa14000, 0xa14003).nopw();                                            /* ? once */
 	map(0xa11200, 0xa11201).nopw();                            /* ? */
 }
 
@@ -259,12 +259,12 @@ void md_boot_state::jzth_map(address_map &map)
 	map(0x710000, 0x710001).rw(FUNC(md_boot_state::bl_710000_r), FUNC(md_boot_state::bl_710000_w)); // protection, will erase the VDP address causing writes to 0 unless this returns 0xe
 }
 
-READ16_MEMBER(md_boot_state::puckpkmna_70001c_r)
+uint16_t md_boot_state::puckpkmna_70001c_r()
 {
 	return 0x0e;
 }
 
-READ16_MEMBER(md_boot_state::puckpkmna_4b2476_r)
+uint16_t md_boot_state::puckpkmna_4b2476_r()
 {
 	if (!strcmp(machine().system().name, "puckpkmnb")) return 0x3100;
 
@@ -278,36 +278,32 @@ void md_boot_state::puckpkmna_map(address_map &map)
 	map(0x70001c, 0x70001d).r(FUNC(md_boot_state::puckpkmna_70001c_r));
 }
 
-MACHINE_CONFIG_START(md_boot_state::puckpkmn)
+void md_boot_state::puckpkmn(machine_config &config)
+{
 	md_ntsc(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(puckpkmn_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &md_boot_state::puckpkmn_map);
 
-	MCFG_MACHINE_START_OVERRIDE(md_boot_state, md_bootleg)
+	config.device_remove("genesis_snd_z80");
 
-	MCFG_DEVICE_REMOVE("genesis_snd_z80")
+	okim6295_device &oki(OKIM6295(config, "oki", XTAL(4'000'000) / 4, okim6295_device::PIN7_HIGH));
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.25);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.25);
+}
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(4'000'000) / 4, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.25)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker",0.25)
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(md_boot_state::puckpkmna)
+void md_boot_state::puckpkmna(machine_config &config)
+{
 	puckpkmn(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(puckpkmna_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &md_boot_state::puckpkmna_map);
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(md_boot_state::jzth)
+void md_boot_state::jzth(machine_config &config)
+{
 	puckpkmn(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(jzth_map)
-
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &md_boot_state::jzth_map);
+}
 
 /* Genie's Hardware (contains no real sega parts) */
 

@@ -120,15 +120,15 @@ private:
 
 	uint16_t m_tempbuf[8];
 
-	DECLARE_WRITE16_MEMBER(fifo_data_w);
-	DECLARE_WRITE16_MEMBER(fifo_clear_w);
-	DECLARE_WRITE16_MEMBER(fifo_flush_w);
-	DECLARE_WRITE16_MEMBER(jpeg1_w);
-	DECLARE_WRITE16_MEMBER(jpeg2_w);
-	DECLARE_WRITE16_MEMBER(io_offset_w);
-	DECLARE_WRITE16_MEMBER(io_data_w);
-	DECLARE_WRITE16_MEMBER(sound_w);
-	DECLARE_WRITE8_MEMBER(oki_setbank);
+	void fifo_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void fifo_clear_w(uint16_t data);
+	void fifo_flush_w(uint16_t data);
+	void jpeg1_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void jpeg2_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void io_offset_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void io_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void sound_w(uint16_t data);
+	void oki_setbank(uint8_t data);
 
 	TIMER_DEVICE_CALLBACK_MEMBER(obj_irq_cb);
 
@@ -169,24 +169,22 @@ void sliver_state::plot_pixel_rgb(int x, int y, uint32_t r, uint32_t g, uint32_t
 	if (y < 0 || x < 0 || x > 383 || y > 255)
 		return;
 
-	m_bitmap_bg.pix32(y, x) = r | (g<<8) | (b<<16);
+	m_bitmap_bg.pix(y, x) = r | (g<<8) | (b<<16);
 }
 
 void sliver_state::plot_pixel_pal(int x, int y, int addr)
 {
-	uint32_t r,g,b;
-
 	if (y < 0 || x < 0 || x > 383 || y > 255)
 		return;
 
-	b=(m_colorram[addr] << 2) | (m_colorram[addr] & 0x3);
-	g=(m_colorram[addr+0x100] << 2) | (m_colorram[addr+0x100] & 3);
-	r=(m_colorram[addr+0x200] << 2) | (m_colorram[addr+0x200] & 3);
+	uint32_t b=(m_colorram[addr] << 2) | (m_colorram[addr] & 0x3);
+	uint32_t g=(m_colorram[addr+0x100] << 2) | (m_colorram[addr+0x100] & 3);
+	uint32_t r=(m_colorram[addr+0x200] << 2) | (m_colorram[addr+0x200] & 3);
 
-	m_bitmap_fg.pix32(y, x) = r | (g<<8) | (b<<16);
+	m_bitmap_fg.pix(y, x) = r | (g<<8) | (b<<16);
 }
 
-WRITE16_MEMBER(sliver_state::fifo_data_w)
+void sliver_state::fifo_data_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (m_tmp_counter < 8)
 	{
@@ -240,20 +238,20 @@ void sliver_state::blit_gfx()
 	}
 }
 
-WRITE16_MEMBER(sliver_state::fifo_clear_w)
+void sliver_state::fifo_clear_w(uint16_t data)
 {
 	m_bitmap_fg.fill(0);
 	m_fptr=0;
 	m_tmp_counter=0;
 }
 
-WRITE16_MEMBER(sliver_state::fifo_flush_w)
+void sliver_state::fifo_flush_w(uint16_t data)
 {
 	blit_gfx();
 }
 
 
-WRITE16_MEMBER(sliver_state::jpeg1_w)
+void sliver_state::jpeg1_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_jpeg1);
 }
@@ -313,7 +311,7 @@ void sliver_state::render_jpeg()
 
 }
 
-WRITE16_MEMBER(sliver_state::jpeg2_w)
+void sliver_state::jpeg2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_jpeg2);
 
@@ -321,12 +319,12 @@ WRITE16_MEMBER(sliver_state::jpeg2_w)
 
 }
 
-WRITE16_MEMBER(sliver_state::io_offset_w)
+void sliver_state::io_offset_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_io_offset);
 }
 
-WRITE16_MEMBER(sliver_state::io_data_w)
+void sliver_state::io_data_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (m_io_offset < IO_SIZE)
 	{
@@ -349,9 +347,9 @@ WRITE16_MEMBER(sliver_state::io_data_w)
 	}
 }
 
-WRITE16_MEMBER(sliver_state::sound_w)
+void sliver_state::sound_w(uint16_t data)
 {
-	m_soundlatch->write(space, 0, data & 0xff);
+	m_soundlatch->write(data & 0xff);
 	m_audiocpu->set_input_line(MCS51_INT0_LINE, HOLD_LINE);
 }
 
@@ -386,7 +384,7 @@ void sliver_state::sliver_map(address_map &map)
 
 // Sound CPU
 
-WRITE8_MEMBER(sliver_state::oki_setbank)
+void sliver_state::oki_setbank(uint8_t data)
 {
 	int bank=(data^0xff)&3; //xor or not ?
 	membank("okibank")->set_entry(bank);
@@ -516,11 +514,13 @@ TIMER_DEVICE_CALLBACK_MEMBER ( sliver_state::obj_irq_cb )
 	m_maincpu->set_input_line(3, HOLD_LINE);
 }
 
-MACHINE_CONFIG_START(sliver_state::sliver)
-	MCFG_DEVICE_ADD("maincpu", M68000, 12000000)
-	MCFG_DEVICE_PROGRAM_MAP(sliver_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sliver_state, irq4_line_hold)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("obj_actel", sliver_state, obj_irq_cb, attotime::from_hz(60)) /* unknown clock, causes "obj actel ready error" without this */
+void sliver_state::sliver(machine_config &config)
+{
+	M68000(config, m_maincpu, 12000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &sliver_state::sliver_map);
+	m_maincpu->set_vblank_int("screen", FUNC(sliver_state::irq4_line_hold));
+
+	TIMER(config, "obj_actel").configure_periodic(FUNC(sliver_state::obj_irq_cb), attotime::from_hz(60)); /* unknown clock, causes "obj actel ready error" without this */
 	// irq 2 valid but not used?
 
 	I8051(config, m_audiocpu, 8000000);
@@ -528,14 +528,14 @@ MACHINE_CONFIG_START(sliver_state::sliver)
 	m_audiocpu->set_addrmap(AS_IO, &sliver_state::soundmem_io);
 	m_audiocpu->port_out_cb<1>().set(FUNC(sliver_state::oki_setbank));
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 384-1-16, 0*8, 240-1)
-	MCFG_SCREEN_UPDATE_DRIVER(sliver_state, screen_update)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	m_screen->set_size(64*8, 32*8);
+	m_screen->set_visarea(0*8, 384-1-16, 0*8, 240-1);
+	m_screen->set_screen_update(FUNC(sliver_state::screen_update));
 
-	MCFG_PALETTE_ADD("palette", 0x100)
+	PALETTE(config, "palette").set_entries(0x100);
 	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, "palette"));
 	ramdac.set_addrmap(0, &sliver_state::ramdac_map);
 
@@ -544,11 +544,11 @@ MACHINE_CONFIG_START(sliver_state::sliver)
 
 	GENERIC_LATCH_8(config, m_soundlatch);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 1000000, okim6295_device::PIN7_HIGH)
-	MCFG_DEVICE_ADDRESS_MAP(0, oki_map)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.6)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", 1000000, okim6295_device::PIN7_HIGH));
+	oki.set_addrmap(0, &sliver_state::oki_map);
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.6);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.6);
+}
 
 ROM_START( sliver )
 	ROM_REGION( 0x100000, "maincpu", 0 ) /* 68000 Code */

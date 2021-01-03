@@ -63,17 +63,17 @@ public:
 	void wico(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(lampst_r);
-	DECLARE_READ8_MEMBER(switch_r);
-	DECLARE_WRITE8_MEMBER(muxen_w);
-	DECLARE_WRITE8_MEMBER(muxld_w);
-	DECLARE_WRITE8_MEMBER(csols_w);
-	DECLARE_WRITE8_MEMBER(msols_w);
-	DECLARE_WRITE8_MEMBER(dled0_w);
-	DECLARE_WRITE8_MEMBER(dled1_w);
-	DECLARE_WRITE8_MEMBER(zcres_w);
-	DECLARE_WRITE8_MEMBER(wdogcl_w);
-	DECLARE_READ8_MEMBER(gentmrcl_r);
+	uint8_t lampst_r();
+	uint8_t switch_r(offs_t offset);
+	void muxen_w(uint8_t data);
+	void muxld_w(uint8_t data);
+	void csols_w(uint8_t data);
+	void msols_w(uint8_t data);
+	void dled0_w(uint8_t data);
+	void dled1_w(uint8_t data);
+	void zcres_w(uint8_t data);
+	void wdogcl_w(uint8_t data);
+	uint8_t gentmrcl_r();
 	TIMER_DEVICE_CALLBACK_MEMBER(irq_housekeeping);
 	TIMER_DEVICE_CALLBACK_MEMBER(firq_housekeeping);
 	void ccpu_map(address_map &map);
@@ -98,47 +98,47 @@ void wico_state::hcpu_map(address_map &map)
 {
 	map(0x0000, 0x07ff).ram().share("sharedram");
 	map(0x1fe0, 0x1fe0).w(FUNC(wico_state::muxld_w));
-	//AM_RANGE(0x1fe1, 0x1fe1) AM_WRITE(store_w)
+	//map(0x1fe1, 0x1fe1).w(FUNC(wico_state::store_w));
 	map(0x1fe2, 0x1fe2).w(FUNC(wico_state::muxen_w));
-	//AM_RANGE(0x1fe3, 0x1fe3) AM_WRITE(csols_w)
+	//map(0x1fe3, 0x1fe3).w(FUNC(wico_state::csols_w));
 	map(0x1fe4, 0x1fe4).noprw();
-	map(0x1fe5, 0x1fe5).w("sn76494", FUNC(sn76494_device::command_w));
+	map(0x1fe5, 0x1fe5).w("sn76494", FUNC(sn76494_device::write));
 	map(0x1fe6, 0x1fe6).w(FUNC(wico_state::wdogcl_w));
 	map(0x1fe7, 0x1fe7).w(FUNC(wico_state::zcres_w));
 	map(0x1fe8, 0x1fe8).w(FUNC(wico_state::dled0_w));
 	map(0x1fe9, 0x1fe9).w(FUNC(wico_state::dled1_w));
 	map(0x1fea, 0x1fea).r(FUNC(wico_state::gentmrcl_r));
 	map(0x1feb, 0x1feb).r(FUNC(wico_state::lampst_r));
-	//AM_RANGE(0x1fec, 0x1fec) AM_READ(sast_r)
-	//AM_RANGE(0x1fed, 0x1fed) AM_READ(solst1_r)
-	//AM_RANGE(0x1fee, 0x1fee) AM_READ(solst0_r)
+	//map(0x1fec, 0x1fec).r(FUNC(wico_state::sast_r));
+	//map(0x1fed, 0x1fed).r(FUNC(wico_state::solst1_r));
+	//map(0x1fee, 0x1fee).r(FUNC(wico_state::solst0_r));
 	map(0x1fef, 0x1fef).r(FUNC(wico_state::switch_r));
-	map(0xf000, 0xffff).rom();
+	map(0xf000, 0xffff).rom().region("hcpu", 0);
 }
 
 // command cpu
 void wico_state::ccpu_map(address_map &map)
 {
 	map(0x0000, 0x07ff).ram().share("sharedram"); // 2128  2k RAM
-	//AM_RANGE(0x1fe0, 0x1fe0) AM_WRITE(muxld_w) // to display module
-	//AM_RANGE(0x1fe1, 0x1fe1) AM_WRITE(store_w) // enable save to nvram
+	//map(0x1fe0, 0x1fe0).w(FUNC(wico_state::muxld_w)); // to display module
+	//map(0x1fe1, 0x1fe1).w(FUNC(wico_state::store_w)); // enable save to nvram
 	map(0x1fe2, 0x1fe2).w(FUNC(wico_state::muxen_w)); // digit to display on diagnostic LED; d0=L will disable main displays
 	map(0x1fe3, 0x1fe3).w(FUNC(wico_state::csols_w)); // solenoid column
 	map(0x1fe4, 0x1fe4).w(FUNC(wico_state::msols_w)); // solenoid row
-	map(0x1fe5, 0x1fe5).w("sn76494", FUNC(sn76494_device::command_w));
+	map(0x1fe5, 0x1fe5).w("sn76494", FUNC(sn76494_device::write));
 	map(0x1fe6, 0x1fe6).w(FUNC(wico_state::wdogcl_w)); // watchdog clear
 	map(0x1fe7, 0x1fe7).w(FUNC(wico_state::zcres_w)); // enable IRQ on hcpu
 	map(0x1fe8, 0x1fe8).w(FUNC(wico_state::dled0_w)); // turn off diagnostic LED
 	map(0x1fe9, 0x1fe9).w(FUNC(wico_state::dled1_w)); // turn on diagnostic LED
 	map(0x1fea, 0x1fea).r(FUNC(wico_state::gentmrcl_r)); // enable IRQ on ccpu
-	//AM_RANGE(0x1feb, 0x1feb) AM_READ(lampst_r) // lamps?
-	//AM_RANGE(0x1fec, 0x1fec) AM_READ(sast_r) // a pwron pulse to d0 L->H
-	//AM_RANGE(0x1fed, 0x1fed) AM_READ(solst1_r) // switches
-	//AM_RANGE(0x1fee, 0x1fee) AM_READ(solst0_r) // switches
-	//AM_RANGE(0x1fef, 0x1fef) AM_READ(switch_r) // switches
+	//map(0x1feb, 0x1feb).r(FUNC(wico_state::lampst_r)); // lamps?
+	//map(0x1fec, 0x1fec).r(FUNC(wico_state::sast_r)); // a pwron pulse to d0 L->H
+	//map(0x1fed, 0x1fed).r(FUNC(wico_state::solst1_r)); // switches
+	//map(0x1fee, 0x1fee).r(FUNC(wico_state::solst0_r)); // switches
+	//map(0x1fef, 0x1fef).r(FUNC(wico_state::switch_r)); // switches
 	map(0x4000, 0x40ff).ram().share("nvram"); // X2212 4bit x 256 NVRAM, stores only when store_w is active
-	map(0x8000, 0x9fff).rom();
-	map(0xe000, 0xffff).rom();
+	map(0x8000, 0x9fff).rom().region("ccpu", 0);
+	map(0xe000, 0xffff).rom().region("ccpu", 0x2000);
 }
 
 static INPUT_PORTS_START( wico )
@@ -315,29 +315,29 @@ static INPUT_PORTS_START( wico )
 INPUT_PORTS_END
 
 // diagnostic display off
-WRITE8_MEMBER( wico_state::dled0_w )
+void wico_state::dled0_w(uint8_t data)
 {
 	m_diag_on = 0;
 	m_digits[9] = 0;
 }
 
 // diagnostic display on
-WRITE8_MEMBER( wico_state::dled1_w )
+void wico_state::dled1_w(uint8_t data)
 {
 	m_diag_on = 1;
 	m_digits[9] = m_diag_segments;
 }
 
-WRITE8_MEMBER( wico_state::csols_w )
+void wico_state::csols_w(uint8_t data)
 {
 }
 
-WRITE8_MEMBER( wico_state::msols_w )
+void wico_state::msols_w(uint8_t data)
 {
 }
 
 // write to diagnostic display
-WRITE8_MEMBER( wico_state::muxen_w )
+void wico_state::muxen_w(uint8_t data)
 {
 	static const uint8_t patterns[16] = { 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71 }; // MC14495
 
@@ -352,25 +352,25 @@ WRITE8_MEMBER( wico_state::muxen_w )
 }
 
 // reset digit/scan counter
-WRITE8_MEMBER( wico_state::muxld_w )
+void wico_state::muxld_w(uint8_t data)
 {
 }
 
 // enable zero-crossing interrupt
-WRITE8_MEMBER( wico_state::zcres_w )
+void wico_state::zcres_w(uint8_t data)
 {
 	m_zcen = 1;
 }
 
 // enable firq
-READ8_MEMBER( wico_state::gentmrcl_r )
+uint8_t wico_state::gentmrcl_r()
 {
 	m_gten = 1;
 	return 0xff;
 }
 
 // read a switch row
-READ8_MEMBER( wico_state::switch_r )
+uint8_t wico_state::switch_r(offs_t offset)
 {
 	char kbdrow[8];
 	offset = m_shared_ram[0x95];
@@ -388,7 +388,7 @@ READ8_MEMBER( wico_state::switch_r )
 }
 
 // write digits in main display
-READ8_MEMBER( wico_state::lampst_r )
+uint8_t wico_state::lampst_r()
 {
 	int i, j;
 	for (i = 0; i < 5; i++)
@@ -403,7 +403,7 @@ READ8_MEMBER( wico_state::lampst_r )
 }
 
 // reset watchdog and enable housekeeping cpu
-WRITE8_MEMBER( wico_state::wdogcl_w )
+void wico_state::wdogcl_w(uint8_t data)
 {
 	m_hcpu->set_input_line(INPUT_LINE_RESET, CLEAR_LINE);
 }
@@ -440,14 +440,17 @@ void wico_state::machine_reset()
 }
 
 
-MACHINE_CONFIG_START(wico_state::wico)
+void wico_state::wico(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("ccpu", MC6809E, XTAL(10'000'000) / 8) // MC68A09EP @ U51
-	MCFG_DEVICE_PROGRAM_MAP(ccpu_map)
-	MCFG_DEVICE_ADD("hcpu", MC6809E, XTAL(10'000'000) / 8) // MC68A09EP @ U24
-	MCFG_DEVICE_PROGRAM_MAP(hcpu_map)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("irq", wico_state, irq_housekeeping, attotime::from_hz(120)) // zero crossing
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("firq", wico_state, firq_housekeeping, attotime::from_hz(750)) // time generator
+	MC6809E(config, m_ccpu, XTAL(10'000'000) / 8); // MC68A09EP @ U51
+	m_ccpu->set_addrmap(AS_PROGRAM, &wico_state::ccpu_map);
+
+	MC6809E(config, m_hcpu, XTAL(10'000'000) / 8); // MC68A09EP @ U24
+	m_hcpu->set_addrmap(AS_PROGRAM, &wico_state::hcpu_map);
+
+	TIMER(config, "irq").configure_periodic(FUNC(wico_state::irq_housekeeping), attotime::from_hz(120)); // zero crossing
+	TIMER(config, "firq").configure_periodic(FUNC(wico_state::firq_housekeeping), attotime::from_hz(750)); // time generator
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* Video */
@@ -456,20 +459,19 @@ MACHINE_CONFIG_START(wico_state::wico)
 	/* Sound */
 	genpin_audio(config);
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("sn76494", SN76494, XTAL(10'000'000) / 64)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
-MACHINE_CONFIG_END
+	SN76494(config, "sn76494", XTAL(10'000'000) / 64).add_route(ALL_OUTPUTS, "mono", 0.75);
+}
 
 /*-------------------------------------------------------------------
 / Af-Tor (1984)
 /-------------------------------------------------------------------*/
 ROM_START(aftor)
-	ROM_REGION(0x10000, "hcpu", 0)
-	ROM_LOAD("u25.bin", 0xf000, 0x1000, CRC(d66e95ff) SHA1(f7e8c51f1b37e7ef560406f1968c12a2043646c5))
+	ROM_REGION(0x1000, "hcpu", 0)
+	ROM_LOAD("u25.bin", 0x0000, 0x1000, CRC(d66e95ff) SHA1(f7e8c51f1b37e7ef560406f1968c12a2043646c5))
 
-	ROM_REGION(0x10000, "ccpu", 0)
-	ROM_LOAD("u52.bin", 0x8000, 0x2000, CRC(8035b446) SHA1(3ec59015e259c315bf09f4e2046f9d98e2d7a732))
-	ROM_LOAD("u48.bin", 0xe000, 0x2000, CRC(b4406563) SHA1(6d1a9086eb1f6f947eae3a92ccf7a9b7375d85d3))
+	ROM_REGION(0x4000, "ccpu", 0)
+	ROM_LOAD("u52.bin", 0x0000, 0x2000, CRC(8035b446) SHA1(3ec59015e259c315bf09f4e2046f9d98e2d7a732))
+	ROM_LOAD("u48.bin", 0x2000, 0x2000, CRC(b4406563) SHA1(6d1a9086eb1f6f947eae3a92ccf7a9b7375d85d3))
 ROM_END
 
 /*-------------------------------------------------------------------

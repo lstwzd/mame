@@ -12,8 +12,8 @@ class fga002_device :  public device_t
 	// construction/destruction
 	fga002_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	DECLARE_WRITE8_MEMBER (write);
-	DECLARE_READ8_MEMBER (read);
+	void write(offs_t offset, uint8_t data);
+	uint8_t read(offs_t offset);
 
 	void lirq_w(int status, int vector, int control, int state);
 	DECLARE_WRITE_LINE_MEMBER( lirq0_w );
@@ -25,7 +25,7 @@ class fga002_device :  public device_t
 	DECLARE_WRITE_LINE_MEMBER( lirq6_w );
 	DECLARE_WRITE_LINE_MEMBER( lirq7_w );
 
-	IRQ_CALLBACK_MEMBER(iack);
+	u16 iack();
 	int acknowledge();
 	int get_irq_level();
 

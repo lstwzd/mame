@@ -28,7 +28,7 @@ public:
 	eolith16_state(const machine_config &mconfig, device_type type, const char *tag)
 		: eolith_state(mconfig, type, tag)
 		, m_special_io(*this, "SPECIAL")
-		, m_vram(*this, "vram", 16)
+		, m_vram(*this, "vram", 0x20000, ENDIANNESS_BIG)
 		, m_vrambank(*this, "vrambank")
 	{
 	}
@@ -42,11 +42,11 @@ protected:
 
 private:
 	required_ioport m_special_io;
-	required_shared_ptr<uint8_t> m_vram;
+	memory_share_creator<uint8_t> m_vram;
 	required_memory_bank m_vrambank;
 
-	DECLARE_WRITE16_MEMBER(eeprom_w);
-	DECLARE_READ16_MEMBER(eolith16_custom_r);
+	void eeprom_w(uint16_t data);
+	uint16_t eolith16_custom_r();
 
 	void eolith16_palette(palette_device &palette) const;
 
@@ -56,7 +56,7 @@ private:
 
 
 
-WRITE16_MEMBER(eolith16_state::eeprom_w)
+void eolith16_state::eeprom_w(uint16_t data)
 {
 	m_vrambank->set_entry(((data & 0x80) >> 7) ^ 1);
 	machine().bookkeeping().coin_counter_w(0, data & 1);
@@ -66,7 +66,7 @@ WRITE16_MEMBER(eolith16_state::eeprom_w)
 	//data & 0x100 and data & 0x004 always set
 }
 
-READ16_MEMBER(eolith16_state::eolith16_custom_r)
+uint16_t eolith16_state::eolith16_custom_r()
 {
 	speedup_read();
 	return m_special_io->read();
@@ -75,7 +75,7 @@ READ16_MEMBER(eolith16_state::eolith16_custom_r)
 void eolith16_state::eolith16_map(address_map &map)
 {
 	map(0x00000000, 0x001fffff).ram();
-	map(0x50000000, 0x5000ffff).bankrw("vrambank").share("vram");
+	map(0x50000000, 0x5000ffff).bankrw("vrambank");
 	map(0x90000000, 0x9000002f).nopw(); //?
 	map(0xff000000, 0xff1fffff).rom().region("maindata", 0);
 	map(0xffe40001, 0xffe40001).rw("oki", FUNC(okim6295_device::read), FUNC(okim6295_device::write));
@@ -90,7 +90,7 @@ void eolith16_state::eolith16_map(address_map &map)
 static INPUT_PORTS_START( eolith16 )
 	PORT_START("SPECIAL")
 	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_serial_93cxx_device, do_read)
-	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, eolith16_state, eolith_speedup_getvblank, nullptr)
+	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(eolith16_state, speedup_vblank_r)
 	PORT_BIT( 0xff6f, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("SYSTEM")
@@ -129,7 +129,7 @@ uint32_t eolith16_state::screen_update_eolith16(screen_device &screen, bitmap_in
 	{
 		for (int x = 0; x < 320; x++)
 		{
-			bitmap.pix16(y, x) = m_vram[(y * 320) + x] & 0xff;
+			bitmap.pix(y, x) = m_vram[(y * 320) + x] & 0xff;
 		}
 	}
 	return 0;
@@ -159,31 +159,32 @@ void eolith16_state::eolith16_palette(palette_device &palette) const
 }
 
 
-MACHINE_CONFIG_START(eolith16_state::eolith16)
-	MCFG_DEVICE_ADD("maincpu", E116T, XTAL(60'000'000))        /* no internal multiplier */
-	MCFG_DEVICE_PROGRAM_MAP(eolith16_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", eolith16_state, eolith_speedup, "screen", 0, 1)
+void eolith16_state::eolith16(machine_config &config)
+{
+	E116T(config, m_maincpu, XTAL(60'000'000));        /* no internal multiplier */
+	m_maincpu->set_addrmap(AS_PROGRAM, &eolith16_state::eolith16_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(eolith16_state::eolith_speedup), "screen", 0, 1);
 
 	EEPROM_93C66_8BIT(config, "eeprom");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_SIZE(512, 262)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 199)
-	MCFG_SCREEN_UPDATE_DRIVER(eolith16_state, screen_update_eolith16)
-	MCFG_SCREEN_PALETTE("palette")
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	m_screen->set_size(512, 262);
+	m_screen->set_visarea(0, 319, 0, 199);
+	m_screen->set_screen_update(FUNC(eolith16_state::screen_update_eolith16));
+	m_screen->set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(eolith16_state::eolith16_palette), 256);
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(1'000'000), okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", XTAL(1'000'000), okim6295_device::PIN7_HIGH));
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 1.0);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 1.0);
+}
 
 /*
 

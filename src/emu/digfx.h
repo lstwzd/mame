@@ -122,28 +122,6 @@ const gfx_layout name = { width, height, RGN_FRAC(1,1), 8, { GFX_RAW }, { 0 }, {
 
 
 //**************************************************************************
-//  INTERFACE CONFIGURATION MACROS
-//**************************************************************************
-
-#define MCFG_GFX_PALETTE(_palette_tag) \
-	dynamic_cast<device_gfx_interface &>(*device).set_palette(_palette_tag);
-
-#define MCFG_GFX_INFO(_info) \
-	dynamic_cast<device_gfx_interface &>(*device).set_info(_info);
-
-
-
-//**************************************************************************
-//  DEVICE CONFIGURATION MACROS
-//**************************************************************************
-
-#define MCFG_GFXDECODE_MODIFY(_tag, _info) \
-	MCFG_DEVICE_MODIFY(_tag) \
-	MCFG_GFX_INFO(_info)
-
-
-
-//**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
 
@@ -221,7 +199,7 @@ private:
 };
 
 // iterator
-typedef device_interface_iterator<device_gfx_interface> gfx_interface_iterator;
+typedef device_interface_enumerator<device_gfx_interface> gfx_interface_enumerator;
 
 
 #endif  /* MAME_EMU_DIGFX_H */

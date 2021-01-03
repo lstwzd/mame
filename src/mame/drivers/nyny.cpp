@@ -76,7 +76,6 @@
 #include "machine/rescap.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "video/mc6845.h"
 
 #include "emupal.h"
@@ -98,10 +97,8 @@ class nyny_state : public driver_device
 public:
 	nyny_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
-		m_videoram1(*this, "videoram1"),
-		m_colorram1(*this, "colorram1"),
-		m_videoram2(*this, "videoram2"),
-		m_colorram2(*this, "colorram2"),
+		m_videoram(*this, "videoram%u", 1U),
+		m_colorram(*this, "colorram%u", 1U),
 		m_maincpu(*this, "maincpu"),
 		m_audiocpu(*this, "audiocpu"),
 		m_audiocpu2(*this, "audio2"),
@@ -119,13 +116,12 @@ public:
 
 private:
 	/* memory pointers */
-	required_shared_ptr<uint8_t> m_videoram1;
-	required_shared_ptr<uint8_t> m_colorram1;
-	required_shared_ptr<uint8_t> m_videoram2;
-	required_shared_ptr<uint8_t> m_colorram2;
+	required_shared_ptr_array<uint8_t, 4> m_videoram;
+	required_shared_ptr_array<uint8_t, 2> m_colorram;
 
 	/* video-related */
-	int      m_flipscreen;
+	bool     m_flipscreen;
+	bool     m_flipchars;
 	uint8_t    m_star_enable;
 	uint16_t   m_star_delay_counter;
 	uint16_t   m_star_shift_reg;
@@ -143,17 +139,18 @@ private:
 	required_device<generic_latch_8_device> m_soundlatch2;
 	required_device<generic_latch_8_device> m_soundlatch3;
 
-	DECLARE_WRITE8_MEMBER(audio_1_command_w);
-	DECLARE_WRITE8_MEMBER(audio_1_answer_w);
-	DECLARE_WRITE8_MEMBER(audio_2_command_w);
-	DECLARE_READ8_MEMBER(nyny_pia_1_2_r);
-	DECLARE_WRITE8_MEMBER(nyny_pia_1_2_w);
+	void audio_1_command_w(uint8_t data);
+	void audio_1_answer_w(uint8_t data);
+	void audio_2_command_w(uint8_t data);
+	uint8_t nyny_pia_1_2_r(offs_t offset);
+	void nyny_pia_1_2_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(main_cpu_irq);
 	DECLARE_WRITE_LINE_MEMBER(main_cpu_firq);
-	DECLARE_WRITE8_MEMBER(pia_2_port_a_w);
-	DECLARE_WRITE8_MEMBER(pia_2_port_b_w);
+	void pia_2_port_a_w(uint8_t data);
+	void pia_2_port_b_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(flipscreen_w);
-	DECLARE_WRITE8_MEMBER(nyny_ay8910_37_port_a_w);
+	DECLARE_WRITE_LINE_MEMBER(flipchars_w);
+	void nyny_ay8910_37_port_a_w(uint8_t data);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	INTERRUPT_GEN_MEMBER(update_pia_1);
@@ -162,9 +159,9 @@ private:
 
 	MC6845_UPDATE_ROW(crtc_update_row);
 	MC6845_END_UPDATE(crtc_end_update);
-	void nyny_audio_1_map(address_map &map);
-	void nyny_audio_2_map(address_map &map);
-	void nyny_main_map(address_map &map);
+	void audio_1_map(address_map &map);
+	void audio_2_map(address_map &map);
+	void main_map(address_map &map);
 };
 
 
@@ -218,13 +215,13 @@ INTERRUPT_GEN_MEMBER(nyny_state::update_pia_1)
  *
  *************************************/
 
-WRITE8_MEMBER(nyny_state::pia_2_port_a_w)
+void nyny_state::pia_2_port_a_w(uint8_t data)
 {
 	m_star_delay_counter = (m_star_delay_counter & 0x0f00) | data;
 }
 
 
-WRITE8_MEMBER(nyny_state::pia_2_port_b_w)
+void nyny_state::pia_2_port_b_w(uint8_t data)
 {
 	/* bits 0-3 go to bits 8-11 of the star delay counter */
 	m_star_delay_counter = (m_star_delay_counter & 0x00ff) | ((data & 0x0f) << 8);
@@ -233,7 +230,7 @@ WRITE8_MEMBER(nyny_state::pia_2_port_b_w)
 	m_star_enable = data & 0x10;
 
 	/* bits 5-7 go to the music board connector */
-	audio_2_command_w(m_maincpu->space(AS_PROGRAM), 0, data & 0xe0);
+	audio_2_command_w(data & 0xe0);
 }
 
 
@@ -263,51 +260,52 @@ WRITE_LINE_MEMBER(nyny_state::ic48_1_74123_output_changed)
 
 WRITE_LINE_MEMBER(nyny_state::flipscreen_w)
 {
-	m_flipscreen = state ? 0 : 1;
+	m_flipscreen = !state;
+}
+
+
+WRITE_LINE_MEMBER(nyny_state::flipchars_w)
+{
+	m_flipchars = state;
 }
 
 
 MC6845_UPDATE_ROW( nyny_state::crtc_update_row )
 {
-	uint8_t x = 0;
+	uint32_t *pix = &bitmap.pix(y);
 
 	for (uint8_t cx = 0; cx < x_count; cx++)
 	{
-		uint8_t data1, data2, color1, color2;
-
 		/* the memory is hooked up to the MA, RA lines this way */
-		offs_t offs = ((ma << 5) & 0x8000) |
-						((ma << 3) & 0x1f00) |
+		offs_t offs = ((ma << 3) & 0x3f00) |
 						((ra << 5) & 0x00e0) |
 						((ma << 0) & 0x001f);
 
 		if (m_flipscreen)
-			offs = offs ^ 0x9fff;
+			offs ^= 0x3fff;
 
-		data1 = m_videoram1[offs];
-		data2 = m_videoram2[offs];
-		color1 = m_colorram1[offs] & 0x07;
-		color2 = m_colorram2[offs] & 0x07;
+		uint8_t data1 = m_videoram[offs >= 0x2000 ? 2 : 0][offs & 0x1fff];
+		uint8_t data2 = m_videoram[offs >= 0x2000 ? 3 : 1][offs & 0x1fff];
+		uint8_t color1 = offs >= 0x2000 ? 0 : m_colorram[0][offs] & 0x07;
+		uint8_t color2 = offs >= 0x2000 ? 0 : m_colorram[1][offs] & 0x07;
 
 		for (int i = 0; i < 8; i++)
 		{
 			uint8_t bit1, bit2, color;
 
-			if (m_flipscreen)
+			if (m_flipchars)
 			{
 				bit1 = BIT(data1, 7);
 				bit2 = BIT(data2, 7);
-
-				data1 = data1 << 1;
-				data2 = data2 << 1;
+				data1 <<= 1;
+				data2 <<= 1;
 			}
 			else
 			{
 				bit1 = BIT(data1, 0);
 				bit2 = BIT(data2, 0);
-
-				data1 = data1 >> 1;
-				data2 = data2 >> 1;
+				data1 >>= 1;
+				data2 >>= 1;
 			}
 
 			/* plane 1 has priority over plane 2 */
@@ -316,12 +314,10 @@ MC6845_UPDATE_ROW( nyny_state::crtc_update_row )
 			else
 				color = bit2 ? color2 : 0;
 
-			bitmap.pix32(y, x) = m_palette->pen_color(color);
-
-			x += 1;
+			*pix++ = m_palette->pen_color(color);
 		}
 
-		ma += 1;
+		ma++;
 	}
 }
 
@@ -342,7 +338,7 @@ MC6845_END_UPDATE( nyny_state::crtc_end_update )
 		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
 		{
 			/* check if the star status */
-			if (m_star_enable && (bitmap.pix32(y, x) == m_palette->pen_color(0)) &&
+			if (m_star_enable && (bitmap.pix(y, x) == m_palette->pen_color(0)) &&
 				((m_star_shift_reg & 0x80ff) == 0x00ff) &&
 				(((y & 0x01) ^ m_flipscreen) ^ (((x & 0x08) >> 3) ^ m_flipscreen)))
 			{
@@ -350,7 +346,7 @@ MC6845_END_UPDATE( nyny_state::crtc_end_update )
 								((m_star_shift_reg & 0x0400) >>  9) |    /* G */
 								((m_star_shift_reg & 0x1000) >> 10);     /* B */
 
-				bitmap.pix32(y, x) = m_palette->pen_color(color);
+				bitmap.pix(y, x) = m_palette->pen_color(color);
 			}
 
 			if (delay_counter == 0)
@@ -369,21 +365,21 @@ MC6845_END_UPDATE( nyny_state::crtc_end_update )
  *
  *************************************/
 
-WRITE8_MEMBER(nyny_state::audio_1_command_w)
+void nyny_state::audio_1_command_w(uint8_t data)
 {
-	m_soundlatch->write(space, 0, data);
+	m_soundlatch->write(data);
 	m_audiocpu->set_input_line(M6802_IRQ_LINE, HOLD_LINE);
 }
 
 
-WRITE8_MEMBER(nyny_state::audio_1_answer_w)
+void nyny_state::audio_1_answer_w(uint8_t data)
 {
-	m_soundlatch3->write(space, 0, data);
+	m_soundlatch3->write(data);
 	m_maincpu->set_input_line(M6809_IRQ_LINE, HOLD_LINE);
 }
 
 
-WRITE8_MEMBER(nyny_state::nyny_ay8910_37_port_a_w)
+void nyny_state::nyny_ay8910_37_port_a_w(uint8_t data)
 {
 	/* not sure what this does */
 
@@ -396,9 +392,9 @@ WRITE8_MEMBER(nyny_state::nyny_ay8910_37_port_a_w)
  *
  *************************************/
 
-WRITE8_MEMBER(nyny_state::audio_2_command_w)
+void nyny_state::audio_2_command_w(uint8_t data)
 {
-	m_soundlatch2->write(space, 0, (data & 0x60) >> 5);
+	m_soundlatch2->write((data & 0x60) >> 5);
 	m_audiocpu2->set_input_line(M6802_IRQ_LINE, BIT(data, 7) ? CLEAR_LINE : ASSERT_LINE);
 }
 
@@ -410,33 +406,33 @@ WRITE8_MEMBER(nyny_state::audio_2_command_w)
  *
  *************************************/
 
-READ8_MEMBER(nyny_state::nyny_pia_1_2_r)
+uint8_t nyny_state::nyny_pia_1_2_r(offs_t offset)
 {
 	uint8_t ret = 0;
 
 	/* the address bits are directly connected to the chip selects */
-	if (BIT(offset, 2))  ret = m_pia1->read(space, offset & 0x03);
-	if (BIT(offset, 3))  ret = m_pia2->read_alt(space, offset & 0x03);
+	if (BIT(offset, 2))  ret = m_pia1->read(offset & 0x03);
+	if (BIT(offset, 3))  ret = m_pia2->read_alt(offset & 0x03);
 
 	return ret;
 }
 
 
-WRITE8_MEMBER(nyny_state::nyny_pia_1_2_w)
+void nyny_state::nyny_pia_1_2_w(offs_t offset, uint8_t data)
 {
 	/* the address bits are directly connected to the chip selects */
-	if (BIT(offset, 2))  m_pia1->write(space, offset & 0x03, data);
-	if (BIT(offset, 3))  m_pia2->write_alt(space, offset & 0x03, data);
+	if (BIT(offset, 2))  m_pia1->write(offset & 0x03, data);
+	if (BIT(offset, 3))  m_pia2->write_alt(offset & 0x03, data);
 }
 
 
-void nyny_state::nyny_main_map(address_map &map)
+void nyny_state::main_map(address_map &map)
 {
 	map(0x0000, 0x1fff).ram().share("videoram1");
 	map(0x2000, 0x3fff).ram().share("colorram1");
 	map(0x4000, 0x5fff).ram().share("videoram2");
 	map(0x6000, 0x7fff).ram().share("colorram2");
-	map(0x8000, 0x9fff).ram();
+	map(0x8000, 0x9fff).ram().share("videoram3");
 	map(0xa000, 0xa0ff).ram().share("nvram"); /* SRAM (coin counter, shown when holding F2) */
 	map(0xa100, 0xa100).mirror(0x00fe).w(m_mc6845, FUNC(mc6845_device::address_w));
 	map(0xa101, 0xa101).mirror(0x00fe).w(m_mc6845, FUNC(mc6845_device::register_w));
@@ -444,15 +440,14 @@ void nyny_state::nyny_main_map(address_map &map)
 	map(0xa300, 0xa300).mirror(0x00ff).r(m_soundlatch3, FUNC(generic_latch_8_device::read)).w(FUNC(nyny_state::audio_1_command_w));
 	map(0xa400, 0xa7ff).noprw();
 	map(0xa800, 0xbfff).rom();
-	map(0xc000, 0xdfff).ram();
+	map(0xc000, 0xdfff).ram().share("videoram4");
 	map(0xe000, 0xffff).rom();
 }
 
 
-void nyny_state::nyny_audio_1_map(address_map &map)
+void nyny_state::audio_1_map(address_map &map)
 {
 	map.global_mask(0x7fff);
-	map(0x0000, 0x007f).ram();     /* internal RAM */
 	map(0x0080, 0x0fff).noprw();
 	map(0x1000, 0x1000).mirror(0x0fff).r(m_soundlatch, FUNC(generic_latch_8_device::read)).w(FUNC(nyny_state::audio_1_answer_w));
 	map(0x2000, 0x2000).mirror(0x0fff).portr("SW3");
@@ -467,10 +462,9 @@ void nyny_state::nyny_audio_1_map(address_map &map)
 }
 
 
-void nyny_state::nyny_audio_2_map(address_map &map)
+void nyny_state::audio_2_map(address_map &map)
 {
 	map.global_mask(0x7fff);
-	map(0x0000, 0x007f).ram();     /* internal RAM */
 	map(0x0080, 0x0fff).noprw();
 	map(0x1000, 0x1000).mirror(0x0fff).r(m_soundlatch2, FUNC(generic_latch_8_device::read));
 	map(0x2000, 0x2000).mirror(0x0ffe).r("ay3", FUNC(ay8910_device::data_r));
@@ -575,8 +569,12 @@ INPUT_PORTS_END
 
 void nyny_state::machine_start()
 {
+	m_flipscreen = false;
+	m_flipchars = false;
+
 	/* setup for save states */
 	save_item(NAME(m_flipscreen));
+	save_item(NAME(m_flipchars));
 	save_item(NAME(m_star_enable));
 	save_item(NAME(m_star_delay_counter));
 	save_item(NAME(m_star_shift_reg));
@@ -584,7 +582,6 @@ void nyny_state::machine_start()
 
 void nyny_state::machine_reset()
 {
-	m_flipscreen = 0;
 	m_star_enable = 0;
 	m_star_delay_counter = 0;
 	m_star_shift_reg = 0;
@@ -596,34 +593,34 @@ void nyny_state::machine_reset()
  *
  *************************************/
 
-MACHINE_CONFIG_START(nyny_state::nyny)
-
+void nyny_state::nyny(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809, 5600000) /* 1.40 MHz? The clock signal is generated by analog chips */
-	MCFG_DEVICE_PROGRAM_MAP(nyny_main_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(nyny_state, update_pia_1,  25)
+	MC6809(config, m_maincpu, 5600000); /* 1.40 MHz? The clock signal is generated by analog chips */
+	m_maincpu->set_addrmap(AS_PROGRAM, &nyny_state::main_map);
+	m_maincpu->set_periodic_int(FUNC(nyny_state::update_pia_1), attotime::from_hz(25));
 
-	MCFG_DEVICE_ADD("audiocpu", M6802, AUDIO_CPU_1_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(nyny_audio_1_map)
+	M6802(config, m_audiocpu, AUDIO_CPU_1_CLOCK);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &nyny_state::audio_1_map);
 
-	MCFG_DEVICE_ADD("audio2", M6802, AUDIO_CPU_2_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(nyny_audio_2_map)
+	M6802(config, m_audiocpu2, AUDIO_CPU_2_CLOCK);
+	m_audiocpu2->set_addrmap(AS_PROGRAM, &nyny_state::audio_2_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 256, 0, 256, 256, 0, 256)   /* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(PIXEL_CLOCK, 360, 0, 256, 276, 0, 224);
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
 
 	PALETTE(config, m_palette, palette_device::RGB_3BIT);
 
-	H46505(config, m_mc6845, CRTC_CLOCK);
+	MC6845(config, m_mc6845, CRTC_CLOCK); // HD46505P
 	m_mc6845->set_screen("screen");
 	m_mc6845->set_show_border_area(false);
 	m_mc6845->set_char_width(8);
-	m_mc6845->set_update_row_callback(FUNC(nyny_state::crtc_update_row), this);
-	m_mc6845->set_end_update_callback(FUNC(nyny_state::crtc_end_update), this);
+	m_mc6845->set_update_row_callback(FUNC(nyny_state::crtc_update_row));
+	m_mc6845->set_end_update_callback(FUNC(nyny_state::crtc_end_update));
 	m_mc6845->out_de_callback().set(m_ic48_1, FUNC(ttl74123_device::a_w));
 
 	/* 74LS123 */
@@ -636,16 +633,17 @@ MACHINE_CONFIG_START(nyny_state::nyny)
 	m_ic48_1->set_clear_pin_value(1);                   /* Clear pin - pulled high */
 	m_ic48_1->out_cb().set(FUNC(nyny_state::ic48_1_74123_output_changed));
 
-	PIA6821(config, m_pia1, 0);
+	PIA6821(config, m_pia1);
 	m_pia1->readpa_handler().set_ioport("IN0");
 	m_pia1->readpb_handler().set_ioport("IN1");
 	m_pia1->irqa_handler().set(FUNC(nyny_state::main_cpu_irq));
 	m_pia1->irqb_handler().set(FUNC(nyny_state::main_cpu_irq));
 
-	PIA6821(config, m_pia2, 0);
+	PIA6821(config, m_pia2);
 	m_pia2->writepa_handler().set(FUNC(nyny_state::pia_2_port_a_w));
 	m_pia2->writepb_handler().set(FUNC(nyny_state::pia_2_port_b_w));
 	m_pia2->ca2_handler().set(FUNC(nyny_state::flipscreen_w));
+	m_pia2->cb2_handler().set(FUNC(nyny_state::flipchars_w));
 	m_pia2->irqa_handler().set(FUNC(nyny_state::main_cpu_firq));
 	m_pia2->irqb_handler().set(FUNC(nyny_state::main_cpu_irq));
 
@@ -668,10 +666,8 @@ MACHINE_CONFIG_START(nyny_state::nyny)
 
 	AY8910(config, "ay3", AUDIO_CPU_2_CLOCK).add_route(ALL_OUTPUTS, "speaker", 0.03);
 
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // unknown DAC
+}
 
 
 

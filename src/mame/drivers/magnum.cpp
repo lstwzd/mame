@@ -4,6 +4,7 @@
 // Dulmont Magnum
 // Additional info https://www.youtube.com/watch?v=st7H_vqSaQc and
 // http://www.eevblog.com/forum/blog/eevblog-949-vintage-australian-made-laptop-teardown/msg1080508/#msg1080508
+// TODO: cartridge dumps
 
 #include "emu.h"
 #include "cpu/i86/i186.h"
@@ -34,11 +35,11 @@ protected:
 	virtual void machine_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(beep_w);
-	DECLARE_READ8_MEMBER(sysctl_r);
-	DECLARE_WRITE8_MEMBER(sysctl_w);
-	DECLARE_READ16_MEMBER(irqstat_r);
-	DECLARE_WRITE16_MEMBER(port50_w);
+	void beep_w(u8 data);
+	u8 sysctl_r(offs_t offset);
+	void sysctl_w(offs_t offset, u8 data);
+	u16 irqstat_r();
+	void port50_w(u16 data);
 	DECLARE_WRITE_LINE_MEMBER(rtcirq_w);
 
 	void check_irq();
@@ -70,7 +71,7 @@ INPUT_CHANGED_MEMBER(magnum_state::keypress)
 {
 	if(newval != oldval)
 	{
-		m_key = ((uint8_t)(uintptr_t)(param) & 0xff) | (m_shift->read() & 0xc ? 0 : 0x80);
+		m_key = (uint8_t)(param & 0xff) | (m_shift->read() & 0xc ? 0 : 0x80);
 		m_keybirq = true;
 		check_irq();
 	}
@@ -175,7 +176,7 @@ void magnum_state::machine_reset()
 	m_keybirq = false;
 }
 
-WRITE8_MEMBER(magnum_state::beep_w)
+void magnum_state::beep_w(u8 data)
 {
 	if (data & ~1) logerror("beep_w unmapped bits %02x\n", data);
 	m_beep->set_state(BIT(data, 0));
@@ -187,7 +188,7 @@ void magnum_state::magnum_map(address_map &map)
 	map(0xe0000, 0xfffff).rom().region("bios", 0);
 }
 
-READ8_MEMBER(magnum_state::sysctl_r)
+u8 magnum_state::sysctl_r(offs_t offset)
 {
 	switch(offset)
 	{
@@ -204,7 +205,7 @@ READ8_MEMBER(magnum_state::sysctl_r)
 	return 0;
 }
 
-WRITE8_MEMBER(magnum_state::sysctl_w)
+void magnum_state::sysctl_w(offs_t offset, u8 data)
 {
 	switch(offset)
 	{
@@ -238,7 +239,7 @@ WRITE8_MEMBER(magnum_state::sysctl_w)
  *      15- CRTC?
  */
 
-READ16_MEMBER(magnum_state::irqstat_r)
+u16 magnum_state::irqstat_r()
 {
 	u16 ret = m_wake ? 0 : 0x400;
 	ret |= m_rtcirq ? 0x40 : 0;
@@ -247,7 +248,7 @@ READ16_MEMBER(magnum_state::irqstat_r)
 	return ret;
 }
 
-WRITE16_MEMBER(magnum_state::port50_w)
+void magnum_state::port50_w(u16 data)
 {
 }
 
@@ -279,48 +280,48 @@ void magnum_state::magnum_lcdc(address_map &map)
 	map(0x0000, 0x027f).ram();
 }
 
-MACHINE_CONFIG_START(magnum_state::magnum)
-	MCFG_DEVICE_ADD("maincpu", I80186, XTAL(12'000'000) / 2)
-	MCFG_DEVICE_PROGRAM_MAP(magnum_map)
-	MCFG_DEVICE_IO_MAP(magnum_io)
+void magnum_state::magnum(machine_config &config)
+{
+	I80186(config, m_maincpu, XTAL(12'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &magnum_state::magnum_map);
+	m_maincpu->set_addrmap(AS_IO, &magnum_state::magnum_io);
 
 	CDP1879(config, "rtc", XTAL(32'768)).irq_callback().set(FUNC(magnum_state::rtcirq_w));
 
-	MCFG_SCREEN_ADD("screen1", LCD)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_UPDATE_DEVICE("lcdc1", hd61830_device, screen_update)
-	MCFG_SCREEN_SIZE(6*40, 9*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 6*40-1, 0, 8*16-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen1(SCREEN(config, "screen1", SCREEN_TYPE_LCD));
+	screen1.set_refresh_hz(50);
+	screen1.set_screen_update("lcdc1", FUNC(hd61830_device::screen_update));
+	screen1.set_size(6*40, 9*16);
+	screen1.set_visarea(0, 6*40-1, 0, 8*16-1);
+	screen1.set_palette("palette");
 
-	MCFG_SCREEN_ADD("screen2", LCD)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_UPDATE_DEVICE("lcdc2", hd61830_device, screen_update)
-	MCFG_SCREEN_SIZE(6*40, 9*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 6*40-1, 0, 8*16-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen2(SCREEN(config, "screen2", SCREEN_TYPE_LCD));
+	screen2.set_refresh_hz(50);
+	screen2.set_screen_update("lcdc2", FUNC(hd61830_device::screen_update));
+	screen2.set_size(6*40, 9*16);
+	screen2.set_visarea(0, 6*40-1, 0, 8*16-1);
+	screen2.set_palette("palette");
 
-	MCFG_DEVICE_ADD("lcdc1", HD61830, 1000000) // unknown clock
-	MCFG_DEVICE_ADDRESS_MAP(0, magnum_lcdc)
-	MCFG_VIDEO_SET_SCREEN("screen1")
+	hd61830_device &lcdc1(HD61830(config, "lcdc1", 1000000)); // unknown clock
+	lcdc1.set_addrmap(0, &magnum_state::magnum_lcdc);
+	lcdc1.set_screen("screen1");
 
-	MCFG_DEVICE_ADD("lcdc2", HD61830, 1000000) // unknown clock
-	MCFG_DEVICE_ADDRESS_MAP(0, magnum_lcdc)
-	MCFG_VIDEO_SET_SCREEN("screen2")
+	hd61830_device &lcdc2(HD61830(config, "lcdc2", 1000000)); // unknown clock
+	lcdc2.set_addrmap(0, &magnum_state::magnum_lcdc);
+	lcdc2.set_screen("screen2");
 
-	//MCFG_DEVICE_ADD("crtc", I8275, 3000000) // unknown clock
+	//I8275(config, "crtc", 3000000); // unknown clock
 
 	//WD1793(config, "fdc", 1000000); // nothing known, type or if any disks even exist, port 0x44 is possibly motor control
 
 	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("beep", BEEP, 500) /// frequency is guessed
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.50)
-MACHINE_CONFIG_END
+	BEEP(config, m_beep, 500).add_route(ALL_OUTPUTS, "speaker", 0.50); // frequency is guessed
+}
 
 ROM_START( magnum )
-	ROM_REGION(0x20000, "bios", 0)
+	ROM_REGION16_LE(0x20000, "bios", 0)
 	ROM_LOAD16_BYTE("a1.7.88.bin", 0x00000, 0x4000, CRC(57882427) SHA1(97637b65ca43eb9d3bba546fb8ca701ba25ade8d))
 	ROM_LOAD16_BYTE("a1.7.81.bin", 0x00001, 0x4000, CRC(949f53a8) SHA1(b339f1495d9af7dfff0c3a2c24789631f9d1265b))
 	ROM_LOAD16_BYTE("a1.7.87.bin", 0x08000, 0x4000, CRC(25036dda) SHA1(20bc3782a66855b20cb0abe1051fa2eb50c7a860))
@@ -334,4 +335,4 @@ ROM_START( magnum )
 	ROM_LOAD("dulmontcharrom.bin", 0x0000, 0x1000, CRC(9dff89bf) SHA1(d359aeba7f0b0c81accf3bca25e7da636c033721))
 ROM_END
 
-COMP( 1983, magnum, 0, 0, magnum, magnum, magnum_state, empty_init, "Dulmont", "Magnum", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+COMP( 1983, magnum, 0, 0, magnum, magnum, magnum_state, empty_init, "Dulmont", "Magnum", MACHINE_IMPERFECT_SOUND)

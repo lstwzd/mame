@@ -53,18 +53,18 @@ void mappy_state::superpac_palette(palette_device &palette) const
 		bit0 = BIT(color_prom[i], 0);
 		bit1 = BIT(color_prom[i], 1);
 		bit2 = BIT(color_prom[i], 2);
-		int const r = combine_3_weights(rweights, bit0, bit1, bit2);
+		int const r = combine_weights(rweights, bit0, bit1, bit2);
 
 		// green component
 		bit0 = BIT(color_prom[i], 3);
 		bit1 = BIT(color_prom[i], 4);
 		bit2 = BIT(color_prom[i], 5);
-		int const g = combine_3_weights(gweights, bit0, bit1, bit2);
+		int const g = combine_weights(gweights, bit0, bit1, bit2);
 
 		// blue component
 		bit0 = BIT(color_prom[i], 6);
 		bit1 = BIT(color_prom[i], 7);
-		int const b = combine_2_weights(bweights, bit0, bit1);
+		int const b = combine_weights(bweights, bit0, bit1);
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -108,18 +108,18 @@ void mappy_state::mappy_palette(palette_device &palette) const
 		bit0 = BIT(color_prom[i], 0);
 		bit1 = BIT(color_prom[i], 1);
 		bit2 = BIT(color_prom[i], 2);
-		int const r = combine_3_weights(rweights, bit0, bit1, bit2);
+		int const r = combine_weights(rweights, bit0, bit1, bit2);
 
 		// green component
 		bit0 = BIT(color_prom[i], 3);
 		bit1 = BIT(color_prom[i], 4);
 		bit2 = BIT(color_prom[i], 5);
-		int const g = combine_3_weights(gweights, bit0, bit1, bit2);
+		int const g = combine_weights(gweights, bit0, bit1, bit2);
 
 		// blue component
 		bit0 = BIT(color_prom[i], 6);
 		bit1 = BIT(color_prom[i], 7);
-		int const b = combine_2_weights(bweights, bit0, bit1);
+		int const b = combine_weights(bweights, bit0, bit1);
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -176,21 +176,21 @@ void mappy_state::phozon_palette(palette_device &palette) const
 		bit1 = BIT(color_prom[i], 1);
 		bit2 = BIT(color_prom[i], 2);
 		bit3 = BIT(color_prom[i], 3);
-		int const r = combine_4_weights(rweights, bit0, bit1, bit2, bit3);
+		int const r = combine_weights(rweights, bit0, bit1, bit2, bit3);
 
 		// green component
 		bit0 = BIT(color_prom[i | 0x100], 0);
 		bit1 = BIT(color_prom[i | 0x100], 1);
 		bit2 = BIT(color_prom[i | 0x100], 2);
 		bit3 = BIT(color_prom[i | 0x100], 3);
-		int const g = combine_4_weights(gweights, bit0, bit1, bit2, bit3);
+		int const g = combine_weights(gweights, bit0, bit1, bit2, bit3);
 
 		// blue component
 		bit0 = BIT(color_prom[i | 0x200], 0);
 		bit1 = BIT(color_prom[i | 0x200], 1);
 		bit2 = BIT(color_prom[i | 0x200], 2);
 		bit3 = BIT(color_prom[i | 0x200], 3);
-		int const b = combine_4_weights(bweights, bit0, bit1, bit2, bit3);
+		int const b = combine_weights(bweights, bit0, bit1, bit2, bit3);
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -264,7 +264,7 @@ TILE_GET_INFO_MEMBER(mappy_state::superpac_get_tile_info)
 
 	tileinfo.category = (attr & 0x40) >> 6;
 	tileinfo.group = attr & 0x3f;
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			m_videoram[tile_index],
 			attr & 0x3f,
 			0);
@@ -276,7 +276,7 @@ TILE_GET_INFO_MEMBER(mappy_state::phozon_get_tile_info)
 
 	tileinfo.category = (attr & 0x40) >> 6;
 	tileinfo.group = attr & 0x3f;
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			m_videoram[tile_index] + ((attr & 0x80) << 1),
 			attr & 0x3f,
 			0);
@@ -288,7 +288,7 @@ TILE_GET_INFO_MEMBER(mappy_state::mappy_get_tile_info)
 
 	tileinfo.category = (attr & 0x40) >> 6;
 	tileinfo.group = attr & 0x3f;
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			m_videoram[tile_index],
 			attr & 0x3f,
 			0);
@@ -304,7 +304,7 @@ TILE_GET_INFO_MEMBER(mappy_state::mappy_get_tile_info)
 
 VIDEO_START_MEMBER(mappy_state,superpac)
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(mappy_state::superpac_get_tile_info),this),tilemap_mapper_delegate(FUNC(mappy_state::superpac_tilemap_scan),this),8,8,36,28);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(mappy_state::superpac_get_tile_info)), tilemap_mapper_delegate(*this, FUNC(mappy_state::superpac_tilemap_scan)), 8, 8, 36, 28);
 	m_screen->register_screen_bitmap(m_sprite_bitmap);
 
 	m_bg_tilemap->configure_groups(*m_gfxdecode->gfx(0), 31);
@@ -312,14 +312,14 @@ VIDEO_START_MEMBER(mappy_state,superpac)
 
 VIDEO_START_MEMBER(mappy_state,phozon)
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(mappy_state::phozon_get_tile_info),this),tilemap_mapper_delegate(FUNC(mappy_state::superpac_tilemap_scan),this),8,8,36,28);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(mappy_state::phozon_get_tile_info)), tilemap_mapper_delegate(*this, FUNC(mappy_state::superpac_tilemap_scan)), 8, 8, 36, 28);
 
 	m_bg_tilemap->configure_groups(*m_gfxdecode->gfx(0), 15);
 }
 
 VIDEO_START_MEMBER(mappy_state,mappy)
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(mappy_state::mappy_get_tile_info),this),tilemap_mapper_delegate(FUNC(mappy_state::mappy_tilemap_scan),this),8,8,36,60);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(mappy_state::mappy_get_tile_info)), tilemap_mapper_delegate(*this, FUNC(mappy_state::mappy_tilemap_scan)), 8, 8, 36, 60);
 
 	m_bg_tilemap->configure_groups(*m_gfxdecode->gfx(0), 31);
 	m_bg_tilemap->set_scroll_cols(36);
@@ -335,30 +335,30 @@ VIDEO_START_MEMBER(mappy_state,mappy)
 
 ***************************************************************************/
 
-WRITE8_MEMBER(mappy_state::superpac_videoram_w)
+void mappy_state::superpac_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset & 0x3ff);
 }
 
-WRITE8_MEMBER(mappy_state::mappy_videoram_w)
+void mappy_state::mappy_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset & 0x7ff);
 }
 
-WRITE8_MEMBER(mappy_state::superpac_flipscreen_w)
+void mappy_state::superpac_flipscreen_w(uint8_t data)
 {
 	flip_screen_set(data & 1);
 }
 
-READ8_MEMBER(mappy_state::superpac_flipscreen_r)
+uint8_t mappy_state::superpac_flipscreen_r()
 {
 	flip_screen_set(1);
 	return 0xff;
 }
 
-WRITE8_MEMBER(mappy_state::mappy_scroll_w)
+void mappy_state::mappy_scroll_w(offs_t offset, uint8_t data)
 {
 	m_scroll = offset >> 3;
 }
@@ -507,7 +507,6 @@ void mappy_state::phozon_draw_sprites(bitmap_ind16 &bitmap, const rectangle &cli
 uint32_t mappy_state::screen_update_superpac(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	bitmap_ind16 &sprite_bitmap = m_sprite_bitmap;
-	int x,y;
 
 	m_bg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE | TILEMAP_DRAW_ALL_CATEGORIES,0);
 
@@ -519,14 +518,14 @@ uint32_t mappy_state::screen_update_superpac(screen_device &screen, bitmap_ind16
 	m_bg_tilemap->draw(screen, bitmap, cliprect, 1,0);
 
 	/* sprite color 0/1 still has priority over that (ghost eyes in Pac 'n Pal) */
-	for (y = 0;y < sprite_bitmap.height();y++)
+	for (int y = 0;y < sprite_bitmap.height();y++)
 	{
-		for (x = 0;x < sprite_bitmap.width();x++)
+		for (int x = 0;x < sprite_bitmap.width();x++)
 		{
-			int spr_entry = sprite_bitmap.pix16(y, x);
+			int spr_entry = sprite_bitmap.pix(y, x);
 			int spr_pen = m_palette->pen_indirect(spr_entry);
 			if (spr_pen == 0 || spr_pen == 1)
-				bitmap.pix16(y, x) = spr_entry;
+				bitmap.pix(y, x) = spr_entry;
 		}
 	}
 	return 0;

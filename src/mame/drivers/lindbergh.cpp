@@ -85,7 +85,7 @@ Answer X Answer 1.1                           ?                 ?               
 Answer X Answer DX                            ?                 ?               ?
 Answer X Answer Premium                       ?                 ?               ?
 Answer X Answer 2                             ?                 ?               DVP-0067
-Atractive Deck Poker (rev C)                  ?                 ?               DVP-0033C
+Attractive Deck Poker (rev C)                 ?                 ?               DVP-0033C
 Cloud Nine (rev E)                            ?                 ?               DVP-0034E
 Club Majesty Extend                           ?                 ?               ?
 Club Majesty Formal                           ?                 ?               ?
@@ -119,6 +119,7 @@ MJ4 Evolution                                 ?                 ?               
 OutRun 2 Special Tours (EXPORT)               253-5508-0452     317-0452-COM    ?
 OutRun 2 SP SDX                               ?                 ?               DVP-0015A
 Primeval Hunt                                 253-5508-0512     317-0512-COM   ^DVP-0048A
+Psy-Phi                                       ?                 ?               ?
 R-Tuned: Ultimate Street Racing               ?                 ?               DVP-0060
 Rambo (EXPORT)                                253-5508-0540    ^317-0540-COM   ^DVP-0069
 SEGA Network Casino Club Ver. 2               ?                 ?               DVP-0053
@@ -235,7 +236,7 @@ Rear Board incorporating Security Board (plugged into main board security connec
 ---------------------------------------
 
 This board has the power input connectors on it and holes for access to the mainboard
-I/O conections (LAN/COM/USB/speakers etc). Lower left is where the security board is plugged in.
+I/O connections (LAN/COM/USB/speakers etc). Lower left is where the security board is plugged in.
 
 837-14520R
 171-8322C
@@ -375,7 +376,7 @@ public:
 
 	void lindbergh(machine_config &config);
 
-private:
+protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 };
@@ -392,8 +393,9 @@ void lindbergh_state::machine_reset()
 {
 }
 
-MACHINE_CONFIG_START(lindbergh_state::lindbergh)
-	MCFG_DEVICE_ADD("maincpu", PENTIUM4, 28000000U*5) /* Actually Celeron D at 2,8 GHz */
+void lindbergh_state::lindbergh(machine_config &config)
+{
+	PENTIUM4(config, "maincpu", 28000000U*5); /* Actually Celeron D at 2,8 GHz */
 
 	PCI_ROOT                (config, ":pci",           0);
 	I82875P_HOST            (config, ":pci:00.0",      0,                   0x103382c0, "maincpu", 512*1024*1024);
@@ -417,7 +419,7 @@ MACHINE_CONFIG_START(lindbergh_state::lindbergh)
 	SATA                    (config, ":pci:1f.2",      0, 0x808625a3, 0x02, 0x103382c0);
 	SMBUS                   (config, ":pci:1f.3",      0, 0x808625a4, 0x02, 0x103382c0);
 	AC97                    (config, ":pci:1f.5",      0, 0x808625a6, 0x02, 0x103382c0);
-MACHINE_CONFIG_END
+}
 
 #define LINDBERGH_BIOS \
 	ROM_REGION32_LE(0x100000, ":pci:1f.0", 0) /* PC bios, location 3j7 */ \

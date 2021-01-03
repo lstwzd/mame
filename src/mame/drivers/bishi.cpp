@@ -50,7 +50,7 @@ GS562 PWB(A)400625A             \/
 Notes:
       68000  - clock 12.000MHz (24/2)
       YMZ280 - clock 16.9344MHz
-      CN3/4  - connector for ROM daugterboard
+      CN3/4  - connector for ROM daughterboard
       CN1    - large flat cable connector for power/controls
       675KAA01 to 04 - 27C040 EPROMs
       675KAA07 to 10 - 27C240 EPROMs
@@ -93,18 +93,18 @@ Notes:
 #include "speaker.h"
 
 
-READ16_MEMBER(bishi_state::control_r)
+uint16_t bishi_state::control_r()
 {
 	return m_cur_control;
 }
 
-WRITE16_MEMBER(bishi_state::control_w)
+void bishi_state::control_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	// bit 8 = interrupt gate
 	COMBINE_DATA(&m_cur_control);
 }
 
-WRITE16_MEMBER(bishi_state::control2_w)
+void bishi_state::control2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	// bit 12 = part of the banking calculation for the K056832 ROM readback
 	COMBINE_DATA(&m_cur_control2);
@@ -125,12 +125,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(bishi_state::bishi_scanline)
 }
 
 /* compensate for a bug in the ram/rom test */
-READ16_MEMBER(bishi_state::bishi_mirror_r)
+uint16_t bishi_state::bishi_mirror_r(offs_t offset)
 {
 	return m_palette->basemem().read16(offset);
 }
 
-READ16_MEMBER(bishi_state::bishi_K056832_rom_r)
+uint16_t bishi_state::bishi_K056832_rom_r(offs_t offset)
 {
 	uint16_t ouroffs;
 
@@ -141,7 +141,7 @@ READ16_MEMBER(bishi_state::bishi_K056832_rom_r)
 	if (m_cur_control2 & 0x1000)
 		ouroffs += 4;
 
-	return m_k056832->bishi_rom_word_r(space, ouroffs, mem_mask);
+	return m_k056832->bishi_rom_word_r(ouroffs);
 }
 
 void bishi_state::main_map(address_map &map)
@@ -362,77 +362,6 @@ static INPUT_PORTS_START( bishi2p )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_UNUSED ) // 'p2' START
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( dobouchn )
-	PORT_INCLUDE( bishi )
-
-	PORT_MODIFY("IN0")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-	PORT_MODIFY("INPUTS")
-	PORT_BIT( 0x001f, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("P1 Shoot")
-	PORT_BIT( 0xff00, IP_ACTIVE_LOW, IPT_UNUSED )
-
-	PORT_MODIFY("SYSTEM")
-	PORT_BIT( 0x0100, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("M. Ack") // ???
-	PORT_BIT( 0x0200, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x0400, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("Coin 2 (Medal)")
-	PORT_BIT( 0x0800, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0xf000, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coin_A ) ) PORT_DIPLOCATION("SW1:1,2,3")
-	PORT_DIPSETTING(    0x00, "5 Coins / 2 Credits" )
-	PORT_DIPSETTING(    0x01, DEF_STR( 4C_3C ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( 2C_3C ) )
-	PORT_DIPSETTING(    0x03, DEF_STR( 5C_1C ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( 4C_1C ) )
-	PORT_DIPSETTING(    0x05, DEF_STR( 3C_1C ) )
-	PORT_DIPSETTING(    0x06, DEF_STR( 2C_1C ) )
-	PORT_DIPSETTING(    0x07, DEF_STR( 1C_1C ) )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW1:4" )
-	PORT_DIPNAME( 0x70, 0x70, DEF_STR( Coin_B ) ) PORT_DIPLOCATION("SW1:5,6,7")
-	PORT_DIPSETTING(    0x00, "15 Medals" )
-	PORT_DIPSETTING(    0x10, "13 Medals" )
-	PORT_DIPSETTING(    0x20, "11 Medals" )
-	PORT_DIPSETTING(    0x30, "9 Medals" )
-	PORT_DIPSETTING(    0x40, "7 Medals" )
-	PORT_DIPSETTING(    0x50, "5 Medals" )
-	PORT_DIPSETTING(    0x60, "3 Medals" )
-	PORT_DIPSETTING(    0x70, "2 Medals" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW1:8" )
-
-	PORT_DIPNAME( 0x0f00, 0x0f00, "Payout" ) PORT_DIPLOCATION("SW2:1,2,3,4")
-	PORT_DIPSETTING(    0x000, "90%" )
-	PORT_DIPSETTING(    0x100, "85%" )
-	PORT_DIPSETTING(    0x200, "80%" )
-	PORT_DIPSETTING(    0x300, "75%" )
-	PORT_DIPSETTING(    0x400, "70%" )
-	PORT_DIPSETTING(    0x500, "65%" )
-	PORT_DIPSETTING(    0x600, "60%" )
-	PORT_DIPSETTING(    0x700, "55%" )
-	PORT_DIPSETTING(    0x800, "50%" )
-	PORT_DIPSETTING(    0x900, "45%" )
-	PORT_DIPSETTING(    0xa00, "40%" )
-	PORT_DIPSETTING(    0xb00, "35%" )
-	PORT_DIPSETTING(    0xc00, "30%" )
-	PORT_DIPSETTING(    0xd00, "25%" )
-	PORT_DIPSETTING(    0xe00, "20%" )
-	PORT_DIPSETTING(    0xf00, "15%" )
-	PORT_DIPNAME( 0x3000, 0x3000, "Play Timer" ) PORT_DIPLOCATION("SW2:5,6")
-	PORT_DIPSETTING(    0x0000, "30 seconds" )
-	PORT_DIPSETTING(    0x1000, "24 seconds" )
-	PORT_DIPSETTING(    0x2000, "18 seconds" )
-	PORT_DIPSETTING(    0x3000, "12 seconds" )
-	// TODO: needs NVRAM hookup and default hookup
-	PORT_DIPNAME( 0x4000, 0x0000, "Backup RAM clear" ) PORT_DIPLOCATION("SW2:7")
-	PORT_DIPSETTING(      0x4000, DEF_STR( No ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x8000, 0x0000, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:8")
-	PORT_DIPSETTING(    0x8000, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x0000, DEF_STR( On ) )
-INPUT_PORTS_END
-
 void bishi_state::machine_start()
 {
 	save_item(NAME(m_cur_control));
@@ -466,8 +395,8 @@ void bishi_state::bishi(machine_config &config)
 	m_palette->enable_hilights();
 
 	K056832(config, m_k056832, 0);
-	m_k056832->set_tile_callback(FUNC(bishi_state::tile_callback), this);
-	m_k056832->set_config("gfx1", K056832_BPP_8, 1, 0);
+	m_k056832->set_tile_callback(FUNC(bishi_state::tile_callback));
+	m_k056832->set_config(K056832_BPP_8, 1, 0);
 	m_k056832->set_palette(m_palette);
 
 	K054338(config, m_k054338, 0);
@@ -485,14 +414,6 @@ void bishi_state::bishi(machine_config &config)
 	ymz.add_route(1, "rspeaker", 1.0);
 }
 
-void bishi_state::dobouchn(machine_config &config)
-{
-	bishi(config);
-//  TODO: change accordingly (ASCII charset definitely not 8bpp, 5bpp perhaps?)
-//  m_k056832->set_tile_callback(FUNC(bishi_state::dobouchn_tile_callback), this);
-	m_k056832->set_config("gfx1", K056832_BPP_8, 1, 0);
-}
-
 // ROM definitions
 
 
@@ -501,7 +422,7 @@ ROM_START( bishi )
 	ROM_LOAD16_WORD_SWAP( "575jaa05.12e", 0x000000, 0x80000, CRC(7d354567) SHA1(7fc11585693c91c0ef7a8e00df4f2f01b356210f) )
 	ROM_LOAD16_WORD_SWAP( "575jaa06.15e", 0x080000, 0x80000, CRC(9b2f7fbb) SHA1(26c828085c44a9c4d4e713e8fcc0bc8fc973d107) )
 
-	ROM_REGION( 0x200000, "gfx1", 0 )
+	ROM_REGION( 0x200000, "k056832", 0 )
 	ROM_LOAD16_BYTE( "575jaa07.14n", 0x000000, 0x080000, CRC(37bbf387) SHA1(dcf7b151b865d251f3122611b6339dd84eb1f990) )
 	ROM_LOAD16_BYTE( "575jaa08.17n", 0x000001, 0x080000, CRC(47ecd559) SHA1(7baac23557d40cccc21b93f181606563924244b0) )
 	ROM_LOAD16_BYTE( "575jaa09.19n", 0x100000, 0x080000, CRC(c1db6e68) SHA1(e951661e3b39a83db21aed484764e032adcf3c2a) )
@@ -522,7 +443,7 @@ ROM_START( sbishi )
 	ROM_LOAD16_WORD_SWAP( "675jaa05.12e", 0x000000, 0x80000, CRC(28a09c01) SHA1(627f6c9b9e88434ff3198c778ae5c57d9cda82c5) )
 	ROM_LOAD16_WORD_SWAP( "675jaa06.15e", 0x080000, 0x80000, CRC(e4998b33) SHA1(3012f7661542b38b1a113c5c10e2729c6a37e709) )
 
-	ROM_REGION( 0x200000, "gfx1", 0 )
+	ROM_REGION( 0x200000, "k056832", 0 )
 	ROM_LOAD16_BYTE( "675jaa07.14n", 0x000000, 0x080000, CRC(6fe7c658) SHA1(a786a417053a5fc62f967bdd564e8d3bdc89f958) )
 	ROM_LOAD16_BYTE( "675jaa08.17n", 0x000001, 0x080000, CRC(c230afc9) SHA1(f23c64ed08e77960beb0f8db2605622a3887e5f8) )
 	ROM_LOAD16_BYTE( "675jaa09.19n", 0x100000, 0x080000, CRC(63fe85a5) SHA1(e5ef1f3fc634264260d5fc3a669646abf1601b23) )
@@ -543,7 +464,7 @@ ROM_START( sbishik )
 	ROM_LOAD16_WORD_SWAP( "kab05.12e", 0x000000, 0x80000, CRC(749063ca) SHA1(ef551132410248ef0b858fb8bcf6f8dd1115ad71) )
 	ROM_LOAD16_WORD_SWAP( "kab06.15e", 0x080000, 0x80000, CRC(089e0f37) SHA1(9cd64ebfab716bbaf0ba420ad8168a33601699a9) )
 
-	ROM_REGION( 0x200000, "gfx1", 0 )
+	ROM_REGION( 0x200000, "k056832", 0 )
 	ROM_LOAD16_BYTE( "675kaa07.14n", 0x000000, 0x080000, CRC(1177c1f8) SHA1(42c6f3c3a6bd0adb7d927386fd99f1497e5df30c) )
 	ROM_LOAD16_BYTE( "675kaa08.17n", 0x000001, 0x080000, CRC(7117e9cd) SHA1(5a9b4b7427edcc10725d5936869927874fef6463) )
 	ROM_LOAD16_BYTE( "675kaa09.19n", 0x100000, 0x080000, CRC(8d49c765) SHA1(7921f8f3671fbbc3d5ea529234268a1e23ea622c) )
@@ -565,7 +486,7 @@ ROM_START( sbishika )
 	ROM_LOAD16_WORD_SWAP( "675kaa05.12e", 0x000000, 0x80000, CRC(23600e1d) SHA1(b3224c84e41e3077425a60232bb91775107f37a8) )
 	ROM_LOAD16_WORD_SWAP( "675kaa06.15e", 0x080000, 0x80000, CRC(bd1091f5) SHA1(29872abc49fe8209d0f414ca40a34fc494ff9b96) )
 
-	ROM_REGION( 0x200000, "gfx1", 0 )
+	ROM_REGION( 0x200000, "k056832", 0 )
 	ROM_LOAD16_BYTE( "675kaa07.14n", 0x000000, 0x080000, CRC(1177c1f8) SHA1(42c6f3c3a6bd0adb7d927386fd99f1497e5df30c) )
 	ROM_LOAD16_BYTE( "675kaa08.17n", 0x000001, 0x080000, CRC(7117e9cd) SHA1(5a9b4b7427edcc10725d5936869927874fef6463) )
 	ROM_LOAD16_BYTE( "675kaa09.19n", 0x100000, 0x080000, CRC(8d49c765) SHA1(7921f8f3671fbbc3d5ea529234268a1e23ea622c) )
@@ -581,29 +502,7 @@ ROM_START( sbishika )
 	ROM_LOAD( "675kaa04.8f", 0x180000, 0x080000, CRC(ebcbd813) SHA1(d67540d0ea303f09866f4a766e2d5162f05cd4ac) )
 ROM_END
 
-ROM_START( dobouchn )
-	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_WORD_SWAP( "640-a05-2n.bin", 0x000000, 0x080000, CRC(7643dbc6) SHA1(3b55a782f04a741088b93954279b35c1c90af622) )
-
-	ROM_REGION( 0x200000, "gfx1", 0 )
-	// makes GFX ROM test to pass
-	// must return 0xf0c3 and 0xee9e, check snippets at 0x2e1c and 0x2e42
-	// TODO: might require a different K056832_rom_r callback instead
-	ROM_LOAD16_BYTE( "640-a06-14n.bin", 0x000000, 0x080000, CRC(c6c5016c) SHA1(ad0b5258e2c1d0ba95dfc0d8fc6332b524f2c1e2) )
-	ROM_RELOAD(                         0x100001, 0x080000 )
-	ROM_LOAD16_BYTE( "640-a07-17n.bin", 0x000001, 0x080000, CRC(614fee32) SHA1(080fea72c0417752eb0a0b109b524d87379b2921) )
-	ROM_RELOAD(                         0x100000, 0x080000 )
-
-	// dummy region (game has no sprites, but we want to use the GX mixer)
-	ROM_REGION( 0x80000, "gfx2", ROMREGION_ERASE00 )
-
-	ROM_REGION( 0x200000, "ymz", 0 )
-	ROM_LOAD( "640-a01-2f.bin", 0x000000, 0x080000, CRC(326e2844) SHA1(62ce14ffe5d0a35c37c9a5a98c9c3a5df63d4512) )
-	ROM_LOAD( "640-a02-4f.bin", 0x080000, 0x080000, CRC(ab6593f5) SHA1(95907ee4a2cdf3bf27b7c0c1283b2bc36b868d9d) )
-ROM_END
-
 GAME( 1996, bishi,    0,      bishi,    bishi,    bishi_state, empty_init, ROT0, "Konami", "Bishi Bashi Championship Mini Game Senshuken (ver JAA, 3 Players)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
 GAME( 1998, sbishi,   0,      bishi,    bishi2p,  bishi_state, empty_init, ROT0, "Konami", "Super Bishi Bashi Championship (ver JAA, 2 Players)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
 GAME( 1998, sbishik,  sbishi, bishi,    bishi,    bishi_state, empty_init, ROT0, "Konami", "Super Bishi Bashi Championship (ver KAB, 3 Players)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
 GAME( 1998, sbishika, sbishi, bishi,    bishi,    bishi_state, empty_init, ROT0, "Konami", "Super Bishi Bashi Championship (ver KAA, 3 Players)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
-GAME( 1996, dobouchn, 0,      dobouchn, dobouchn, bishi_state, empty_init, ROT0, "Konami", "Dobou-Chan (ver JAA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )

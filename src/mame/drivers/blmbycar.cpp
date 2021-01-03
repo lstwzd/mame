@@ -46,7 +46,7 @@ Check game speed, it depends on a bit we toggle..
 
 /* The top 64k of samples are banked (16 banks total) */
 
-WRITE8_MEMBER(blmbycar_state::okibank_w)
+void blmbycar_state::okibank_w(uint8_t data)
 {
 	m_okibank->set_entry(data & 0x0f);
 }
@@ -61,19 +61,19 @@ WRITE8_MEMBER(blmbycar_state::okibank_w)
 
 /* Preliminary potentiometric wheel support */
 
-WRITE8_MEMBER(blmbycar_state::blmbycar_pot_wheel_reset_w)
+void blmbycar_state::blmbycar_pot_wheel_reset_w(uint8_t data)
 {
 	m_pot_wheel = m_pot_wheel_io->read() & 0xff;
 }
 
-WRITE8_MEMBER(blmbycar_state::blmbycar_pot_wheel_shift_w)
+void blmbycar_state::blmbycar_pot_wheel_shift_w(uint8_t data)
 {
 	if ( ((m_old_val & 0xff) == 0xff) && ((data & 0xff) == 0) )
 		m_pot_wheel <<= 1;
 	m_old_val = data;
 }
 
-READ16_MEMBER(blmbycar_state::blmbycar_pot_wheel_r)
+uint16_t blmbycar_state::blmbycar_pot_wheel_r()
 {
 	return ((m_pot_wheel & 0x80) ? 0x04 : 0) | (machine().rand() & 0x08);
 }
@@ -81,7 +81,7 @@ READ16_MEMBER(blmbycar_state::blmbycar_pot_wheel_r)
 
 /* Preliminary optical wheel support */
 
-READ16_MEMBER(blmbycar_state::blmbycar_opt_wheel_r)
+uint16_t blmbycar_state::blmbycar_opt_wheel_r()
 {
 	return ((m_opt_wheel_io->read() & 0xff) << 8) | 0xff;
 }
@@ -96,7 +96,7 @@ READ16_MEMBER(blmbycar_state::blmbycar_opt_wheel_r)
 ***************************************************************************/
 
 template<int Layer>
-WRITE16_MEMBER(blmbycar_state::vram_w)
+void blmbycar_state::vram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_vram[Layer][offset]);
 	m_tilemap[Layer]->mark_tile_dirty(offset / 2);
@@ -114,10 +114,10 @@ WRITE16_MEMBER(blmbycar_state::vram_w)
 void blmbycar_state::common_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
-	map(0x100000, 0x103fff).writeonly();                                               // ???
+	map(0x100000, 0x103fff).writeonly().share("unk_100000");                          // ???
 	map(0x104000, 0x105fff).ram().w(FUNC(blmbycar_state::vram_w<1>)).share("vram_1"); // Layer 1
 	map(0x106000, 0x107fff).ram().w(FUNC(blmbycar_state::vram_w<0>)).share("vram_0"); // Layer 0
-	map(0x108000, 0x10bfff).writeonly();                                               // ???
+	map(0x108000, 0x10bfff).writeonly().share("unk_108000");                          // ???
 	map(0x10c000, 0x10c003).writeonly().share("scroll_1");              // Scroll 1
 	map(0x10c004, 0x10c007).writeonly().share("scroll_0");              // Scroll 0
 	map(0x200000, 0x203fff).ram().w(m_palette, FUNC(palette_device::write16)).share("palette").mirror(0x4000); // Palette
@@ -144,7 +144,7 @@ void blmbycar_state::blmbycar_map(address_map &map)
 	map(0x70007b, 0x70007b).w(FUNC(blmbycar_state::blmbycar_pot_wheel_shift_w));                       //
 }
 
-READ16_MEMBER(blmbycar_state::waterball_unk_r)
+uint16_t blmbycar_state::waterball_unk_r()
 {
 	m_retvalue ^= 0x0008; // must toggle.. but not vblank?
 	return m_retvalue;
@@ -156,7 +156,7 @@ void blmbycar_state::watrball_map(address_map &map)
 
 	map(0x700006, 0x700007).nopr();                                                 // read
 	map(0x700008, 0x700009).r(FUNC(blmbycar_state::waterball_unk_r));                                   // 0x0008 must toggle
-	map(0x70000a, 0x70000b).writeonly();                                               // ?? busy
+	map(0x70000a, 0x70000b).nopw();                                               // ?? busy
 }
 
 void blmbycar_state::blmbycar_oki_map(address_map &map)
@@ -364,26 +364,26 @@ MACHINE_RESET_MEMBER(blmbycar_state,blmbycar)
 }
 
 
-MACHINE_CONFIG_START(blmbycar_state::blmbycar)
-
+void blmbycar_state::blmbycar(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(24'000'000)/2)   /* 12MHz */
-	MCFG_DEVICE_PROGRAM_MAP(blmbycar_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", blmbycar_state,  irq1_line_hold)
+	M68000(config, m_maincpu, XTAL(24'000'000)/2);   /* 12MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &blmbycar_state::blmbycar_map);
+	m_maincpu->set_vblank_int("screen", FUNC(blmbycar_state::irq1_line_hold));
 
 	MCFG_MACHINE_START_OVERRIDE(blmbycar_state,blmbycar)
 	MCFG_MACHINE_RESET_OVERRIDE(blmbycar_state,blmbycar)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(0x180, 0x100)
-	MCFG_SCREEN_VISIBLE_AREA(0, 0x180-1, 0, 0x100-1)
-	MCFG_SCREEN_UPDATE_DRIVER(blmbycar_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(0x180, 0x100);
+	screen.set_visarea_full();
+	screen.set_screen_update(FUNC(blmbycar_state::screen_update));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_blmbycar)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_blmbycar);
 
 	PALETTE(config, m_palette).set_format(palette_device::xBRG_444, 0x2000);
 
@@ -394,10 +394,10 @@ MACHINE_CONFIG_START(blmbycar_state::blmbycar)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(1'000'000), okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_DEVICE_ADDRESS_MAP(0, blmbycar_oki_map)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", XTAL(1'000'000), okim6295_device::PIN7_HIGH)); // clock frequency & pin 7 not verified
+	oki.set_addrmap(0, &blmbycar_state::blmbycar_oki_map);
+	oki.add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
 MACHINE_START_MEMBER(blmbycar_state,watrball)
@@ -412,21 +412,21 @@ MACHINE_RESET_MEMBER(blmbycar_state,watrball)
 	m_retvalue = 0;
 }
 
-MACHINE_CONFIG_START(blmbycar_state::watrball)
+void blmbycar_state::watrball(machine_config &config)
+{
 	blmbycar(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(watrball_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &blmbycar_state::watrball_map);
 
 	MCFG_MACHINE_START_OVERRIDE(blmbycar_state,watrball)
 	MCFG_MACHINE_RESET_OVERRIDE(blmbycar_state,watrball)
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_VISIBLE_AREA(0, 0x180-1, 16, 0x100-1)
-MACHINE_CONFIG_END
+	screen_device &screen(*subdevice<screen_device>("screen"));
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_visarea(0, 0x180-1, 16, 0x100-1);
+}
 
 
 /***************************************************************************

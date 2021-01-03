@@ -121,8 +121,8 @@ public:
 private:
 	std::unique_ptr<uint8_t[]> m_videoram;
 	uint8_t m_blit_ram[8];
-	DECLARE_READ8_MEMBER(blitter_r);
-	DECLARE_WRITE8_MEMBER(blitter_w);
+	uint8_t blitter_r(offs_t offset);
+	void blitter_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(ptm_irq);
 	virtual void video_start() override;
 	uint32_t screen_update_vpoker(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -161,7 +161,7 @@ uint32_t vpoker_state::screen_update_vpoker(screen_device &screen, bitmap_ind16 
 	return 0;
 }
 
-READ8_MEMBER(vpoker_state::blitter_r)
+uint8_t vpoker_state::blitter_r(offs_t offset)
 {
 	if(offset == 6)
 		return ioport("IN0")->read();
@@ -169,7 +169,7 @@ READ8_MEMBER(vpoker_state::blitter_r)
 	return 0;
 }
 
-WRITE8_MEMBER(vpoker_state::blitter_w)
+void vpoker_state::blitter_w(offs_t offset, uint8_t data)
 {
 	uint8_t *videoram = m_videoram.get();
 
@@ -199,7 +199,7 @@ void vpoker_state::main_map(address_map &map)
 static INPUT_PORTS_START( vpoker )
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 )  PORT_IMPULSE(3) PORT_NAME("Coin In")
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_POKER_BET )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_GAMBLE_BET )
 	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
@@ -634,24 +634,24 @@ WRITE_LINE_MEMBER(vpoker_state::ptm_irq)
 	m_maincpu->set_input_line(M6809_IRQ_LINE, state ? ASSERT_LINE : CLEAR_LINE);
 }
 
-MACHINE_CONFIG_START(vpoker_state::vpoker)
-
+void vpoker_state::vpoker(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809, XTAL(4'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", vpoker_state, irq0_line_hold) //irq0 valid too
+	MC6809(config, m_maincpu, XTAL(4'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &vpoker_state::main_map);
+	m_maincpu->set_vblank_int("screen", FUNC(vpoker_state::irq0_line_hold));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) // not accurate
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 480-1, 0*8, 240-1)
-//  MCFG_SCREEN_VISIBLE_AREA(0*8, 512-1, 0*8, 256-1)
-	MCFG_SCREEN_UPDATE_DRIVER(vpoker_state, screen_update_vpoker)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
+	screen.set_size(512, 256);
+	screen.set_visarea(0*8, 480-1, 0*8, 240-1);
+//  screen.set_visarea(0*8, 512-1, 0*8, 256-1);
+	screen.set_screen_update(FUNC(vpoker_state::screen_update_vpoker));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_vpoker)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_vpoker);
 
 	PALETTE(config, m_palette, palette_device::GBR_3BIT);
 
@@ -663,7 +663,7 @@ MACHINE_CONFIG_START(vpoker_state::vpoker)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 //  AY8910(config, "aysnd", 8000000/4 /* guess */).add_route(ALL_OUTPUTS, "mono", 0.30);
-MACHINE_CONFIG_END
+}
 
 /***************************************************************************
 

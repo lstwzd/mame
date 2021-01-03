@@ -49,12 +49,15 @@ protected:
 	virtual void device_reset() override;
 	virtual void device_add_mconfig(machine_config &config) override;
 
+	virtual void m68k_reset_peripherals() override;
+
 private:
 	required_device<mc68340_serial_module_device> m_serial;
 	required_device_array<mc68340_timer_module_device, 2> m_timer;
 
 	void update_ipl();
-	IRQ_CALLBACK_MEMBER(int_ack);
+	void internal_vectors_r(address_map &map);
+	uint8_t int_ack(offs_t offset);
 
 	TIMER_CALLBACK_MEMBER(periodic_interrupt_timer_callback);
 
@@ -80,16 +83,16 @@ private:
 		m_clock_mode |= (m68340_sim::CLOCK_MODCK | m68340_sim::CLOCK_PLL);
 	}
 
-	READ32_MEMBER( m68340_internal_base_r );
-	WRITE32_MEMBER( m68340_internal_base_w );
-	READ32_MEMBER( m68340_internal_dma_r );
-	WRITE32_MEMBER( m68340_internal_dma_w );
-	READ16_MEMBER( m68340_internal_sim_r );
-	READ8_MEMBER( m68340_internal_sim_ports_r );
-	READ32_MEMBER( m68340_internal_sim_cs_r );
-	WRITE16_MEMBER( m68340_internal_sim_w );
-	WRITE8_MEMBER( m68340_internal_sim_ports_w );
-	WRITE32_MEMBER( m68340_internal_sim_cs_w );
+	uint32_t m68340_internal_base_r(offs_t offset, uint32_t mem_mask = ~0);
+	void m68340_internal_base_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t m68340_internal_dma_r(offs_t offset, uint32_t mem_mask = ~0);
+	void m68340_internal_dma_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint16_t m68340_internal_sim_r(offs_t offset, uint16_t mem_mask = ~0);
+	uint8_t m68340_internal_sim_ports_r(offs_t offset);
+	uint32_t m68340_internal_sim_cs_r(offs_t offset, uint32_t mem_mask = ~0);
+	void m68340_internal_sim_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void m68340_internal_sim_ports_w(offs_t offset, uint8_t data);
+	void m68340_internal_sim_cs_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 	// Clock/VCO setting TODO: support external clock with PLL and Limp mode
 	DECLARE_WRITE_LINE_MEMBER( set_modck );

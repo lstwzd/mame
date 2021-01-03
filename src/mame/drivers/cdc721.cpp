@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Robbbert,AJR
+// copyright-holders:AJR
 /************************************************************************************************************
 
 Control Data Corporation CDC 721 Terminal (Viking)
@@ -47,11 +47,10 @@ protected:
 private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void cdc721_palette(palette_device &palette) const;
-	DECLARE_WRITE8_MEMBER(interrupt_mask_w);
-	DECLARE_WRITE8_MEMBER(misc_w);
-	DECLARE_WRITE8_MEMBER(lights_w);
-	DECLARE_WRITE8_MEMBER(block_select_w);
-	DECLARE_WRITE8_MEMBER(nvram_w);
+	void interrupt_mask_w(u8 data);
+	void misc_w(u8 data);
+	void block_select_w(u8 data);
+	void nvram_w(offs_t offset, u8 data);
 
 	template<int Line> DECLARE_WRITE_LINE_MEMBER(int_w);
 	TIMER_CALLBACK_MEMBER(update_interrupts);
@@ -82,7 +81,7 @@ private:
 	required_shared_ptr<u8> m_nvram;
 };
 
-WRITE8_MEMBER(cdc721_state::interrupt_mask_w)
+void cdc721_state::interrupt_mask_w(u8 data)
 {
 	m_interrupt_mask = data ^ 0xff;
 	machine().scheduler().synchronize(timer_expired_delegate(FUNC(cdc721_state::update_interrupts), this));
@@ -122,7 +121,7 @@ IRQ_CALLBACK_MEMBER(cdc721_state::restart_cb)
 	return vector;
 }
 
-WRITE8_MEMBER(cdc721_state::misc_w)
+void cdc721_state::misc_w(u8 data)
 {
 	// 7: Stop Refresh Operation
 	// 6: Enable RAM Char Gen
@@ -136,7 +135,7 @@ WRITE8_MEMBER(cdc721_state::misc_w)
 	logerror("%s: %d-column display selected\n", machine().describe_context(), BIT(data, 3) ? 132 : 80);
 }
 
-WRITE8_MEMBER(cdc721_state::block_select_w)
+void cdc721_state::block_select_w(u8 data)
 {
 	logerror("%s: Bank select = %02X\n", machine().describe_context(), data);
 	for (int b = 0; b < 4; b++)
@@ -146,7 +145,7 @@ WRITE8_MEMBER(cdc721_state::block_select_w)
 	}
 }
 
-WRITE8_MEMBER(cdc721_state::nvram_w)
+void cdc721_state::nvram_w(offs_t offset, u8 data)
 {
 	m_nvram[offset] = data & 0x0f;
 }
@@ -204,7 +203,7 @@ void cdc721_state::io_map(address_map &map)
 	map(0x20, 0x27).rw("kbduart", FUNC(ins8250_device::ins8250_r), FUNC(ins8250_device::ins8250_w));
 	map(0x30, 0x33).rw("ppi", FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x40, 0x47).rw("comuart", FUNC(ins8250_device::ins8250_r), FUNC(ins8250_device::ins8250_w));
-	map(0x50, 0x50).w("ledlatch", FUNC(output_latch_device::bus_w));
+	map(0x50, 0x50).w("ledlatch", FUNC(output_latch_device::write));
 	map(0x70, 0x70).w(FUNC(cdc721_state::block_select_w));
 	map(0x80, 0x87).rw("pauart", FUNC(ins8250_device::ins8250_r), FUNC(ins8250_device::ins8250_w));
 	map(0x90, 0x97).rw("pbuart", FUNC(ins8250_device::ins8250_r), FUNC(ins8250_device::ins8250_w));
@@ -260,24 +259,23 @@ void cdc721_state::cdc721_palette(palette_device &palette) const
 
 uint32_t cdc721_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	uint8_t y,ra,chr,gfx,attr,pen;
-	uint16_t sy=0,x;
+	uint16_t sy=0;
 	m_flashcnt++;
 
-	for (y = 0; y < 30; y++)
+	for (uint8_t y = 0; y < 30; y++)
 	{
 		uint16_t ma = m_videoram[y * 2] | m_videoram[y * 2 + 1] << 8;
 
-		for (ra = 0; ra < 16; ra++)
+		for (uint8_t ra = 0; ra < 15; ra++)
 		{
-			uint16_t *p = &bitmap.pix16(sy++);
+			uint16_t *p = &bitmap.pix(sy++);
 
-			for (x = 0; x < 160; x+=2)
+			for (uint16_t x = 0; x < 160; x+=2)
 			{
-				pen = 1;
-				chr = m_videoram[(x + ma) & 0x1fff];
-				attr = m_videoram[(x + ma + 1) & 0x1fff];
-				gfx = m_rom_chargen[chr | (ra << 8) ];
+				uint8_t pen = 1;
+				uint8_t chr = m_videoram[(x + ma) & 0x1fff];
+				uint8_t attr = m_videoram[(x + ma + 1) & 0x1fff];
+				uint8_t gfx = m_rom_chargen[chr | (ra << 8) ];
 				if (BIT(attr, 0))  // blank
 					pen = 0;
 				if (BIT(attr, 1) && (ra == 14)) // underline
@@ -304,12 +302,13 @@ uint32_t cdc721_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap
 	return 0;
 }
 
-MACHINE_CONFIG_START(cdc721_state::cdc721)
+void cdc721_state::cdc721(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", Z80, 6_MHz_XTAL) // Zilog Z8400B (Z80B)
-	MCFG_DEVICE_PROGRAM_MAP(mem_map)
-	MCFG_DEVICE_IO_MAP(io_map)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(cdc721_state, restart_cb)
+	Z80(config, m_maincpu, 6_MHz_XTAL); // Zilog Z8400B (Z80B)
+	m_maincpu->set_addrmap(AS_PROGRAM, &cdc721_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &cdc721_state::io_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(cdc721_state::restart_cb));
 
 	ADDRESS_MAP_BANK(config, "block0").set_map(&cdc721_state::block0_map).set_options(ENDIANNESS_LITTLE, 8, 32, 0x4000);
 	ADDRESS_MAP_BANK(config, "block4").set_map(&cdc721_state::block4_map).set_options(ENDIANNESS_LITTLE, 8, 32, 0x4000);
@@ -319,15 +318,12 @@ MACHINE_CONFIG_START(cdc721_state::cdc721)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // MCM51L01C45 (256x4) + battery
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DRIVER(cdc721_state, screen_update)
-	MCFG_SCREEN_SIZE(640, 480)
-	MCFG_SCREEN_VISIBLE_AREA(0, 639, 0, 479)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(12.936_MHz_XTAL, 800, 0, 640, 539, 0, 450);
+	screen.set_screen_update(FUNC(cdc721_state::screen_update));
+	screen.set_palette("palette");
 	PALETTE(config, "palette", FUNC(cdc721_state::cdc721_palette), 3);
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_cdc721)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_cdc721);
 
 	CRT5037(config, m_crtc, 12.936_MHz_XTAL / 8).set_char_width(8);
 	m_crtc->set_screen("screen");
@@ -397,9 +393,8 @@ MACHINE_CONFIG_START(cdc721_state::cdc721)
 	chb.cts_handler().set("pbuart", FUNC(ins8250_device::cts_w));
 	chb.ri_handler().set("pbuart", FUNC(ins8250_device::ri_w));
 
-	MCFG_INPUT_MERGER_ANY_HIGH("int2") // 74S05 (open collector)
-	MCFG_INPUT_MERGER_OUTPUT_HANDLER(WRITELINE(*this, cdc721_state, int_w<2>))
-MACHINE_CONFIG_END
+	INPUT_MERGER_ANY_HIGH(config, "int2").output_handler().set(FUNC(cdc721_state::int_w<2>)); // 74S05 (open collector)
+}
 
 ROM_START( cdc721 )
 	ROM_REGION( 0x4000, "resident", 0 )

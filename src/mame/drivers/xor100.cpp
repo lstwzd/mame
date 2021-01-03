@@ -65,27 +65,27 @@ void xor100_state::bankswitch()
 	case EPROM_0000:
 		if (m_bank < banks)
 		{
-			program.install_write_bank(0x0000, 0xffff, "bank1");
-			membank("bank1")->set_entry(1 + m_bank);
+			program.install_write_bank(0x0000, 0xffff, m_bank1);
+			m_bank1->set_entry(1 + m_bank);
 		}
 		else
 		{
 			program.unmap_write(0x0000, 0xffff);
 		}
 
-		program.install_read_bank(0x0000, 0x07ff, 0xf000, "bank2");
-		program.install_read_bank(0xf800, 0xffff, "bank3");
-		membank("bank2")->set_entry(0);
-		membank("bank3")->set_entry(0);
+		program.install_read_bank(0x0000, 0x07ff, 0xf000, m_bank2);
+		program.install_read_bank(0xf800, 0xffff, m_bank3);
+		m_bank2->set_entry(0);
+		m_bank3->set_entry(0);
 		break;
 
 	case EPROM_F800:
 		if (m_bank < banks)
 		{
-			program.install_write_bank(0x0000, 0xffff, "bank1");
-			program.install_read_bank(0x0000, 0xf7ff, "bank2");
-			membank("bank1")->set_entry(1 + m_bank);
-			membank("bank2")->set_entry(1 + m_bank);
+			program.install_write_bank(0x0000, 0xffff, m_bank1);
+			program.install_read_bank(0x0000, 0xf7ff, m_bank2);
+			m_bank1->set_entry(1 + m_bank);
+			m_bank2->set_entry(1 + m_bank);
 		}
 		else
 		{
@@ -93,19 +93,19 @@ void xor100_state::bankswitch()
 			program.unmap_read(0x0000, 0xf7ff);
 		}
 
-		program.install_read_bank(0xf800, 0xffff, "bank3");
-		membank("bank3")->set_entry(0);
+		program.install_read_bank(0xf800, 0xffff, m_bank3);
+		m_bank3->set_entry(0);
 		break;
 
 	case EPROM_OFF:
 		if (m_bank < banks)
 		{
-			program.install_write_bank(0x0000, 0xffff, "bank1");
-			program.install_read_bank(0x0000, 0xf7ff, "bank2");
-			program.install_read_bank(0xf800, 0xffff, "bank3");
-			membank("bank1")->set_entry(1 + m_bank);
-			membank("bank2")->set_entry(1 + m_bank);
-			membank("bank3")->set_entry(1 + m_bank);
+			program.install_write_bank(0x0000, 0xffff, m_bank1);
+			program.install_read_bank(0x0000, 0xf7ff, m_bank2);
+			program.install_read_bank(0xf800, 0xffff, m_bank3);
+			m_bank1->set_entry(1 + m_bank);
+			m_bank2->set_entry(1 + m_bank);
+			m_bank3->set_entry(1 + m_bank);
 		}
 		else
 		{
@@ -117,7 +117,7 @@ void xor100_state::bankswitch()
 	}
 }
 
-WRITE8_MEMBER( xor100_state::mmu_w )
+void xor100_state::mmu_w(uint8_t data)
 {
 	/*
 
@@ -139,7 +139,7 @@ WRITE8_MEMBER( xor100_state::mmu_w )
 	bankswitch();
 }
 
-WRITE8_MEMBER( xor100_state::prom_toggle_w )
+void xor100_state::prom_toggle_w(uint8_t data)
 {
 	switch (m_mode)
 	{
@@ -150,7 +150,7 @@ WRITE8_MEMBER( xor100_state::prom_toggle_w )
 	bankswitch();
 }
 
-READ8_MEMBER( xor100_state::prom_disable_r )
+uint8_t xor100_state::prom_disable_r()
 {
 	m_mode = EPROM_F800;
 
@@ -159,7 +159,7 @@ READ8_MEMBER( xor100_state::prom_disable_r )
 	return 0xff;
 }
 
-READ8_MEMBER( xor100_state::fdc_wait_r )
+uint8_t xor100_state::fdc_wait_r()
 {
 	/*
 
@@ -187,7 +187,7 @@ READ8_MEMBER( xor100_state::fdc_wait_r )
 	return m_fdc_irq ? 0x7f : 0xff;
 }
 
-WRITE8_MEMBER( xor100_state::fdc_dcont_w )
+void xor100_state::fdc_dcont_w(uint8_t data)
 {
 	/*
 
@@ -217,7 +217,7 @@ WRITE8_MEMBER( xor100_state::fdc_dcont_w )
 	if (floppy) floppy->mon_w(0);
 }
 
-WRITE8_MEMBER( xor100_state::fdc_dsel_w )
+void xor100_state::fdc_dsel_w(uint8_t data)
 {
 	/*
 
@@ -265,9 +265,9 @@ void xor100_state::xor100_io(address_map &map)
 	map(0x0a, 0x0a).r(FUNC(xor100_state::prom_disable_r));
 	map(0x0b, 0x0b).portr("DSW0").w(COM5016_TAG, FUNC(com8116_device::stt_str_w));
 	map(0x0c, 0x0f).rw(m_ctc, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
-	map(0xf8, 0xfb).lrw8("fdc",
-					[this](offs_t offset) { return m_fdc->read(offset) ^ 0xff; },
-					[this](offs_t offset, u8 data) { m_fdc->write(offset, data ^ 0xff); });
+	map(0xf8, 0xfb).lrw8(
+					NAME([this](offs_t offset) { return m_fdc->read(offset) ^ 0xff; }),
+					NAME([this](offs_t offset, u8 data) { m_fdc->write(offset, data ^ 0xff); }));
 	map(0xfc, 0xfc).rw(FUNC(xor100_state::fdc_wait_r), FUNC(xor100_state::fdc_dcont_w));
 	map(0xfd, 0xfd).w(FUNC(xor100_state::fdc_dsel_w));
 }
@@ -365,7 +365,7 @@ WRITE_LINE_MEMBER( xor100_state::write_centronics_select )
 	m_centronics_select = state;
 }
 
-READ8_MEMBER(xor100_state::i8255_pc_r)
+uint8_t xor100_state::i8255_pc_r()
 {
 	/*
 
@@ -443,6 +443,7 @@ void xor100_state::machine_start()
 	int banks = m_ram->size() / 0x10000;
 	uint8_t *ram = m_ram->pointer();
 	uint8_t *rom = m_rom->base();
+	m_bank = 0;
 
 	/* setup memory banking */
 	membank("bank1")->configure_entries(1, banks, ram, 0x10000);
@@ -477,11 +478,12 @@ void xor100_state::post_load()
 
 /* Machine Driver */
 
-MACHINE_CONFIG_START(xor100_state::xor100)
+void xor100_state::xor100(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(Z80_TAG, Z80, 8_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(xor100_mem)
-	MCFG_DEVICE_IO_MAP(xor100_io)
+	Z80(config, m_maincpu, 8_MHz_XTAL / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &xor100_state::xor100_mem);
+	m_maincpu->set_addrmap(AS_IO, &xor100_state::xor100_io);
 
 	/* devices */
 	I8251(config, m_uart_a, 0/*8_MHz_XTAL / 2,*/);
@@ -510,7 +512,7 @@ MACHINE_CONFIG_START(xor100_state::xor100)
 	brg.ft_handler().append(m_uart_b, FUNC(i8251_device::write_rxc));
 
 	i8255_device &ppi(I8255A(config, I8255A_TAG));
-	ppi.out_pa_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	ppi.out_pa_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	ppi.out_pb_callback().set(m_centronics, FUNC(centronics_device::write_strobe));
 	ppi.in_pc_callback().set(FUNC(xor100_state::i8255_pc_r));
 
@@ -521,35 +523,36 @@ MACHINE_CONFIG_START(xor100_state::xor100)
 	m_ctc->zc_callback<2>().set(FUNC(xor100_state::ctc_z2_w));
 
 	FD1795(config, m_fdc, 8_MHz_XTAL / 4);
-	MCFG_FLOPPY_DRIVE_ADD(WD1795_TAG":0", xor100_floppies, "8ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(WD1795_TAG":1", xor100_floppies, "8ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(WD1795_TAG":2", xor100_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(WD1795_TAG":3", xor100_floppies, nullptr,    floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, WD1795_TAG":0", xor100_floppies, "8ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, WD1795_TAG":1", xor100_floppies, "8ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, WD1795_TAG":2", xor100_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, WD1795_TAG":3", xor100_floppies, nullptr,    floppy_image_device::default_floppy_formats);
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_ACK_HANDLER(WRITELINE(I8255A_TAG, i8255_device, pc4_w))
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, xor100_state, write_centronics_busy))
-	MCFG_CENTRONICS_SELECT_HANDLER(WRITELINE(*this, xor100_state, write_centronics_select))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->ack_handler().set(I8255A_TAG, FUNC(i8255_device::pc4_w));
+	m_centronics->busy_handler().set(FUNC(xor100_state::write_centronics_busy));
+	m_centronics->select_handler().set(FUNC(xor100_state::write_centronics_select));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	// S-100
-	MCFG_DEVICE_ADD(S100_TAG, S100_BUS, 8_MHz_XTAL / 4)
-	MCFG_S100_RDY_CALLBACK(INPUTLINE(Z80_TAG, Z80_INPUT_LINE_BOGUSWAIT))
-	MCFG_S100_SLOT_ADD(S100_TAG ":1", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":2", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":3", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":4", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":5", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":6", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":7", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":8", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":9", xor100_s100_cards, nullptr)
-	MCFG_S100_SLOT_ADD(S100_TAG ":10", xor100_s100_cards, nullptr)
+	S100_BUS(config, m_s100, 8_MHz_XTAL / 4);
+	m_s100->rdy().set_inputline(m_maincpu, Z80_INPUT_LINE_BOGUSWAIT);
+	S100_SLOT(config, S100_TAG ":1", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":2", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":3", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":4", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":5", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":6", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":7", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":8", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":9", xor100_s100_cards, nullptr);
+	S100_SLOT(config, S100_TAG ":10", xor100_s100_cards, nullptr);
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("64K").set_extra_options("128K,192K,256K,320K,384K,448K,512K");
-MACHINE_CONFIG_END
+}
 
 /* ROMs */
 

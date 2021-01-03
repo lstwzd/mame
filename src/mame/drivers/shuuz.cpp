@@ -37,24 +37,11 @@ void shuuz_state::machine_start()
 
 /*************************************
  *
- *  Interrupt handling
- *
- *************************************/
-
-void shuuz_state::update_interrupts()
-{
-	m_maincpu->set_input_line(4, m_scanline_int_state ? ASSERT_LINE : CLEAR_LINE);
-}
-
-
-
-/*************************************
- *
  *  Initialization
  *
  *************************************/
 
-WRITE16_MEMBER(shuuz_state::latch_w)
+void shuuz_state::latch_w(uint16_t data)
 {
 }
 
@@ -66,7 +53,7 @@ WRITE16_MEMBER(shuuz_state::latch_w)
  *
  *************************************/
 
-READ16_MEMBER(shuuz_state::leta_r)
+uint16_t shuuz_state::leta_r(offs_t offset)
 {
 	/* trackball -- rotated 45 degrees? */
 	int which = offset & 1;
@@ -93,7 +80,7 @@ READ16_MEMBER(shuuz_state::leta_r)
  *
  *************************************/
 
-READ16_MEMBER(shuuz_state::special_port0_r)
+uint16_t shuuz_state::special_port0_r()
 {
 	int result = ioport("SYSTEM")->read();
 
@@ -233,39 +220,38 @@ GFXDECODE_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(shuuz_state::shuuz)
-
+void shuuz_state::shuuz(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, ATARI_CLOCK_14MHz/2)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M68000(config, m_maincpu, 14.318181_MHz_XTAL/2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &shuuz_state::main_map);
 
 	EEPROM_2816(config, "eeprom").lock_after_write(true);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_shuuz)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_shuuz);
 	PALETTE(config, "palette").set_format(palette_device::IRGB_1555, 1024);
 
 	ATARI_VAD(config, m_vad, 0, m_screen);
-	m_vad->scanline_int_cb().set(FUNC(shuuz_state::scanline_int_write_line));
-	TILEMAP(config, "vad:playfield", m_gfxdecode, 2, 8, 8, TILEMAP_SCAN_COLS, 64, 64).set_info_callback(DEVICE_SELF_OWNER, FUNC(shuuz_state::get_playfield_tile_info));
+	m_vad->scanline_int_cb().set_inputline(m_maincpu, M68K_IRQ_4);
+	TILEMAP(config, "vad:playfield", m_gfxdecode, 2, 8, 8, TILEMAP_SCAN_COLS, 64, 64).set_info_callback(FUNC(shuuz_state::get_playfield_tile_info));
 	ATARI_MOTION_OBJECTS(config, "vad:mob", 0, m_screen, shuuz_state::s_mob_config).set_gfxdecode(m_gfxdecode);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
 	/* note: these parameters are from published specs, not derived */
 	/* the board uses a VAD chip to generate video signals */
-	MCFG_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
-	MCFG_SCREEN_UPDATE_DRIVER(shuuz_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	m_screen->set_raw(14.318181_MHz_XTAL/2, 456, 0, 336, 262, 0, 240);
+	m_screen->set_screen_update(FUNC(shuuz_state::screen_update));
+	m_screen->set_palette("palette");
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, ATARI_CLOCK_14MHz/16, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, "oki", 14.318181_MHz_XTAL/16, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
 

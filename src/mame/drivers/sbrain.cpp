@@ -111,10 +111,10 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(external_rxc_w);
 	DECLARE_WRITE_LINE_MEMBER(internal_txc_rxc_w);
 
-	void sbrain_io(address_map &map);
-	void sbrain_mem(address_map &map);
-	void sbrain_subio(address_map &map);
-	void sbrain_submem(address_map &map);
+	void main_io_map(address_map &map);
+	void main_mem_map(address_map &map);
+	void sub_io_map(address_map &map);
+	void sub_mem_map(address_map &map);
 
 	bool m_busak;
 	u8 m_keydown;
@@ -144,12 +144,12 @@ private:
 	required_ioport m_serial_sw;
 };
 
-void sbrain_state::sbrain_mem(address_map &map)
+void sbrain_state::main_mem_map(address_map &map)
 {
 	map(0x0000, 0xffff).rw(FUNC(sbrain_state::mem_r), FUNC(sbrain_state::mem_w));
 }
 
-void sbrain_state::sbrain_io(address_map &map)
+void sbrain_state::main_io_map(address_map &map)
 {
 	map.global_mask(0xff);
 	map(0x40, 0x41).mirror(6).rw(m_usart[0], FUNC(i8251_device::read), FUNC(i8251_device::write));
@@ -160,13 +160,13 @@ void sbrain_state::sbrain_io(address_map &map)
 	map(0x68, 0x6b).mirror(4).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
 }
 
-void sbrain_state::sbrain_submem(address_map &map)
+void sbrain_state::sub_mem_map(address_map &map)
 {
 	map(0x0000, 0x07ff).mirror(0xf000).rom().region("subcpu", 0);
 	map(0x8800, 0x8bff).mirror(0x7400).ram().share("buffer");
 }
 
-void sbrain_state::sbrain_subio(address_map &map)
+void sbrain_state::sub_io_map(address_map &map)
 {
 	map.global_mask(0x1f);
 	map(0x08, 0x0b).mirror(4).rw(m_fdc, FUNC(fd1791_device::read), FUNC(fd1791_device::write));
@@ -345,11 +345,9 @@ void sbrain_state::ppi_pc_w(u8 data)
 		m_keydown &= 2; // ack DR
 
 	m_subcpu->set_input_line(INPUT_LINE_RESET, BIT(data, 3) ? ASSERT_LINE : CLEAR_LINE);
+	m_fdc->mr_w(!BIT(data, 3));
 	if (BIT(data, 3))
-	{
-		m_fdc->soft_reset();
 		disk_select_w(0);
-	}
 	m_subcpu->set_input_line(Z80_INPUT_LINE_BUSRQ, BIT(data, 5) ? ASSERT_LINE : CLEAR_LINE); // ignored in z80.cpp
 	m_busak = BIT(data, 5);
 }
@@ -587,6 +585,15 @@ void sbrain_state::machine_start()
 	std::fill_n(m_ram->pointer(), m_ram->size(), 0x00);
 
 	m_usart[0]->write_cts(0);
+
+	save_item(NAME(m_busak));
+	save_item(NAME(m_keydown));
+	save_item(NAME(m_porta));
+	save_item(NAME(m_portb));
+	save_item(NAME(m_portc));
+	save_item(NAME(m_port10));
+	save_item(NAME(m_key_data));
+	save_item(NAME(m_framecnt));
 }
 
 static void sbrain_floppies(device_slot_interface &device)
@@ -617,8 +624,7 @@ u32 sbrain_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, con
 		return 0;
 	}
 
-	u8 y,ra,chr,gfx;
-	uint16_t sy=0,x;
+	uint16_t sy=0;
 
 	// Where attributes come from:
 	// - Most systems use ram for character-based attributes, but this one uses strictly hardware which would seem cumbersome
@@ -632,18 +638,18 @@ u32 sbrain_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, con
 	uint16_t ma = m_crtc->top_of_page();
 	uint16_t cr = m_crtc->cursor_address();
 	uint8_t *videoram = &m_ram->pointer()[m_ram->size() - 0x800];
-	for (y = 0; y < 24; y++)
+	for (uint8_t y = 0; y < 24; y++)
 	{
-		for (ra = 0; ra < 10; ra++)
+		for (uint8_t ra = 0; ra < 10; ra++)
 		{
-			uint32_t *p = &bitmap.pix32(sy++);
+			uint32_t *p = &bitmap.pix(sy++);
 
-			for (x = 0; x < 80; x++)
+			for (uint16_t x = 0; x < 80; x++)
 			{
-				gfx = 0;
+				uint8_t gfx = 0;
 				if (ra > 0)
 				{
-					chr = videoram[(x + ma) & 0x7ff];
+					uint8_t chr = videoram[(x + ma) & 0x7ff];
 
 					if (!BIT(chr, 7) || BIT(m_framecnt, 5))
 					{
@@ -672,21 +678,23 @@ u32 sbrain_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, con
 	return 0;
 }
 
-MACHINE_CONFIG_START(sbrain_state::sbrain)
+void sbrain_state::sbrain(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", Z80, 16_MHz_XTAL / 4)
-	MCFG_DEVICE_PROGRAM_MAP(sbrain_mem)
-	MCFG_DEVICE_IO_MAP(sbrain_io)
+	Z80(config, m_maincpu, 16_MHz_XTAL / 4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &sbrain_state::main_mem_map);
+	m_maincpu->set_addrmap(AS_IO, &sbrain_state::main_io_map);
 
-	MCFG_DEVICE_ADD("subcpu", Z80, 16_MHz_XTAL / 4)
-	MCFG_DEVICE_PROGRAM_MAP(sbrain_submem)
-	MCFG_DEVICE_IO_MAP(sbrain_subio)
+	Z80(config, m_subcpu, 16_MHz_XTAL / 4);
+	m_subcpu->set_addrmap(AS_PROGRAM, &sbrain_state::sub_mem_map);
+	m_subcpu->set_addrmap(AS_IO, &sbrain_state::sub_io_map);
 
 	RAM(config, m_ram).set_default_size("64K").set_extra_options("32K");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::amber())
-	MCFG_SCREEN_UPDATE_DRIVER(sbrain_state, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_color(rgb_t::amber());
+	screen.set_screen_update(FUNC(sbrain_state::screen_update));
 
 	DP8350(config, m_crtc, 10.92_MHz_XTAL).set_screen("screen"); // XTAL not directly connected
 	m_crtc->character_generator_program(1);
@@ -733,29 +741,32 @@ MACHINE_CONFIG_START(sbrain_state::sbrain)
 
 	FD1791(config, m_fdc, 16_MHz_XTAL / 16);
 	m_fdc->set_force_ready(true);
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", sbrain_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", sbrain_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:2", sbrain_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:3", sbrain_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_a", sbrain_state, kbd_scan, attotime::from_hz(15))
-MACHINE_CONFIG_END
+	FLOPPY_CONNECTOR(config, "fdc:0", sbrain_floppies, "525dd", floppy_image_device::default_floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:1", sbrain_floppies, "525dd", floppy_image_device::default_floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:2", sbrain_floppies, nullptr, floppy_image_device::default_floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:3", sbrain_floppies, nullptr, floppy_image_device::default_floppy_formats).enable_sound(true);
+
+	TIMER(config, "timer_a", 0).configure_periodic(FUNC(sbrain_state::kbd_scan), attotime::from_hz(15));
+
+	SOFTWARE_LIST(config, "flop_list").set_original("sbrain");
+}
 
 ROM_START( sbrain )
 	ROM_REGION( 0x0800, "subcpu", ROMREGION_ERASEFF ) // only the second CPU has its own ROM
-	ROM_SYSTEM_BIOS( 0, "4_003", "4.003" )
-	ROMX_LOAD("4_003_vc8001.z69", 0x0000, 0x0800, CRC(3ce3cd53) SHA1(fb6ade6bd67de3d9f911a1a48481ca619bda65ae), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS( 1, "3_1", "3.1" )
-	ROMX_LOAD("3_1.z69", 0x0000, 0x0800, CRC(b6a2e6a5) SHA1(a646faaecb9ac45ee1a42764628e8971524d5c13), ROM_BIOS(1))
-	ROM_SYSTEM_BIOS( 2, "3_05", "3.05" )
-	ROMX_LOAD("qd_3_05.z69", 0x0000, 0x0800, CRC(aedbe777) SHA1(9ee9ca3f05e11ceb80896f06c3a3ae352db214dc), ROM_BIOS(2))
+	ROM_SYSTEM_BIOS( 0, "4_2", "4.2")
+	ROMX_LOAD("sbii_sb4_2.z69", 0x0000, 0x0800, CRC(89313e26) SHA1(755d494934099a4488abc44a8566c18d7d4fdea3), ROM_BIOS(0))
+	ROM_SYSTEM_BIOS( 1, "4_003", "4.003" )
+	ROMX_LOAD("4_003_vc8001.z69", 0x0000, 0x0800, CRC(3ce3cd53) SHA1(fb6ade6bd67de3d9f911a1a48481ca619bda65ae), ROM_BIOS(1))
+	ROM_SYSTEM_BIOS( 2, "3_1", "3.1" )
+	ROMX_LOAD("3_1.z69", 0x0000, 0x0800, CRC(b6a2e6a5) SHA1(a646faaecb9ac45ee1a42764628e8971524d5c13), ROM_BIOS(2))
+	ROM_SYSTEM_BIOS( 3, "3_05", "3.05" )
+	ROMX_LOAD("qd_3_05.z69", 0x0000, 0x0800, CRC(aedbe777) SHA1(9ee9ca3f05e11ceb80896f06c3a3ae352db214dc), ROM_BIOS(3))
+	ROM_SYSTEM_BIOS( 4, "4_2_50", "4.2 (50Hz hack)")
+	ROMX_LOAD("sbii_sb4_2_50hz.z69", 0x0000, 0x0800, CRC(285a894b) SHA1(694fef446fe19c0962f79951aa4d464489a9d161), ROM_BIOS(4))
 	// Using the chargen from 'c10' for now.
 	ROM_REGION( 0x2000, "chargen", 0 )
 	ROM_LOAD("c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
 ROM_END
 
-COMP( 1981, sbrain, 0, 0, sbrain, sbrain, sbrain_state, empty_init, "Intertec Data Systems", "SuperBrain Video Computer System", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS )
+COMP( 1981, sbrain, 0, 0, sbrain, sbrain, sbrain_state, empty_init, "Intertec Data Systems", "SuperBrain Video Computer System", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )

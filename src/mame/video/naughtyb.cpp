@@ -78,17 +78,17 @@ void naughtyb_state::naughtyb_palette(palette_device &palette) const
 		// red component
 		bit0 = BIT(color_prom[i], 0);
 		bit1 = BIT(color_prom[i+0x100], 0);
-		int const r = combine_2_weights(weights, bit0, bit1);
+		int const r = combine_weights(weights, bit0, bit1);
 
 		// green component
 		bit0 = BIT(color_prom[i], 2);
 		bit1 = BIT(color_prom[i+0x100], 2);
-		int const g = combine_2_weights(weights, bit0, bit1);
+		int const g = combine_weights(weights, bit0, bit1);
 
 		// blue component
 		bit0 = BIT(color_prom[i], 1);
 		bit1 = BIT(color_prom[i+0x100], 1);
-		int const b = combine_2_weights(weights, bit0, bit1);
+		int const b = combine_weights(weights, bit0, bit1);
 
 		palette.set_pen_color(bitswap<8>(i, 5, 7, 6, 2, 1, 0, 4, 3), rgb_t(r, g, b));
 	}
@@ -115,10 +115,10 @@ void naughtyb_state::video_start()
 
 
 
-WRITE8_MEMBER(naughtyb_state::naughtyb_videoreg_w)
+void naughtyb_state::naughtyb_videoreg_w(uint8_t data)
 {
 	// bits 4+5 control the sound circuit
-	m_naughtyb_custom->control_c_w(space,offset,data);
+	m_naughtyb_custom->control_c_w(data);
 
 	m_cocktail =
 		( ( ioport("DSW0")->read() & 0x80 ) &&  // cabinet == cocktail
@@ -127,10 +127,10 @@ WRITE8_MEMBER(naughtyb_state::naughtyb_videoreg_w)
 	m_bankreg = (data >> 2) & 0x01;         // banksel is just bit 2
 }
 
-WRITE8_MEMBER(naughtyb_state::popflame_videoreg_w)
+void naughtyb_state::popflame_videoreg_w(uint8_t data)
 {
 	// bits 4+5 control the sound circuit
-	m_popflame_custom->control_c_w(space,offset,data);
+	m_popflame_custom->control_c_w(data);
 
 	m_cocktail =
 		( ( ioport("DSW0")->read() & 0x80 ) &&  // cabinet == cocktail

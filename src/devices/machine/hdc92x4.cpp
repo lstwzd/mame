@@ -2825,10 +2825,14 @@ void hdc92x4_device::live_run_until(attotime limit)
 				write_on_track(encode((m_live_state.crc >> 8) & 0xff), 1, WRITE_DATA_CRC);
 			}
 			else
+			{
 				// Write a filler byte so that the last CRC bit is saved correctly
 				// Without, the last bit of the CRC value may be flipped
-				write_on_track(encode(0xff), 1, WRITE_DONE);
-
+				// This is an effect of the PLL, not of MFM
+				// Compare with the header CRC, where during formatting, the
+				// CRC bytes are followed by the gap bytes.
+				write_on_track(encode(fm_mode()? 0xff : 0x4e), 1, WRITE_DONE);
+			}
 			break;
 
 		case WRITE_DONE:
@@ -3572,9 +3576,11 @@ void hdc92x4_device::live_run_hd_until(attotime limit)
 				write_on_track(encode_hd((m_live_state.crc >> 8) & 0xff), 1, WRITE_DATA_CRC);
 			}
 			else
+			{
 				// Write a filler byte so that the last CRC bit is saved correctly
-				write_on_track(encode_hd(0xff), 1, WRITE_DONE);
-
+				// See above for an explanation
+				write_on_track(encode_hd(0x4e), 1, WRITE_DONE);
+			}
 			break;
 
 		case WRITE_DONE:
@@ -4265,7 +4271,7 @@ uint16_t hdc92x4_device::encode_a1_hd()
     Read a byte of data from the controller
     The address (offset) encodes the C/D* line (command and /data)
 */
-READ8_MEMBER( hdc92x4_device::read )
+uint8_t hdc92x4_device::read(offs_t offset)
 {
 	uint8_t reply;
 	if ((offset & 1) == 0)
@@ -4300,7 +4306,7 @@ READ8_MEMBER( hdc92x4_device::read )
     The operation terminates immediately, and the controller picks up the
     values stored in this phase at a later time.
 */
-WRITE8_MEMBER( hdc92x4_device::write )
+void hdc92x4_device::write(offs_t offset, uint8_t data)
 {
 	if ((offset & 1) == 0)
 	{

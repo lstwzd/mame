@@ -123,6 +123,7 @@ Notes:
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class jollyjgr_state : public driver_device
@@ -162,10 +163,10 @@ private:
 	uint8_t      m_bitmap_disable;
 	uint8_t      m_tilemap_bank;
 	uint8_t      m_pri;
-	DECLARE_WRITE8_MEMBER(jollyjgr_videoram_w);
-	DECLARE_WRITE8_MEMBER(jollyjgr_attrram_w);
-	DECLARE_WRITE8_MEMBER(jollyjgr_misc_w);
-	DECLARE_WRITE8_MEMBER(jollyjgr_coin_lookout_w);
+	void jollyjgr_videoram_w(offs_t offset, uint8_t data);
+	void jollyjgr_attrram_w(offs_t offset, uint8_t data);
+	void jollyjgr_misc_w(uint8_t data);
+	void jollyjgr_coin_lookout_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
@@ -190,13 +191,13 @@ private:
  *
  *************************************/
 
-WRITE8_MEMBER(jollyjgr_state::jollyjgr_videoram_w)
+void jollyjgr_state::jollyjgr_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(jollyjgr_state::jollyjgr_attrram_w)
+void jollyjgr_state::jollyjgr_attrram_w(offs_t offset, uint8_t data)
 {
 	if (offset & 1)
 	{
@@ -214,7 +215,7 @@ WRITE8_MEMBER(jollyjgr_state::jollyjgr_attrram_w)
 	m_colorram[offset] = data;
 }
 
-WRITE8_MEMBER(jollyjgr_state::jollyjgr_misc_w)
+void jollyjgr_state::jollyjgr_misc_w(uint8_t data)
 {
 	// they could be swapped, because it always set "data & 3"
 	m_flip_x = data & 1;
@@ -233,7 +234,7 @@ WRITE8_MEMBER(jollyjgr_state::jollyjgr_misc_w)
 		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 }
 
-WRITE8_MEMBER(jollyjgr_state::jollyjgr_coin_lookout_w)
+void jollyjgr_state::jollyjgr_coin_lookout_w(uint8_t data)
 {
 	machine().bookkeeping().coin_lockout_global_w(data & 1);
 
@@ -485,12 +486,12 @@ TILE_GET_INFO_MEMBER(jollyjgr_state::get_bg_tile_info)
 {
 	int color = m_colorram[((tile_index & 0x1f) << 1) | 1] & 7;
 	int region = (m_tilemap_bank & 0x20) ? 2 : 0;
-	SET_TILE_INFO_MEMBER(region, m_videoram[tile_index], color, 0);
+	tileinfo.set(region, m_videoram[tile_index], color, 0);
 }
 
 void jollyjgr_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(jollyjgr_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(jollyjgr_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 
 	m_bg_tilemap->set_transparent_pen(0);
 	m_bg_tilemap->set_scroll_cols(32);
@@ -513,13 +514,13 @@ void jollyjgr_state::draw_bitmap(bitmap_rgb32 &bitmap)
 				if (color)
 				{
 					if (m_flip_x && m_flip_y)
-						bitmap.pix32(y, x * 8 + i) = m_bm_palette->pen_color(color);
+						bitmap.pix(y, x * 8 + i) = m_bm_palette->pen_color(color);
 					else if (m_flip_x && !m_flip_y)
-						bitmap.pix32(255 - y, x * 8 + i) = m_bm_palette->pen_color(color);
+						bitmap.pix(255 - y, x * 8 + i) = m_bm_palette->pen_color(color);
 					else if (!m_flip_x && m_flip_y)
-						bitmap.pix32(y, 255 - x * 8 - i) = m_bm_palette->pen_color(color);
+						bitmap.pix(y, 255 - x * 8 - i) = m_bm_palette->pen_color(color);
 					else
-						bitmap.pix32(255 - y, 255 - x * 8 - i) = m_bm_palette->pen_color(color);
+						bitmap.pix(255 - y, 255 - x * 8 - i) = m_bm_palette->pen_color(color);
 				}
 			}
 
@@ -601,7 +602,7 @@ uint32_t jollyjgr_state::screen_update_fspider(screen_device &screen, bitmap_rgb
 		if (sy>=cliprect.min_y && sy<=cliprect.max_y)
 			for (int x=sx-4;x<sx;x++)
 				if (x>=cliprect.min_x && x<=cliprect.max_x)
-					bitmap.pix32(sy, x) = m_bm_palette->pen_color(bc);
+					bitmap.pix(sy, x) = m_bm_palette->pen_color(bc);
 	}
 
 	return 0;
@@ -676,19 +677,20 @@ void jollyjgr_state::machine_reset()
 	m_tilemap_bank = 0;
 }
 
-MACHINE_CONFIG_START(jollyjgr_state::jollyjgr)
+void jollyjgr_state::jollyjgr(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(18'000'000)/6)  /* 3MHz verified */
-	MCFG_DEVICE_PROGRAM_MAP(jollyjgr_map)
+	Z80(config, m_maincpu, XTAL(18'000'000)/6);  /* 3MHz verified */
+	m_maincpu->set_addrmap(AS_PROGRAM, &jollyjgr_state::jollyjgr_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.18)     /* 59.1864Hz measured */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(jollyjgr_state, screen_update_jollyjgr)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, jollyjgr_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(59.18);     /* 59.1864Hz measured */
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(256, 256);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(jollyjgr_state::screen_update_jollyjgr));
+	screen.screen_vblank().set(FUNC(jollyjgr_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_jollyjgr);
 	PALETTE(config, m_palette, FUNC(jollyjgr_state::jollyjgr_palette), 32); // tilemap and sprites
@@ -698,16 +700,15 @@ MACHINE_CONFIG_START(jollyjgr_state::jollyjgr)
 	SPEAKER(config, "mono").front_center();
 
 	AY8910(config, "aysnd", XTAL(3'579'545)/2).add_route(ALL_OUTPUTS, "mono", 0.45); /* 1.7897725MHz verified */
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(jollyjgr_state::fspider)
+void jollyjgr_state::fspider(machine_config &config)
+{
 	jollyjgr(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(fspider_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &jollyjgr_state::fspider_map);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(jollyjgr_state, screen_update_fspider)
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(jollyjgr_state::screen_update_fspider));
+}
 
 /*************************************
  *

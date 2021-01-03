@@ -61,32 +61,32 @@ void xavix_state::video_start()
 }
 
 
-WRITE8_MEMBER(xavix_state::palram_sh_w)
+void xavix_state::palram_sh_w(offs_t offset, uint8_t data)
 {
 	m_palram_sh[offset] = data;
 	update_pen(offset, m_palram_sh[offset], m_palram_l[offset]);
 }
 
-WRITE8_MEMBER(xavix_state::palram_l_w)
+void xavix_state::palram_l_w(offs_t offset, uint8_t data)
 {
 	m_palram_l[offset] = data;
 	update_pen(offset, m_palram_sh[offset], m_palram_l[offset]);
 }
 
-WRITE8_MEMBER(xavix_state::bmp_palram_sh_w)
+void xavix_state::bmp_palram_sh_w(offs_t offset, uint8_t data)
 {
 	m_bmp_palram_sh[offset] = data;
 	update_pen(offset+256, m_bmp_palram_sh[offset], m_bmp_palram_l[offset]);
 }
 
-WRITE8_MEMBER(xavix_state::bmp_palram_l_w)
+void xavix_state::bmp_palram_l_w(offs_t offset, uint8_t data)
 {
 	m_bmp_palram_l[offset] = data;
 	update_pen(offset+256, m_bmp_palram_sh[offset], m_bmp_palram_l[offset]);
 }
 
 
-WRITE8_MEMBER(xavix_state::spriteram_w)
+void xavix_state::spriteram_w(offs_t offset, uint8_t data)
 {
 	if (offset < 0x100)
 	{
@@ -109,68 +109,106 @@ WRITE8_MEMBER(xavix_state::spriteram_w)
 	}
 }
 
-double xavix_state::hue2rgb(double p, double q, double t)
-{
-	if (t < 0) t += 1;
-	if (t > 1) t -= 1;
-	if (t < 1 / 6.0f) return p + (q - p) * 6 * t;
-	if (t < 1 / 2.0f) return q;
-	if (t < 2 / 3.0f) return p + (q - p) * (2 / 3.0f - t) * 6;
-	return p;
-}
-
 void xavix_state::update_pen(int pen, uint8_t shval, uint8_t lval)
 {
 	uint16_t dat;
 	dat = shval;
 	dat |= lval << 8;
 
-	int l_raw = (dat & 0x1f00) >> 8;
-	int s_raw = (dat & 0x00e0) >> 5;
+	int y_raw = (dat & 0x1f00) >> 8;
+	int c_raw = (dat & 0x00e0) >> 5;
 	int h_raw = (dat & 0x001f) >> 0;
 
-	//if (h_raw > 24)
-	//  LOG("hraw >24 (%02x)\n", h_raw);
+	// The dividers may be dynamic
+	double y = y_raw / 20.0;
+	double c = c_raw /  5.0;
 
-	//if (l_raw > 24)
-	//  LOG("lraw >24 (%02x)\n", l_raw);
+	// These weights may be dynamic too.  They're standard NTSC values, would they change on PAL?
+	const double wr = 0.299;
+	const double wg = 0.587;
+	const double wb = 0.114;
 
-	//if (s_raw > 7)
-	//  LOG("s_raw >5 (%02x)\n", s_raw);
+	// Table of hues
+	// Values 24+ are transparent
 
-	double l = (double)l_raw / 24.0f; // ekara and drgqst go up to 23 during fades, expect that to be brightest
-	l = l * (std::atan(1)*2); // does not appear to be a linear curve
-	l = std::sin(l);
+	const double hues[32][3] = {
+		{ 1.00, 0.00, 0.00 },
+		{ 1.00, 0.25, 0.00 },
+		{ 1.00, 0.50, 0.00 },
+		{ 1.00, 0.75, 0.00 },
+		{ 1.00, 1.00, 0.00 },
+		{ 0.75, 1.00, 0.00 },
+		{ 0.50, 1.00, 0.00 },
+		{ 0.25, 1.00, 0.00 },
+		{ 0.00, 1.00, 0.00 },
+		{ 0.00, 1.00, 0.25 },
+		{ 0.00, 1.00, 0.50 },
+		{ 0.00, 1.00, 0.75 },
+		{ 0.00, 1.00, 1.00 },
+		{ 0.00, 0.75, 1.00 },
+		{ 0.00, 0.50, 1.00 },
+		{ 0.00, 0.25, 1.00 },
+		{ 0.00, 0.00, 1.00 },
+		{ 0.25, 0.00, 1.00 },
+		{ 0.50, 0.00, 1.00 },
+		{ 0.75, 0.00, 1.00 },
+		{ 1.00, 0.00, 1.00 },
+		{ 1.00, 0.00, 0.75 },
+		{ 1.00, 0.00, 0.50 },
+		{ 1.00, 0.00, 0.25 },
 
-	double s = (double)s_raw / 7.0f;
-	s = s * (std::atan(1)*2); // does not appear to be a linear curve
-	s = std::sin(s);
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+		{ 0   , 0   , 0    },
+	};
 
-	double h = (double)h_raw / 24.0f; // hue values 24-31 render as transparent
+	double r0 = hues[h_raw][0];
+	double g0 = hues[h_raw][1];
+	double b0 = hues[h_raw][2];
 
-	double r, g, b;
+	double z = wr * r0 + wg * g0 + wb * b0;
 
-	if (s == 0) {
-		r = g = b = l; // greyscale
-	}
-	else {
-		double q = l < 0.5f ? l * (1 + s) : l + s - l * s;
-		double p = 2 * l - q;
-		r = hue2rgb(p, q, h + 1 / 3.0f);
-		g = hue2rgb(p, q, h);
-		b = hue2rgb(p, q, h - 1 / 3.0f);
-	}
+	if(y < z)
+		c *= y/z;
+	else if(z < 1)
+		c *= (1-y) / (1-z);
 
-	int r_real = r * 255.0f;
-	int g_real = g * 255.0f;
-	int b_real = b * 255.0f;
+	double r1 = (r0 - z) * c + y;
+	double g1 = (g0 - z) * c + y;
+	double b1 = (b0 - z) * c + y;
+
+	if(r1 < 0)
+		r1 = 0;
+	else if(r1 > 1)
+		r1 = 1.0;
+
+	if(g1 < 0)
+		g1 = 0;
+	else if(g1 > 1)
+		g1 = 1.0;
+
+	if(b1 < 0)
+		b1 = 0;
+	else if(b1 > 1)
+		b1 = 1.0;
+
+	int r_real = r1 * 255.0f;
+	int g_real = g1 * 255.0f;
+	int b_real = b1 * 255.0f;
 
 	m_palette->set_pen_color(pen, r_real, g_real, b_real);
+
+	m_screen->update_partial(m_screen->vpos());
 }
 
 
 
-void xavix_state::draw_tilemap(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int which)
+void xavix_state::draw_tilemap(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int which)
 {
 	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
 	{
@@ -251,7 +289,7 @@ void xavix_state::decode_inline_header(int &flipx, int &flipy, int &test, int &p
 	//if (debug_packets) LOG("\n");
 }
 
-void xavix_state::draw_tilemap_line(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int which, int line)
+void xavix_state::draw_tilemap_line(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int which, int line)
 {
 	uint8_t* tileregs;
 	if (which == 0)
@@ -372,8 +410,8 @@ void xavix_state::draw_tilemap_line(screen_device &screen, bitmap_ind16 &bitmap,
 		int scrollx = tileregs[0x4];
 
 		int basereg;
-		int flipx = 0;
-		int flipy = 0;
+		int flipx = (tileregs[0x03]&0x40)>>6;
+		int flipy = (tileregs[0x03]&0x80)>>7;
 		int gfxbase;
 
 		// tile 0 is always skipped, doesn't even point to valid data packets in alt mode
@@ -452,7 +490,7 @@ void xavix_state::draw_tilemap_line(screen_device &screen, bitmap_ind16 &bitmap,
 	}
 }
 
-void xavix_state::draw_sprites(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+void xavix_state::draw_sprites(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
 	{
@@ -460,7 +498,7 @@ void xavix_state::draw_sprites(screen_device &screen, bitmap_ind16 &bitmap, cons
 	}
 }
 
-void xavix_state::draw_sprites_line(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int line)
+void xavix_state::draw_sprites_line(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int line)
 {
 	int alt_addressing = 0;
 
@@ -667,9 +705,9 @@ void xavix_state::draw_sprites_line(screen_device &screen, bitmap_ind16 &bitmap,
 	}
 }
 
-void xavix_state::draw_tile_line(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int tile, int bpp, int xpos, int ypos, int drawheight, int drawwidth, int flipx, int flipy, int pal, int zval, int line)
+void xavix_state::draw_tile_line(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int tile, int bpp, int xpos, int ypos, int drawheight, int drawwidth, int flipx, int flipy, int pal, int zval, int line)
 {
-	//const pen_t *paldata = m_palette->pens();
+	const pen_t *paldata = m_palette->pens();
 	if (ypos > cliprect.max_y || ypos < cliprect.min_y)
 		return;
 
@@ -716,7 +754,7 @@ void xavix_state::draw_tile_line(screen_device &screen, bitmap_ind16 &bitmap, co
 
 			if ((col >= cliprect.min_x && col <= cliprect.max_x))
 			{
-				uint16_t* zyposptr = &m_zbuffer.pix16(ypos);
+				uint16_t *const zyposptr = &m_zbuffer.pix(ypos);
 
 				if (zval >= zyposptr[col])
 				{
@@ -724,11 +762,8 @@ void xavix_state::draw_tile_line(screen_device &screen, bitmap_ind16 &bitmap, co
 
 					if ((m_palram_sh[pen] & 0x1f) < 24) // hue values 24-31 are transparent
 					{
-						uint16_t* yposptr = &bitmap.pix16(ypos);
-						yposptr[col] = pen;
-
-						//uint32_t* yposptr = &bitmap.pix32(ypos);
-						//yposptr[col] = paldata[pen];
+						uint32_t *const yposptr = &bitmap.pix(ypos);
+						yposptr[col] = paldata[pen];
 
 						zyposptr[col] = zval;
 					}
@@ -738,8 +773,9 @@ void xavix_state::draw_tile_line(screen_device &screen, bitmap_ind16 &bitmap, co
 	}
 }
 
-uint32_t xavix_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t xavix_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	const pen_t *paldata = m_palette->pens();
 	// not sure what you end up with if you fall through all layers as transparent, so far no issues noticed
 	bitmap.fill(m_palette->black_pen(), cliprect);
 	m_zbuffer.fill(0, cliprect);
@@ -774,7 +810,7 @@ uint32_t xavix_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 				clip.max_x = cliprect.max_x;
 		}
 	}
-	bitmap.fill(0, clip);
+	bitmap.fill(paldata[0], clip);
 
 	draw_tilemap(screen, bitmap, clip, 1);
 	draw_tilemap(screen, bitmap, clip, 0);
@@ -785,35 +821,73 @@ uint32_t xavix_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 	// temp, needs priority, transparency etc. also it's far bigger than the screen, I guess it must get scaled?!
 	if (m_bmp_base)
 	{
-		if (m_bmp_base[0x14] & 0x01)
-		{
-			popmessage("bitmap %02x %02x %02x %02x %02x %02x %02x %02x  -- -- %02x %02x %02x %02x %02x %02x  -- -- %02x %02x %02x %02x %02x %02x",
-				m_bmp_base[0x00], m_bmp_base[0x01], m_bmp_base[0x02], m_bmp_base[0x03], m_bmp_base[0x04], m_bmp_base[0x05], m_bmp_base[0x06], m_bmp_base[0x07],
-				/*m_bmp_base[0x08], m_bmp_base[0x09],*/ m_bmp_base[0x0a], m_bmp_base[0x0b], m_bmp_base[0x0c], m_bmp_base[0x0d], m_bmp_base[0x0e], m_bmp_base[0x0f],
-				/*m_bmp_base[0x10], m_bmp_base[0x11],*/ m_bmp_base[0x12], m_bmp_base[0x13], m_bmp_base[0x14], m_bmp_base[0x15], m_bmp_base[0x16], m_bmp_base[0x17]);
+		// looks like it can zoom the bitmap using these?
+		uint16_t top = ((m_bmp_base[0x01] << 8) | m_bmp_base[0x00]);
+		uint16_t bot = ((m_bmp_base[0x03] << 8) | m_bmp_base[0x02]);
+		uint16_t lft = ((m_bmp_base[0x05] << 8) | m_bmp_base[0x04]);
+		uint16_t rgt = ((m_bmp_base[0x07] << 8) | m_bmp_base[0x06]);
 
-			int base = ((m_bmp_base[0x11] << 8) | m_bmp_base[0x10]) * 0x800;
-			int base2 = ((m_bmp_base[0x09] << 8) | m_bmp_base[0x08]) * 0x8;
+		// and can specify base address relative start / end positions with these for data reading to be cut off?
+		uint16_t topadr = ((m_bmp_base[0x09] << 8) | m_bmp_base[0x08]);
+		uint16_t botadr = ((m_bmp_base[0x0b] << 8) | m_bmp_base[0x0a]);
+		uint16_t lftadr = ((m_bmp_base[0x0d] << 8) | m_bmp_base[0x0c]);
+		uint16_t rgtadr = ((m_bmp_base[0x0f] << 8) | m_bmp_base[0x0e]);
+
+		uint16_t start = ((m_bmp_base[0x11] << 8) | m_bmp_base[0x10]);
+		uint8_t end = m_bmp_base[0x12]; // ?? related to width?
+		uint8_t size = m_bmp_base[0x13]; // some kind of additional scaling?
+		uint8_t mode = m_bmp_base[0x14]; // enable,bpp, zval etc.
+
+		uint32_t unused = ((m_bmp_base[0x15] << 16) | (m_bmp_base[0x16] << 8) | (m_bmp_base[0x17] << 0));
+
+		if (mode & 0x01)
+		{
+			popmessage("bitmap t:%04x b:%04x l:%04x r:%04x  -- -- ba:%04x la:%04x ra:%04x   -- -- end:%02x - size:%02x unused:%08x",
+				top, bot, lft, rgt,
+				/*topadr*/ botadr, lftadr, rgtadr,
+				/*start*/ end, size, unused);
+
+			int base = start * 0x800;
+			int base2 = topadr * 0x8;
+
+			int bpp = ((mode & 0x0e) >> 1) + 1;
+			int zval = ((mode & 0xf0) >> 4);
+
+			int width = (rgtadr * 8) / bpp;
 
 			//int count = 0;
-			set_data_address(base + base2, 0);
 
-			for (int y = 0; y < 256; y++)
+			for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
 			{
-				for (int x = 0; x < 512; x++)
+				int line = y - top;
+
+				if ((line > 0) && (y < bot))
 				{
-					uint16_t* yposptr = &bitmap.pix16(y);
+					set_data_address(base + base2 + ((line * width * bpp) / 8), 0);
 
-					int bpp = 6;
-
-					uint8_t dat = 0;
-					for (int i = 0; i < bpp; i++)
+					for (int x = 0; x < width; x++)
 					{
-						dat |= (get_next_bit() << i);
-					}
+						uint32_t *const yposptr = &bitmap.pix(y);
+						uint16_t *const zyposptr = &m_zbuffer.pix(y);
 
-					if (x < cliprect.max_x)
-						yposptr[x] = dat + 0x100;
+						uint8_t dat = 0;
+						for (int i = 0; i < bpp; i++)
+						{
+							dat |= (get_next_bit() << i);
+						}
+
+						if (((x <= cliprect.max_x) && (x >= cliprect.min_x)) && ((y <= cliprect.max_y) && (y >= cliprect.min_y)))
+						{
+							if ((m_bmp_palram_sh[dat] & 0x1f) < 24) // same transparency logic as everything else? (baseball title)
+							{
+								if (zval >= zyposptr[x])
+								{
+									yposptr[x] = paldata[dat + 0x100];
+									zyposptr[x] = zval;
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -824,17 +898,17 @@ uint32_t xavix_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 }
 
 
-WRITE8_MEMBER(xavix_state::spritefragment_dma_params_1_w)
+void xavix_state::spritefragment_dma_params_1_w(offs_t offset, uint8_t data)
 {
 	m_spritefragment_dmaparam1[offset] = data;
 }
 
-WRITE8_MEMBER(xavix_state::spritefragment_dma_params_2_w)
+void xavix_state::spritefragment_dma_params_2_w(offs_t offset, uint8_t data)
 {
 	m_spritefragment_dmaparam2[offset] = data;
 }
 
-WRITE8_MEMBER(xavix_state::spritefragment_dma_trg_w)
+void xavix_state::spritefragment_dma_trg_w(uint8_t data)
 {
 	uint16_t len = data & 0x07;
 	uint16_t src = (m_spritefragment_dmaparam1[1] << 8) | m_spritefragment_dmaparam1[0];
@@ -864,18 +938,18 @@ WRITE8_MEMBER(xavix_state::spritefragment_dma_trg_w)
 			//uint8_t dat = m_maincpu->read_full_data_sp(src + i);
 			uint8_t dat = read_full_data_sp_bypass(src + i);
 			//m_fragment_sprite[(dst + i) & 0x7ff] = dat;
-			spriteram_w(space, (dst + i) & 0x7ff, dat);
+			spriteram_w((dst + i) & 0x7ff, dat);
 		}
 	}
 }
 
-READ8_MEMBER(xavix_state::spritefragment_dma_status_r)
+uint8_t xavix_state::spritefragment_dma_status_r()
 {
 	// expects bit 0x40 to clear in most cases
 	return 0x00;
 }
 
-READ8_MEMBER(xavix_state::pal_ntsc_r)
+uint8_t xavix_state::pal_ntsc_r()
 {
 	// only seen 0x10 checked in code
 	// in monster truck the tile base address gets set based on this, there are 2 copies of the test screen in rom, one for pal, one for ntsc, see 1854c
@@ -884,7 +958,7 @@ READ8_MEMBER(xavix_state::pal_ntsc_r)
 }
 
 
-WRITE8_MEMBER(xavix_state::tmap1_regs_w)
+void xavix_state::tmap1_regs_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
 	/*
 	   0x0 pointer to low tile bits
@@ -930,7 +1004,7 @@ WRITE8_MEMBER(xavix_state::tmap1_regs_w)
 	COMBINE_DATA(&m_tmap1_regs[offset]);
 }
 
-WRITE8_MEMBER(xavix_state::tmap2_regs_w)
+void xavix_state::tmap2_regs_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
 	// same as above but for 2nd tilemap
 	if ((offset != 0x4) && (offset != 0x5))
@@ -942,7 +1016,7 @@ WRITE8_MEMBER(xavix_state::tmap2_regs_w)
 }
 
 
-WRITE8_MEMBER(xavix_state::spriteregs_w)
+void xavix_state::spriteregs_w(uint8_t data)
 {
 	LOG("%s: spriteregs_w data %02x\n", machine().describe_context(), data);
 	/*
@@ -960,20 +1034,20 @@ WRITE8_MEMBER(xavix_state::spriteregs_w)
 	m_spritereg = data;
 }
 
-READ8_MEMBER(xavix_state::tmap1_regs_r)
+uint8_t xavix_state::tmap1_regs_r(offs_t offset)
 {
 	LOG("%s: tmap1_regs_r offset %02x\n", offset, machine().describe_context());
 	return m_tmap1_regs[offset];
 }
 
-READ8_MEMBER(xavix_state::tmap2_regs_r)
+uint8_t xavix_state::tmap2_regs_r(offs_t offset)
 {
 	LOG("%s: tmap2_regs_r offset %02x\n", offset, machine().describe_context());
 	return m_tmap2_regs[offset];
 }
 
 // The Text Array / Memory Emulator acts as a memory area that you can point the tilemap sources at to get a fixed pattern of data
-WRITE8_MEMBER(xavix_state::xavix_memoryemu_txarray_w)
+void xavix_state::xavix_memoryemu_txarray_w(offs_t offset, uint8_t data)
 {
 	if (offset < 0x400)
 	{
@@ -993,7 +1067,7 @@ WRITE8_MEMBER(xavix_state::xavix_memoryemu_txarray_w)
 	}
 }
 
-READ8_MEMBER(xavix_state::xavix_memoryemu_txarray_r)
+uint8_t xavix_state::xavix_memoryemu_txarray_r(offs_t offset)
 {
 	return txarray_r(offset);
 }

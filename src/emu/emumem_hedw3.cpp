@@ -5,6 +5,23 @@
 #include "emumem_hedw.ipp"
 
 
+template class handler_entry_write_dispatch<25, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<25, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<26, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<26, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<27, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<27, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<28, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<28, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<29, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<29, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<30, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<30, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<31, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<31, 0,  1, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<32, 0,  1, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<32, 0,  1, ENDIANNESS_BIG>;
+
 template class handler_entry_write_dispatch<25, 0,  0, ENDIANNESS_LITTLE>;
 template class handler_entry_write_dispatch<25, 0,  0, ENDIANNESS_BIG>;
 template class handler_entry_write_dispatch<26, 0,  0, ENDIANNESS_LITTLE>;
@@ -72,6 +89,23 @@ template class handler_entry_write_dispatch<30, 1, -1, ENDIANNESS_LITTLE>;
 template class handler_entry_write_dispatch<30, 1, -1, ENDIANNESS_BIG>;
 template class handler_entry_write_dispatch<32, 1, -1, ENDIANNESS_LITTLE>;
 template class handler_entry_write_dispatch<32, 1, -1, ENDIANNESS_BIG>;
+
+template class handler_entry_write_dispatch<25, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<25, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<26, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<26, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<27, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<27, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<28, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<28, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<29, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<29, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<31, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<31, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<30, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<30, 2,  3, ENDIANNESS_BIG>;
+template class handler_entry_write_dispatch<32, 2,  3, ENDIANNESS_LITTLE>;
+template class handler_entry_write_dispatch<32, 2,  3, ENDIANNESS_BIG>;
 
 template class handler_entry_write_dispatch<25, 2,  0, ENDIANNESS_LITTLE>;
 template class handler_entry_write_dispatch<25, 2,  0, ENDIANNESS_BIG>;

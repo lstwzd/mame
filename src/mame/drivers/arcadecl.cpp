@@ -88,17 +88,17 @@
  *
  *************************************/
 
-void sparkz_state::update_interrupts()
+TIMER_DEVICE_CALLBACK_MEMBER(sparkz_state::scanline_interrupt)
 {
-	m_maincpu->set_input_line(4, m_scanline_int_state ? ASSERT_LINE : CLEAR_LINE);
+	/* generate 32V signals */
+	if ((param & 32) == 0)
+		m_maincpu->set_input_line(M68K_IRQ_4, ASSERT_LINE);
 }
 
 
-void sparkz_state::scanline_update(screen_device &screen, int scanline)
+void sparkz_state::scanline_int_ack_w(uint16_t data)
 {
-	/* generate 32V signals */
-	if ((scanline & 32) == 0)
-		scanline_int_write_line(1);
+	m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 }
 
 
@@ -111,8 +111,6 @@ void sparkz_state::scanline_update(screen_device &screen, int scanline)
 
 void sparkz_state::machine_reset()
 {
-	atarigen_state::machine_reset();
-	scanline_timer_reset(*m_screen, 32);
 }
 
 
@@ -123,7 +121,7 @@ void sparkz_state::machine_reset()
  *
  *************************************/
 
-WRITE16_MEMBER(sparkz_state::latch_w)
+void sparkz_state::latch_w(uint8_t data)
 {
 	/* bit layout in this register:
 
@@ -131,12 +129,8 @@ WRITE16_MEMBER(sparkz_state::latch_w)
 	    0x001F == volume
 	*/
 
-	/* lower byte being modified? */
-	if (ACCESSING_BITS_0_7)
-	{
-		m_oki->set_rom_bank((data >> 7) & 1);
-		m_oki->set_output_gain(ALL_OUTPUTS, (data & 0x001f) / 31.0f);
-	}
+	m_oki->set_rom_bank((data >> 7) & 1);
+	m_oki->set_output_gain(ALL_OUTPUTS, (data & 0x001f) / 31.0f);
 }
 
 
@@ -163,11 +157,11 @@ void sparkz_state::main_map(address_map &map)
 	map(0x640022, 0x640023).portr("TRACKY2");
 	map(0x640024, 0x640025).portr("TRACKX1");
 	map(0x640026, 0x640027).portr("TRACKY1");
-	map(0x640040, 0x64004f).w(FUNC(sparkz_state::latch_w));
+	map(0x640041, 0x640041).mirror(0xe).w(FUNC(sparkz_state::latch_w));
 	map(0x640060, 0x64006f).w("eeprom", FUNC(eeprom_parallel_28xx_device::unlock_write16));
 	map(0x641000, 0x641fff).rw("eeprom", FUNC(eeprom_parallel_28xx_device::read), FUNC(eeprom_parallel_28xx_device::write)).umask16(0x00ff);
 	map(0x642000, 0x642000).rw("oki", FUNC(okim6295_device::read), FUNC(okim6295_device::write));
-	map(0x646000, 0x646fff).w(FUNC(sparkz_state::scanline_int_ack_w));
+	map(0x646000, 0x646001).mirror(0xffe).w(FUNC(sparkz_state::scanline_int_ack_w));
 	map(0x647000, 0x647fff).w("watchdog", FUNC(watchdog_timer_device::reset16_w));
 }
 
@@ -320,37 +314,38 @@ GFXDECODE_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(sparkz_state::sparkz)
-
+void sparkz_state::sparkz(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, MASTER_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M68000(config, m_maincpu, MASTER_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &sparkz_state::main_map);
+
+	TIMER(config, "scantimer").configure_scanline(FUNC(sparkz_state::scanline_interrupt), m_screen, 0, 32);
 
 	EEPROM_2804(config, "eeprom").lock_after_write(true);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_arcadecl)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_arcadecl);
 	palette_device &palette(PALETTE(config, "palette"));
 	palette.set_format(palette_device::IRGB_1555, 512);
 	palette.set_membits(8);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
 	/* note: these parameters are from published specs, not derived */
 	/* the board uses an SOS-2 chip to generate video signals */
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/2, 456, 0+12, 336+12, 262, 0, 240)
-	MCFG_SCREEN_UPDATE_DRIVER(sparkz_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, sparkz_state, video_int_write_line))
+	m_screen->set_raw(MASTER_CLOCK/2, 456, 0+12, 336+12, 262, 0, 240);
+	m_screen->set_screen_update(FUNC(sparkz_state::screen_update));
+	m_screen->set_palette("palette");
+	//m_screen->screen_vblank().set(FUNC(sparkz_state::video_int_write_line));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, MASTER_CLOCK/4/3, okim6295_device::PIN7_LOW)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, MASTER_CLOCK/4/3, okim6295_device::PIN7_LOW).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 void arcadecl_state::arcadecl(machine_config &config)
 {

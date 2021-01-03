@@ -40,16 +40,16 @@ public:
 private:
 	required_device<cpu_device> m_maincpu;
 	required_region_ptr<uint32_t> m_maincpu_region;
-	DECLARE_READ32_MEMBER(gp2x_lcdc_r);
-	DECLARE_WRITE32_MEMBER(gp2x_lcdc_w);
-	DECLARE_READ32_MEMBER(nand_r);
-	DECLARE_WRITE32_MEMBER(nand_w);
-	DECLARE_READ32_MEMBER(tx_status_r);
-	DECLARE_WRITE32_MEMBER(tx_xmit_w);
-	DECLARE_READ32_MEMBER(timer_r);
-	DECLARE_READ32_MEMBER(nand_ctrl_r);
-	DECLARE_WRITE32_MEMBER(nand_ctrl_w);
-	DECLARE_READ32_MEMBER(sdcard_r);
+	uint32_t gp2x_lcdc_r(offs_t offset);
+	void gp2x_lcdc_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t nand_r(offs_t offset, uint32_t mem_mask = ~0);
+	void nand_w(offs_t offset, uint32_t data);
+	uint32_t tx_status_r();
+	void tx_xmit_w(uint32_t data);
+	uint32_t timer_r();
+	uint32_t nand_ctrl_r();
+	void nand_ctrl_w(uint32_t data);
+	uint32_t sdcard_r();
 	required_shared_ptr<uint32_t> m_ram;
 	uint16_t m_vidregs[0x200/2];
 	uint32_t m_nand_ptr;
@@ -159,8 +159,7 @@ uint32_t gp2x_state::screen_update_gp2x(screen_device &screen, bitmap_rgb32 &bit
 		// only support RGB still image layer for now
 		if (m_vidregs[0x80/2] & 4)
 		{
-			int x, y;
-			uint16_t *vram = (uint16_t *)&m_ram[0x2100000/4];
+			uint16_t const *const vram = (uint16_t *)&m_ram[0x2100000/4];
 
 /*          printf("RGB still image 1 enabled, bpp %d, size is %d %d %d %d\n",
                 (m_vidregs[(0xda/2)]>>9)&3,
@@ -170,13 +169,13 @@ uint32_t gp2x_state::screen_update_gp2x(screen_device &screen, bitmap_rgb32 &bit
                 m_vidregs[(0xe8/2)]);*/
 
 
-			for (y = 0; y < 240; y++)
+			for (int y = 0; y < 240; y++)
 			{
-				uint32_t *scanline = &bitmap.pix32(y);
+				uint32_t *scanline = &bitmap.pix(y);
 
-				for (x = 0; x < 320; x++)
+				for (int x = 0; x < 320; x++)
 				{
-					uint16_t pixel = vram[(320*y)+x];
+					uint16_t const pixel = vram[(320*y)+x];
 
 					*scanline++ = rgb_t(0xff, (pixel>>11)<<3, ((pixel>>5)&0x3f)<<2, (pixel&0x1f)<<3);
 				}
@@ -187,12 +186,12 @@ uint32_t gp2x_state::screen_update_gp2x(screen_device &screen, bitmap_rgb32 &bit
 	return 0;
 }
 
-READ32_MEMBER( gp2x_state::gp2x_lcdc_r )
+uint32_t gp2x_state::gp2x_lcdc_r(offs_t offset)
 {
 	return m_vidregs[offset*2] | m_vidregs[(offset*2)+1]<<16;
 }
 
-WRITE32_MEMBER( gp2x_state::gp2x_lcdc_w )
+void gp2x_state::gp2x_lcdc_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	if (mem_mask == 0xffff)
 	{
@@ -210,7 +209,7 @@ WRITE32_MEMBER( gp2x_state::gp2x_lcdc_w )
 	}
 }
 
-READ32_MEMBER( gp2x_state::nand_r )
+uint32_t gp2x_state::nand_r(offs_t offset, uint32_t mem_mask)
 {
 	uint32_t *ROM = m_maincpu_region;
 	uint32_t ret;
@@ -270,7 +269,7 @@ READ32_MEMBER( gp2x_state::nand_r )
 	return 0;
 }
 
-WRITE32_MEMBER( gp2x_state::nand_w )
+void gp2x_state::nand_w(offs_t offset, uint32_t data)
 {
 	switch (offset)
 	{
@@ -316,32 +315,32 @@ WRITE32_MEMBER( gp2x_state::nand_w )
 	}
 }
 
-READ32_MEMBER( gp2x_state::tx_status_r )
+uint32_t gp2x_state::tx_status_r()
 {
 	return 0x6; // tx ready, tx empty
 }
 
-WRITE32_MEMBER( gp2x_state::tx_xmit_w )
+void gp2x_state::tx_xmit_w(uint32_t data)
 {
 	printf("%c", data&0xff);
 }
 
-READ32_MEMBER( gp2x_state::timer_r )
+uint32_t gp2x_state::timer_r()
 {
 	return m_timer++;
 }
 
-READ32_MEMBER( gp2x_state::nand_ctrl_r )
+uint32_t gp2x_state::nand_ctrl_r()
 {
 	return 0x8000<<16;      // timed out
 }
 
-WRITE32_MEMBER( gp2x_state::nand_ctrl_w )
+void gp2x_state::nand_ctrl_w(uint32_t data)
 {
 //  printf("%08x to nand_ctrl_w\n", data);
 }
 
-READ32_MEMBER( gp2x_state::sdcard_r )
+uint32_t gp2x_state::sdcard_r()
 {
 	return 0xffff<<16;  // at 3e146b0 - indicate timeout & CRC error
 }
@@ -362,22 +361,23 @@ void gp2x_state::gp2x_map(address_map &map)
 static INPUT_PORTS_START( gp2x )
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(gp2x_state::gp2x)
-	MCFG_DEVICE_ADD("maincpu", ARM9, 80000000)
-	MCFG_DEVICE_PROGRAM_MAP(gp2x_map)
+void gp2x_state::gp2x(machine_config &config)
+{
+	ARM9(config, m_maincpu, 80000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &gp2x_state::gp2x_map);
 
-	MCFG_PALETTE_ADD("palette", 32768)
+	PALETTE(config, "palette").set_entries(32768);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(320, 240)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 239)
-	MCFG_SCREEN_UPDATE_DRIVER(gp2x_state, screen_update_gp2x)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(320, 240);
+	screen.set_visarea(0, 319, 0, 239);
+	screen.set_screen_update(FUNC(gp2x_state::screen_update_gp2x));
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-MACHINE_CONFIG_END
+}
 
 ROM_START(gp2x)
 	ROM_REGION( 0x600000, "maincpu", 0 )    // contents of NAND flash

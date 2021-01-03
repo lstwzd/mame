@@ -37,6 +37,7 @@ ft5_v6_c4.u58 /
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 #define NVRAM_HACK 1
@@ -44,14 +45,15 @@ ft5_v6_c4.u58 /
 class koftball_state : public driver_device
 {
 public:
-	koftball_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	koftball_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this,"maincpu"),
 		m_main_ram(*this, "main_ram"),
 		m_bmc_1_videoram(*this, "bmc_1_videoram"),
 		m_bmc_2_videoram(*this, "bmc_2_videoram"),
 		m_gfxdecode(*this, "gfxdecode"),
-		m_palette(*this, "palette") { }
+		m_palette(*this, "palette")
+	{ }
 
 	void koftball(machine_config &config);
 
@@ -68,11 +70,11 @@ private:
 	tilemap_t *m_tilemap_2;
 	uint16_t m_prot_data;
 
-	DECLARE_READ16_MEMBER(random_number_r);
-	DECLARE_READ16_MEMBER(prot_r);
-	DECLARE_WRITE16_MEMBER(prot_w);
-	DECLARE_WRITE16_MEMBER(bmc_1_videoram_w);
-	DECLARE_WRITE16_MEMBER(bmc_2_videoram_w);
+	uint16_t random_number_r();
+	uint16_t prot_r();
+	void prot_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void bmc_1_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void bmc_2_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	TILE_GET_INFO_MEMBER(get_t1_tile_info);
 	TILE_GET_INFO_MEMBER(get_t2_tile_info);
 	virtual void video_start() override;
@@ -86,7 +88,7 @@ private:
 TILE_GET_INFO_MEMBER(koftball_state::get_t1_tile_info)
 {
 	int data = m_bmc_1_videoram[tile_index];
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			data,
 			0,
 			0);
@@ -95,7 +97,7 @@ TILE_GET_INFO_MEMBER(koftball_state::get_t1_tile_info)
 TILE_GET_INFO_MEMBER(koftball_state::get_t2_tile_info)
 {
 	int data = m_bmc_2_videoram[tile_index];
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			data,
 			0,
 			0);
@@ -103,8 +105,8 @@ TILE_GET_INFO_MEMBER(koftball_state::get_t2_tile_info)
 
 void koftball_state::video_start()
 {
-	m_tilemap_1 = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(koftball_state::get_t1_tile_info),this),TILEMAP_SCAN_ROWS,8,8,64,32);
-	m_tilemap_2 = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(koftball_state::get_t2_tile_info),this),TILEMAP_SCAN_ROWS,8,8,64,32);
+	m_tilemap_1 = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(koftball_state::get_t1_tile_info)), TILEMAP_SCAN_ROWS, 8,8,64,32);
+	m_tilemap_2 = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(koftball_state::get_t2_tile_info)), TILEMAP_SCAN_ROWS, 8,8,64,32);
 
 	m_tilemap_1->set_transparent_pen(0);
 }
@@ -116,13 +118,13 @@ uint32_t koftball_state::screen_update_koftball(screen_device &screen, bitmap_in
 	return 0;
 }
 
-READ16_MEMBER(koftball_state::random_number_r)
+uint16_t koftball_state::random_number_r()
 {
 	return machine().rand();
 }
 
 
-READ16_MEMBER(koftball_state::prot_r)
+uint16_t koftball_state::prot_r()
 {
 	switch(m_prot_data)
 	{
@@ -136,18 +138,18 @@ READ16_MEMBER(koftball_state::prot_r)
 	return machine().rand();
 }
 
-WRITE16_MEMBER(koftball_state::prot_w)
+void koftball_state::prot_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_prot_data);
 }
 
-WRITE16_MEMBER(koftball_state::bmc_1_videoram_w)
+void koftball_state::bmc_1_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_bmc_1_videoram[offset]);
 	m_tilemap_1->mark_tile_dirty(offset);
 }
 
-WRITE16_MEMBER(koftball_state::bmc_2_videoram_w)
+void koftball_state::bmc_2_videoram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_bmc_2_videoram[offset]);
 	m_tilemap_2->mark_tile_dirty(offset);
@@ -238,36 +240,37 @@ static GFXDECODE_START( gfx_koftball )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(koftball_state::koftball)
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(21'477'272) / 2)
-	MCFG_DEVICE_PROGRAM_MAP(koftball_mem)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", koftball_state, bmc_interrupt, "screen", 0, 1)
+void koftball_state::koftball(machine_config &config)
+{
+	M68000(config, m_maincpu, XTAL(21'477'272) / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &koftball_state::koftball_mem);
+	TIMER(config, "scantimer").configure_scanline(FUNC(koftball_state::bmc_interrupt), "screen", 0, 1);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_UPDATE_DRIVER(koftball_state, screen_update_koftball)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 30*8-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_screen_update(FUNC(koftball_state::screen_update_koftball));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0*8, 64*8-1, 0*8, 30*8-1);
+	screen.set_palette(m_palette);
 
-	MCFG_PALETTE_ADD("palette", 256)
+	PALETTE(config, m_palette).set_entries(256);
 	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, m_palette));
 	ramdac.set_addrmap(0, &koftball_state::ramdac_map);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_koftball)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_koftball);
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("ymsnd", YM2413, XTAL(3'579'545))  // guessed chip type, clock not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
+	ym2413_device &ymsnd(YM2413(config, "ymsnd", XTAL(3'579'545)));  // guessed chip type, clock not verified
+	ymsnd.add_route(ALL_OUTPUTS, "lspeaker", 0.50);
+	ymsnd.add_route(ALL_OUTPUTS, "rspeaker", 0.50);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 1122000, okim6295_device::PIN7_LOW) /* clock frequency & pin 7 not verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", 1122000, okim6295_device::PIN7_LOW)); /* clock frequency & pin 7 not verified */
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.50);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.50);
+}
 
 ROM_START( koftball )
 	ROM_REGION( 0x200000, "maincpu", 0 ) /* 68000 Code */

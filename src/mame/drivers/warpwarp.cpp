@@ -125,9 +125,7 @@ Notes:
   (aka 7 colors), this is assumed to be a homebrew repair or hack.
   Update: Gee Bee definitely uses an overlay while kaitei actually outputs
   colors depending on the monitor type used (color or b&w).
-  sos is the odd one: it seems to be running in a b&w environment but a pic
-  on the net shows it with reversed black and white compared to current
-  implementation.
+  sos is the odd one: it seems to be running in a b&w environment.
   Also the flyer shows the girl to be colorized purple, while the points
   numbers are in cyan and text in red (and this arrangement doesn't
   make much sense, different version maybe?).
@@ -162,7 +160,7 @@ WRITE_LINE_MEMBER(warpwarp_state::vblank_irq)
 }
 
 /* B&W Games I/O */
-READ8_MEMBER(warpwarp_state::geebee_in_r)
+uint8_t warpwarp_state::geebee_in_r(offs_t offset)
 {
 	int res;
 
@@ -182,7 +180,7 @@ READ8_MEMBER(warpwarp_state::geebee_in_r)
 	return res;
 }
 
-WRITE8_MEMBER(warpwarp_state::geebee_out6_w)
+void warpwarp_state::geebee_out6_w(offs_t offset, uint8_t data)
 {
 	switch (offset & 3)
 	{
@@ -196,7 +194,7 @@ WRITE8_MEMBER(warpwarp_state::geebee_out6_w)
 			/* n.c. */
 			break;
 		case 3:
-			m_geebee_sound->sound_w(space,0,data);
+			m_geebee_sound->sound_w(data);
 			break;
 	}
 }
@@ -233,19 +231,19 @@ WRITE_LINE_MEMBER(warpwarp_state::inv_w)
 /* Color Games I/O */
 
 /* Read Switch Inputs */
-READ8_MEMBER(warpwarp_state::warpwarp_sw_r)
+uint8_t warpwarp_state::warpwarp_sw_r(offs_t offset)
 {
 	return (m_in0->read() >> (offset & 7)) & 1;
 }
 
 /* Read Dipswitches */
-READ8_MEMBER(warpwarp_state::warpwarp_dsw1_r)
+uint8_t warpwarp_state::warpwarp_dsw1_r(offs_t offset)
 {
 	return (m_dsw1->read() >> (offset & 7)) & 1;
 }
 
 /* Read mux Controller Inputs */
-READ8_MEMBER(warpwarp_state::warpwarp_vol_r)
+uint8_t warpwarp_state::warpwarp_vol_r()
 {
 	int res;
 
@@ -261,7 +259,7 @@ READ8_MEMBER(warpwarp_state::warpwarp_vol_r)
 	return res;
 }
 
-WRITE8_MEMBER(warpwarp_state::warpwarp_out0_w)
+void warpwarp_state::warpwarp_out0_w(offs_t offset, uint8_t data)
 {
 	switch (offset & 3)
 	{
@@ -272,10 +270,10 @@ WRITE8_MEMBER(warpwarp_state::warpwarp_out0_w)
 			m_ball_v = data;
 			break;
 		case 2:
-			m_warpwarp_sound->sound_w(space,0,data);
+			m_warpwarp_sound->sound_w(data);
 			break;
 		case 3:
-			m_watchdog->reset_w(space,0,data);
+			m_watchdog->watchdog_reset();
 			break;
 	}
 }
@@ -712,12 +710,12 @@ GFXDECODE_END
 
 
 
-MACHINE_CONFIG_START(warpwarp_state::geebee)
-
+void warpwarp_state::geebee(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I8080, MASTER_CLOCK/9) /* verified on pcb */
-	MCFG_DEVICE_PROGRAM_MAP(geebee_map)
-	MCFG_DEVICE_IO_MAP(geebee_port_map)
+	I8080(config, m_maincpu, MASTER_CLOCK/9); /* verified on pcb */
+	m_maincpu->set_addrmap(AS_PROGRAM, &warpwarp_state::geebee_map);
+	m_maincpu->set_addrmap(AS_IO, &warpwarp_state::geebee_port_map);
 
 	LS259(config, m_latch); // 5N
 	m_latch->q_out_cb<0>().set_output("led0"); // LAMP 1
@@ -730,11 +728,11 @@ MACHINE_CONFIG_START(warpwarp_state::geebee)
 	m_latch->q_out_cb<7>().set(FUNC(warpwarp_state::inv_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 272, 264, 0, 224)
-	MCFG_SCREEN_UPDATE_DRIVER(warpwarp_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, warpwarp_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(MASTER_CLOCK/3, 384, 0, 272, 264, 0, 224);
+	screen.set_screen_update(FUNC(warpwarp_state::screen_update));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(warpwarp_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_1k);
 	PALETTE(config, m_palette, FUNC(warpwarp_state::geebee_palette), 4*2);
@@ -744,9 +742,8 @@ MACHINE_CONFIG_START(warpwarp_state::geebee)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("geebee_custom", GEEBEE_SOUND, MASTER_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	GEEBEE_SOUND(config, m_geebee_sound, MASTER_CLOCK).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 void warpwarp_state::geebeeb(machine_config &config)
 {
@@ -754,33 +751,41 @@ void warpwarp_state::geebeeb(machine_config &config)
 	m_latch->q_out_cb<4>().set_nop(); // remove coin lockout
 }
 
-MACHINE_CONFIG_START(warpwarp_state::navarone)
+void warpwarp_state::navarone(machine_config &config)
+{
 	geebee(config);
 
 	/* basic machine hardware */
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_2k)
+	m_gfxdecode->set_info(gfx_2k);
 	m_palette->set_entries(2*2);
 	m_palette->set_init(FUNC(warpwarp_state::navarone_palette));
 
 	MCFG_VIDEO_START_OVERRIDE(warpwarp_state,navarone)
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(warpwarp_state::kaitei)
+void warpwarp_state::sos(machine_config &config)
+{
+	navarone(config);
+	m_palette->set_init(FUNC(warpwarp_state::sos_palette));
+}
+
+void warpwarp_state::kaitei(machine_config &config)
+{
 	geebee(config);
 
 	/* basic machine hardware */
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_1k)
+	m_gfxdecode->set_info(gfx_1k);
 	m_palette->set_entries(4*2+1);
 
 	MCFG_MACHINE_RESET_OVERRIDE(warpwarp_state,kaitei)
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(warpwarp_state::bombbee)
-
+void warpwarp_state::bombbee(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I8080, MASTER_CLOCK/9)
-	MCFG_DEVICE_PROGRAM_MAP(bombbee_map)
+	I8080(config, m_maincpu, MASTER_CLOCK/9);
+	m_maincpu->set_addrmap(AS_PROGRAM, &warpwarp_state::bombbee_map);
 
 	LS259(config, m_latch); // 6L on Warp Warp
 	m_latch->q_out_cb<0>().set_output("led0"); // LAMP 1
@@ -795,11 +800,11 @@ MACHINE_CONFIG_START(warpwarp_state::bombbee)
 	WATCHDOG_TIMER(config, m_watchdog);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 272, 264, 0, 224)
-	MCFG_SCREEN_UPDATE_DRIVER(warpwarp_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, warpwarp_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(MASTER_CLOCK/3, 384, 0, 272, 264, 0, 224);
+	screen.set_screen_update(FUNC(warpwarp_state::screen_update));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(warpwarp_state::vblank_irq));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_color);
 
@@ -809,17 +814,16 @@ MACHINE_CONFIG_START(warpwarp_state::bombbee)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("warpwarp_custom", WARPWARP_SOUND, MASTER_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	WARPWARP_SOUND(config, m_warpwarp_sound, MASTER_CLOCK).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
-MACHINE_CONFIG_START(warpwarp_state::warpwarp)
+void warpwarp_state::warpwarp(machine_config &config)
+{
 	bombbee(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(warpwarp_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &warpwarp_state::warpwarp_map);
+}
 
 
 /***************************************************************************
@@ -1031,10 +1035,10 @@ GAMEL( 1978, geebeea,    geebee,   geebeeb,  geebeeb,   warpwarp_state, init_gee
 GAMEL( 1978, geebeeb,    geebee,   geebeeb,  geebeeb,   warpwarp_state, init_geebee,   ROT90, "Namco (F.lli Bertolino license)", "Gee Bee (Europe)", MACHINE_SUPPORTS_SAVE, layout_geebee ) // Fratelli Bertolino
 GAMEL( 1978, geebeeg,    geebee,   geebee,   geebee,    warpwarp_state, init_geebee,   ROT90, "Namco (Gremlin license)", "Gee Bee (US)", MACHINE_SUPPORTS_SAVE, layout_geebee )
 
+GAME(  1979, sos,        0,        sos,      sos,       warpwarp_state, init_sos,      ROT90, "K.K. Tokki (Namco license)", "SOS Game", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE )
 GAMEL( 1980, navarone,   0,        navarone, navarone,  warpwarp_state, init_navarone, ROT90, "Namco", "Navarone", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE, layout_navarone )
 GAME(  1980, kaitein,    kaitei,   kaitei,   kaitein,   warpwarp_state, init_kaitein,  ROT90, "K.K. Tokki (Namco license)", "Kaitei Takara Sagashi (Namco license)", MACHINE_SUPPORTS_SAVE ) // pretty sure it didn't have a color overlay
-GAME(  1980, kaitei,     0,        kaitei,   kaitei,    warpwarp_state, init_kaitei,   ROT90, "K.K. Tokki", "Kaitei Takara Sagashi", MACHINE_SUPPORTS_SAVE ) // "
-GAME(  1980, sos,        0,        navarone, sos,       warpwarp_state, init_sos,      ROT90, "Namco", "SOS", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE ) // developed by Shoei? Flyer shows a Shoei logo.
+GAME(  1980, kaitei,     0,        kaitei,   kaitei,    warpwarp_state, init_kaitei,   ROT90, "K.K. Tokki", "Kaitei Takara Sagashi", MACHINE_SUPPORTS_SAVE ) // " - aka "Atrantis"
 
 /* Color games */
 GAME(  1979, bombbee,    0,        bombbee,  bombbee,   warpwarp_state, init_bombbee,  ROT90, "Namco", "Bomb Bee", MACHINE_SUPPORTS_SAVE )

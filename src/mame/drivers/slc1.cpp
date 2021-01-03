@@ -13,6 +13,8 @@ This computer is both a Z80 trainer, and a chess computer.
 
         There is no chess board attached. You supply your own
         and you sync the pieces and the computer instructions.
+        The chess engine was copied from Fidelity's Sensory
+        Chess Challenger 8.
 
         When started, it is in Chess mode. Press 11111 to switch to
         Trainer mode.
@@ -56,6 +58,8 @@ Pasting doesn't work, but if it did...
 #include "slc1.lh"
 
 
+namespace {
+
 class slc1_state : public driver_device
 {
 public:
@@ -63,27 +67,34 @@ public:
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
 		, m_speaker(*this, "speaker")
+		, m_chess_keyboard(*this, "X%u", 0U)
+		, m_trainer_keyboard(*this, "Y%u", 0U)
 		, m_display(*this, "digit%u", 0U)
+		, m_busyled(*this, "busyled")
 	{ }
 
 	void slc1(machine_config &config);
 
-private:
-	DECLARE_READ8_MEMBER( io_r );
-	DECLARE_WRITE8_MEMBER( io_w );
-
+protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
+
+private:
+	u8 io_r(offs_t offset);
+	void io_w(offs_t offset, u8 data);
 
 	void mem_map(address_map &map);
 	void io_map(address_map &map);
 
-	uint8_t m_digit = 0;
+	u8 m_digit = 0;
 	bool m_kbd_type = false;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<speaker_sound_device> m_speaker;
+	required_ioport_array<3> m_chess_keyboard;
+	required_ioport_array<3> m_trainer_keyboard;
 	output_finder<8> m_display;
+	output_finder<> m_busyled;
 };
 
 
@@ -95,7 +106,7 @@ private:
 
 ***************************************************************************/
 
-WRITE8_MEMBER( slc1_state::io_w )
+void slc1_state::io_w(offs_t offset, u8 data)
 {
 	bool const segonoff = BIT(data, 7);
 	bool const busyled = BIT(data, 4);
@@ -111,9 +122,9 @@ WRITE8_MEMBER( slc1_state::io_w )
 	else if (offset == 0x2f07)
 		return;
 
-	uint8_t segdata = m_display[m_digit];
-	uint8_t const segnum  = offset & 7;
-	uint8_t const segmask = 1 << segnum;
+	u8 segdata = m_display[m_digit];
+	u8 const segnum  = offset & 7;
+	u8 const segmask = 1 << segnum;
 
 	if (segonoff)
 		segdata |= segmask;
@@ -122,7 +133,7 @@ WRITE8_MEMBER( slc1_state::io_w )
 
 	m_display[m_digit] = segdata;
 
-	output().set_value("busyled", busyled);
+	m_busyled = busyled;
 
 	if (m_digit == 3)
 		m_kbd_type = segdata;
@@ -135,31 +146,31 @@ WRITE8_MEMBER( slc1_state::io_w )
 
 ***************************************************************************/
 
-READ8_MEMBER( slc1_state::io_r )
+u8 slc1_state::io_r(offs_t offset)
 {
-	uint8_t data = 0xff, upper = (offset >> 8) & 7;
+	u8 data = 0xff, upper = (offset >> 8) & 7;
 
 	if (m_kbd_type)
 	{ // Trainer
 		if (upper == 3)
-			data &= ioport("Y0")->read();
+			data &= m_trainer_keyboard[0]->read();
 		else
 		if (upper == 4)
-			data &= ioport("Y1")->read();
+			data &= m_trainer_keyboard[1]->read();
 		else
 		if (upper == 5)
-			data &= ioport("Y2")->read();
+			data &= m_trainer_keyboard[2]->read();
 	}
 	else
 	{ // Chess
 		if (upper == 3)
-			data &= ioport("X0")->read();
+			data &= m_chess_keyboard[0]->read();
 		else
 		if (upper == 4)
-			data &= ioport("X1")->read();
+			data &= m_chess_keyboard[1]->read();
 		else
 		if (upper == 5)
-			data &= ioport("X2")->read();
+			data &= m_chess_keyboard[2]->read();
 	}
 
 	return data;
@@ -176,6 +187,7 @@ READ8_MEMBER( slc1_state::io_r )
 void slc1_state::machine_start()
 {
 	m_display.resolve();
+	m_busyled.resolve();
 
 	save_item(NAME(m_digit));
 	save_item(NAME(m_kbd_type));
@@ -267,20 +279,20 @@ INPUT_PORTS_END
 
 ***************************************************************************/
 
-MACHINE_CONFIG_START(slc1_state::slc1)
+void slc1_state::slc1(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 2500000)
-	MCFG_DEVICE_PROGRAM_MAP(mem_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, 2500000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &slc1_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &slc1_state::io_map);
 
 	/* video hardware */
 	config.set_default_layout(layout_slc1);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
+}
 
 
 /***************************************************************************
@@ -290,13 +302,15 @@ MACHINE_CONFIG_END
 ***************************************************************************/
 
 ROM_START(slc1)
-	ROM_REGION(0x10000, "maincpu", ROMREGION_ERASEFF)
+	ROM_REGION(0x1000, "maincpu", 0 )
 	ROM_SYSTEM_BIOS(0, "bios0", "SLC-1")
 	ROMX_LOAD("slc1_0000.bin",   0x0000, 0x1000, CRC(06d32967) SHA1(f25eac66a4fca9383964d509c671a7ad2e020e7e), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "bios1", "SC-1 v2")
 	ROMX_LOAD("sc1-v2.bin",      0x0000, 0x1000, CRC(1f122a85) SHA1(d60f89f8b59d04f4cecd6e3ecfe0a24152462a36), ROM_BIOS(1))
 ROM_END
 
+} // anonymous namespace
 
-/*    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS       INIT        COMPANY                   FULLNAME */
-COMP( 1989, slc1, 0,      0,      slc1,    slc1,  slc1_state, empty_init, "Dr. Dieter Scheuschner", "SLC-1" , 0 )
+
+/*    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS       INIT        COMPANY               FULLNAME */
+COMP( 1989, slc1, 0,      0,      slc1,    slc1,  slc1_state, empty_init, "Dieter Scheuschner", "Schach- und Lerncomputer SLC 1", MACHINE_SUPPORTS_SAVE )

@@ -87,15 +87,15 @@ public:
 	DECLARE_INPUT_CHANGED_MEMBER(iq151_break);
 
 private:
-	DECLARE_READ8_MEMBER(keyboard_row_r);
-	DECLARE_READ8_MEMBER(keyboard_column_r);
-	DECLARE_READ8_MEMBER(ppi_portc_r);
-	DECLARE_WRITE8_MEMBER(ppi_portc_w);
-	DECLARE_WRITE8_MEMBER(boot_bank_w);
-	DECLARE_READ8_MEMBER(cartslot_r);
-	DECLARE_WRITE8_MEMBER(cartslot_w);
-	DECLARE_READ8_MEMBER(cartslot_io_r);
-	DECLARE_WRITE8_MEMBER(cartslot_io_w);
+	uint8_t keyboard_row_r();
+	uint8_t keyboard_column_r();
+	uint8_t ppi_portc_r();
+	void ppi_portc_w(uint8_t data);
+	void boot_bank_w(uint8_t data);
+	uint8_t cartslot_r(offs_t offset);
+	void cartslot_w(offs_t offset, uint8_t data);
+	uint8_t cartslot_io_r(offs_t offset);
+	void cartslot_io_w(offs_t offset, uint8_t data);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -105,7 +105,7 @@ private:
 	void iq151_io(address_map &map);
 	void iq151_mem(address_map &map);
 
-	required_device<cpu_device> m_maincpu;
+	required_device<i8080_cpu_device> m_maincpu;
 	required_device<pic8259_device> m_pic;
 	required_device<speaker_sound_device> m_speaker;
 	required_device<cassette_image_device> m_cassette;
@@ -117,7 +117,7 @@ private:
 	uint8_t m_cassette_data;
 };
 
-READ8_MEMBER(iq151_state::keyboard_row_r)
+uint8_t iq151_state::keyboard_row_r()
 {
 	char kbdrow[6];
 	uint8_t data = 0xff;
@@ -131,7 +131,7 @@ READ8_MEMBER(iq151_state::keyboard_row_r)
 	return data;
 }
 
-READ8_MEMBER(iq151_state::keyboard_column_r)
+uint8_t iq151_state::keyboard_column_r()
 {
 	char kbdrow[6];
 	uint8_t data = 0x00;
@@ -146,7 +146,7 @@ READ8_MEMBER(iq151_state::keyboard_column_r)
 	return data;
 }
 
-READ8_MEMBER(iq151_state::ppi_portc_r)
+uint8_t iq151_state::ppi_portc_r()
 {
 	uint8_t data = 0x00;
 
@@ -166,13 +166,13 @@ READ8_MEMBER(iq151_state::ppi_portc_r)
 }
 
 
-WRITE8_MEMBER(iq151_state::ppi_portc_w)
+void iq151_state::ppi_portc_w(uint8_t data)
 {
 	m_speaker->level_w(BIT(data, 3));
 	m_cassette_data = data;
 }
 
-WRITE8_MEMBER(iq151_state::boot_bank_w)
+void iq151_state::boot_bank_w(uint8_t data)
 {
 	m_boot_bank->set_entry(data & 1);
 }
@@ -182,7 +182,7 @@ WRITE8_MEMBER(iq151_state::boot_bank_w)
 //  Cartridge slot emulation
 //**************************************************************************
 
-READ8_MEMBER(iq151_state::cartslot_r)
+uint8_t iq151_state::cartslot_r(offs_t offset)
 {
 	uint8_t data = 0xff;
 
@@ -192,13 +192,13 @@ READ8_MEMBER(iq151_state::cartslot_r)
 	return data;
 }
 
-WRITE8_MEMBER(iq151_state::cartslot_w)
+void iq151_state::cartslot_w(offs_t offset, uint8_t data)
 {
 	for (auto & elem : m_carts)
 		elem->write(offset, data);
 }
 
-READ8_MEMBER(iq151_state::cartslot_io_r)
+uint8_t iq151_state::cartslot_io_r(offs_t offset)
 {
 	uint8_t data = 0xff;
 
@@ -208,7 +208,7 @@ READ8_MEMBER(iq151_state::cartslot_io_r)
 	return data;
 }
 
-WRITE8_MEMBER(iq151_state::cartslot_io_w)
+void iq151_state::cartslot_io_w(offs_t offset, uint8_t data)
 {
 	for (auto & elem : m_carts)
 		elem->io_write(offset, data);
@@ -388,29 +388,29 @@ static void iq151_cart(device_slot_interface &device)
 	device.option_add("amos3",    IQ151_AMOS3);         // AMOS cart 3
 }
 
-MACHINE_CONFIG_START(iq151_state::iq151)
+void iq151_state::iq151(machine_config &config)
+{
 	/* basic machine hardware */
 	I8080(config, m_maincpu, XTAL(2'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &iq151_state::iq151_mem);
 	m_maincpu->set_addrmap(AS_IO, &iq151_state::iq151_io);
 	m_maincpu->set_vblank_int("screen", FUNC(iq151_state::iq151_vblank_interrupt));
-	m_maincpu->set_irq_acknowledge_callback("pic8259", FUNC(pic8259_device::inta_cb));
+	m_maincpu->in_inta_func().set("pic8259", FUNC(pic8259_device::acknowledge));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::green())
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DRIVER(iq151_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0, 32*8-1, 0, 32*8-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_screen_update(FUNC(iq151_state::screen_update));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0, 32*8-1, 0, 32*8-1);
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	PIC8259(config, m_pic, 0);
 	m_pic->out_int_callback().set_inputline(m_maincpu, 0);
@@ -421,58 +421,54 @@ MACHINE_CONFIG_START(iq151_state::iq151)
 	ppi.in_pc_callback().set(FUNC(iq151_state::ppi_portc_r));
 	ppi.out_pc_callback().set(FUNC(iq151_state::ppi_portc_w));
 
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED)
-	MCFG_CASSETTE_INTERFACE("iq151_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_default_state(CASSETTE_STOPPED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.05);
+	m_cassette->set_interface("iq151_cass");
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("cassette_timer", iq151_state, cassette_timer, attotime::from_hz(2000))
+	TIMER(config, "cassette_timer").configure_periodic(FUNC(iq151_state::cassette_timer), attotime::from_hz(2000));
 
 	/* cartridge */
-	MCFG_DEVICE_ADD("slot1", IQ151CART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(iq151_cart, nullptr, false)
-	MCFG_IQ151CART_SLOT_SCREEN_TAG("screen")
-	MCFG_IQ151CART_SLOT_OUT_IRQ0_CB(WRITELINE(m_pic, pic8259_device, ir0_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ1_CB(WRITELINE(m_pic, pic8259_device, ir1_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ2_CB(WRITELINE(m_pic, pic8259_device, ir2_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ3_CB(WRITELINE(m_pic, pic8259_device, ir3_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ4_CB(WRITELINE(m_pic, pic8259_device, ir4_w))
-	MCFG_DEVICE_ADD("slot2", IQ151CART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(iq151_cart, nullptr, false)
-	MCFG_IQ151CART_SLOT_SCREEN_TAG("screen")
-	MCFG_IQ151CART_SLOT_OUT_IRQ0_CB(WRITELINE(m_pic, pic8259_device, ir0_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ1_CB(WRITELINE(m_pic, pic8259_device, ir1_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ2_CB(WRITELINE(m_pic, pic8259_device, ir2_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ3_CB(WRITELINE(m_pic, pic8259_device, ir3_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ4_CB(WRITELINE(m_pic, pic8259_device, ir4_w))
-	MCFG_DEVICE_ADD("slot3", IQ151CART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(iq151_cart, nullptr, false)
-	MCFG_IQ151CART_SLOT_SCREEN_TAG("screen")
-	MCFG_IQ151CART_SLOT_OUT_IRQ0_CB(WRITELINE(m_pic, pic8259_device, ir0_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ1_CB(WRITELINE(m_pic, pic8259_device, ir1_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ2_CB(WRITELINE(m_pic, pic8259_device, ir2_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ3_CB(WRITELINE(m_pic, pic8259_device, ir3_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ4_CB(WRITELINE(m_pic, pic8259_device, ir4_w))
-	MCFG_DEVICE_ADD("slot4", IQ151CART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(iq151_cart, nullptr, false)
-	MCFG_IQ151CART_SLOT_SCREEN_TAG("screen")
-	MCFG_IQ151CART_SLOT_OUT_IRQ0_CB(WRITELINE(m_pic, pic8259_device, ir0_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ1_CB(WRITELINE(m_pic, pic8259_device, ir1_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ2_CB(WRITELINE(m_pic, pic8259_device, ir2_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ3_CB(WRITELINE(m_pic, pic8259_device, ir3_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ4_CB(WRITELINE(m_pic, pic8259_device, ir4_w))
-	MCFG_DEVICE_ADD("slot5", IQ151CART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(iq151_cart, "video32", false)
-	MCFG_IQ151CART_SLOT_SCREEN_TAG("screen")
-	MCFG_IQ151CART_SLOT_OUT_IRQ0_CB(WRITELINE(m_pic, pic8259_device, ir0_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ1_CB(WRITELINE(m_pic, pic8259_device, ir1_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ2_CB(WRITELINE(m_pic, pic8259_device, ir2_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ3_CB(WRITELINE(m_pic, pic8259_device, ir3_w))
-	MCFG_IQ151CART_SLOT_OUT_IRQ4_CB(WRITELINE(m_pic, pic8259_device, ir4_w))
+	IQ151CART_SLOT(config, m_carts[0], iq151_cart, nullptr);
+	m_carts[0]->set_screen_tag("screen");
+	m_carts[0]->out_irq0_callback().set(m_pic, FUNC(pic8259_device::ir0_w));
+	m_carts[0]->out_irq1_callback().set(m_pic, FUNC(pic8259_device::ir1_w));
+	m_carts[0]->out_irq2_callback().set(m_pic, FUNC(pic8259_device::ir2_w));
+	m_carts[0]->out_irq3_callback().set(m_pic, FUNC(pic8259_device::ir3_w));
+	m_carts[0]->out_irq4_callback().set(m_pic, FUNC(pic8259_device::ir4_w));
+	IQ151CART_SLOT(config, m_carts[1], iq151_cart, nullptr);
+	m_carts[1]->set_screen_tag("screen");
+	m_carts[1]->out_irq0_callback().set(m_pic, FUNC(pic8259_device::ir0_w));
+	m_carts[1]->out_irq1_callback().set(m_pic, FUNC(pic8259_device::ir1_w));
+	m_carts[1]->out_irq2_callback().set(m_pic, FUNC(pic8259_device::ir2_w));
+	m_carts[1]->out_irq3_callback().set(m_pic, FUNC(pic8259_device::ir3_w));
+	m_carts[1]->out_irq4_callback().set(m_pic, FUNC(pic8259_device::ir4_w));
+	IQ151CART_SLOT(config, m_carts[2], iq151_cart, nullptr);
+	m_carts[2]->set_screen_tag("screen");
+	m_carts[2]->out_irq0_callback().set(m_pic, FUNC(pic8259_device::ir0_w));
+	m_carts[2]->out_irq1_callback().set(m_pic, FUNC(pic8259_device::ir1_w));
+	m_carts[2]->out_irq2_callback().set(m_pic, FUNC(pic8259_device::ir2_w));
+	m_carts[2]->out_irq3_callback().set(m_pic, FUNC(pic8259_device::ir3_w));
+	m_carts[2]->out_irq4_callback().set(m_pic, FUNC(pic8259_device::ir4_w));
+	IQ151CART_SLOT(config, m_carts[3], iq151_cart, nullptr);
+	m_carts[3]->set_screen_tag("screen");
+	m_carts[3]->out_irq0_callback().set(m_pic, FUNC(pic8259_device::ir0_w));
+	m_carts[3]->out_irq1_callback().set(m_pic, FUNC(pic8259_device::ir1_w));
+	m_carts[3]->out_irq2_callback().set(m_pic, FUNC(pic8259_device::ir2_w));
+	m_carts[3]->out_irq3_callback().set(m_pic, FUNC(pic8259_device::ir3_w));
+	m_carts[3]->out_irq4_callback().set(m_pic, FUNC(pic8259_device::ir4_w));
+	IQ151CART_SLOT(config, m_carts[4], iq151_cart, "video32");
+	m_carts[4]->set_screen_tag("screen");
+	m_carts[4]->out_irq0_callback().set(m_pic, FUNC(pic8259_device::ir0_w));
+	m_carts[4]->out_irq1_callback().set(m_pic, FUNC(pic8259_device::ir1_w));
+	m_carts[4]->out_irq2_callback().set(m_pic, FUNC(pic8259_device::ir2_w));
+	m_carts[4]->out_irq3_callback().set(m_pic, FUNC(pic8259_device::ir3_w));
+	m_carts[4]->out_irq4_callback().set(m_pic, FUNC(pic8259_device::ir4_w));
 
 	/* Software lists */
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "iq151_cart")
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "iq151_flop")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("iq151_cart");
+	SOFTWARE_LIST(config, "flop_list").set_original("iq151_flop");
+}
 
 /* ROM definition */
 ROM_START( iq151 )

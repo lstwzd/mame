@@ -88,21 +88,21 @@ public:
 	required_device<floppy_connector> floppy2;
 	required_device<floppy_connector> floppy3;
 
-	DECLARE_READ8_MEMBER(apple3_memory_r);
-	DECLARE_WRITE8_MEMBER(apple3_memory_w);
+	uint8_t apple3_memory_r(offs_t offset);
+	void apple3_memory_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(apple3_sync_w);
-	DECLARE_READ8_MEMBER(apple3_c0xx_r);
-	DECLARE_WRITE8_MEMBER(apple3_c0xx_w);
+	uint8_t apple3_c0xx_r(offs_t offset);
+	void apple3_c0xx_w(offs_t offset, uint8_t data);
 	void init_apple3();
 	virtual void machine_reset() override;
 	virtual void video_start() override;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TIMER_CALLBACK_MEMBER(scanstart_cb);
 	TIMER_CALLBACK_MEMBER(scanend_cb);
-	DECLARE_WRITE8_MEMBER(apple3_via_0_out_a);
-	DECLARE_WRITE8_MEMBER(apple3_via_0_out_b);
-	DECLARE_WRITE8_MEMBER(apple3_via_1_out_a);
-	DECLARE_WRITE8_MEMBER(apple3_via_1_out_b);
+	void apple3_via_0_out_a(uint8_t data);
+	void apple3_via_0_out_b(uint8_t data);
+	void apple3_via_1_out_a(uint8_t data);
+	void apple3_via_1_out_b(uint8_t data);
 	void apple3_write_charmem();
 	void text40(bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void text80(bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -127,6 +127,7 @@ public:
 	DECLARE_WRITE_LINE_MEMBER(a2bus_irq_w);
 	DECLARE_WRITE_LINE_MEMBER(a2bus_nmi_w);
 	DECLARE_WRITE_LINE_MEMBER(vbl_w);
+	DECLARE_WRITE_LINE_MEMBER(a2bus_inh_w);
 
 	// these need to be public for now
 	uint32_t m_flags;
@@ -165,6 +166,8 @@ private:
 	int m_pdl_charge;
 	int m_va, m_vb, m_vc;
 	int m_smoothscr;
+
+	int m_inh_state;
 };
 
 #endif // MAME_INCLUDES_APPLE3_H

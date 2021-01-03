@@ -2,7 +2,7 @@
 // copyright-holders:Tomasz Slanina
 /*********************************************************
 Sega hardware based on their SG-1000 console
-Driver by Tomasz Slanina  analog [at] op.pl
+Driver by Tomasz Slanina
 
 
 Supported games :
@@ -278,6 +278,8 @@ End
 #include "speaker.h"
 
 
+namespace {
+
 class sg1000a_state : public driver_device
 {
 public:
@@ -287,13 +289,14 @@ public:
 		m_decrypted_opcodes(*this, "decrypted_opcodes") { }
 
 	void sderbys(machine_config &config);
+	void sderby2s(machine_config &config);
 	void sg1000ax(machine_config &config);
 	void sg1000a(machine_config &config);
 
 	void init_sderby();
 
 private:
-	DECLARE_WRITE8_MEMBER(sg1000a_coin_counter_w);
+	void sg1000a_coin_counter_w(uint8_t data);
 	required_device<cpu_device> m_maincpu;
 	optional_shared_ptr<uint8_t> m_decrypted_opcodes;
 	void decrypted_opcodes_map(address_map &map);
@@ -324,18 +327,16 @@ void sg1000a_state::decrypted_opcodes_map(address_map &map)
 void sg1000a_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x7f, 0x7f).w("snsnd", FUNC(sn76489a_device::command_w));
-	map(0xbe, 0xbe).rw("tms9928a", FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0xbf, 0xbf).rw("tms9928a", FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
+	map(0x7f, 0x7f).w("snsnd", FUNC(sn76489a_device::write));
+	map(0xbe, 0xbf).rw("tms9928a", FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
 	map(0xdc, 0xdf).rw("ppi8255", FUNC(i8255_device::read), FUNC(i8255_device::write));
 }
 
 void sg1000a_state::sderby_io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x40, 0x40).mirror(0x3f).w("snsnd", FUNC(sn76489a_device::command_w));
-	map(0x80, 0x80).mirror(0x3e).rw("tms9928a", FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x81, 0x81).mirror(0x3e).rw("tms9928a", FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
+	map(0x40, 0x40).mirror(0x3f).w("snsnd", FUNC(sn76489a_device::write));
+	map(0x80, 0x81).mirror(0x3e).rw("tms9928a", FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
 //  map(0xc0, 0xc1).mirror(0x06) NEC D8251AC UART
 	map(0xc8, 0xcb).mirror(0x04).rw("ppi8255", FUNC(i8255_device::read), FUNC(i8255_device::write)); // NEC D8255AC-2
 }
@@ -457,7 +458,7 @@ static INPUT_PORTS_START( sderbys )
 INPUT_PORTS_END
 
 
-WRITE8_MEMBER(sg1000a_state::sg1000a_coin_counter_w)
+void sg1000a_state::sg1000a_coin_counter_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, data & 0x01);
 }
@@ -468,11 +469,12 @@ WRITE8_MEMBER(sg1000a_state::sg1000a_coin_counter_w)
  *
  *************************************/
 
-MACHINE_CONFIG_START(sg1000a_state::sg1000a)
+void sg1000a_state::sg1000a(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(3'579'545))
-	MCFG_DEVICE_PROGRAM_MAP(program_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, XTAL(3'579'545));
+	m_maincpu->set_addrmap(AS_PROGRAM, &sg1000a_state::program_map);
+	m_maincpu->set_addrmap(AS_IO, &sg1000a_state::io_map);
 
 	i8255_device &ppi(I8255(config, "ppi8255"));
 	ppi.in_pa_callback().set_ioport("P1");
@@ -490,9 +492,8 @@ MACHINE_CONFIG_START(sg1000a_state::sg1000a)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("snsnd", SN76489A, XTAL(3'579'545))
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	SN76489A(config, "snsnd", XTAL(3'579'545)).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 void sg1000a_state::sg1000ax(machine_config &config)
 {
@@ -504,15 +505,20 @@ void sg1000a_state::sg1000ax(machine_config &config)
 	maincpu.set_decrypted_tag(":decrypted_opcodes");
 }
 
-MACHINE_CONFIG_START(sg1000a_state::sderbys)
+void sg1000a_state::sderby2s(machine_config &config)
+{
 	sg1000a(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(XTAL(10'738'635) / 3)
-	MCFG_DEVICE_IO_MAP(sderby_io_map)
+	m_maincpu->set_clock(XTAL(10'738'635) / 3);
+	m_maincpu->set_addrmap(AS_IO, &sg1000a_state::sderby_io_map);
 
 	// Actually uses a Sega 315-5066 chip, which is a TMS9918 and SN76489 in the same package but with RGB output
-MACHINE_CONFIG_END
+}
 
+void sg1000a_state::sderbys(machine_config &config)
+{
+	sderby2s(config);
+	m_maincpu->set_addrmap(AS_OPCODES, &sg1000a_state::decrypted_opcodes_map);
+}
 /*************************************
  *
  *  ROM definitions
@@ -560,16 +566,32 @@ ROM_END
 
 void sg1000a_state::init_sderby()
 {
-	// mini daughterboard in ic10 socket, with TI 27C128 rom and unknown ic(label scraped off)
-	u8 *rom = machine().root_device().memregion("maincpu")->base();
-	const u32 len = memregion("maincpu")->bytes();
+	// mini daughterboard in ic10 socket, with TI 27C128 rom and unknown ic (label scraped off)
+	u8 *rom = memregion("maincpu")->base();
 
-	for (int i = 0; i < len; i++)
-		rom[i] = bitswap<8>(rom[i],3,7,4,6,5,2,1,0);
+	// TODO: there's something fishy in the first 0x130 bytes, then it seems to be correct.
+	// i.e. compare the following addresses
+	// sderbys    sderby2s
+	// 0x134      0x13c
+	// 0x237      0x280
+	// 0x2ad      0x336
+	// 0x402      0x4ac
+	// 0x11f1     0x132b
+	// 0x1300     0x1413
+	// 0x1680     0x1793
 
-	// TODO: decryption is unfinished
+	for (int i = 0; i < 0x4000; i++)
+	{
+		if (i < 0x100) // this is wrong
+			m_decrypted_opcodes[i] = bitswap<8>(rom[i], 3, 7, 4, 6, 5, 2, 1, 0);
+		else
+			m_decrypted_opcodes[i] = bitswap<8>(rom[i], 3, 7, 4, 5, 6, 2, 1, 0);
+
+		rom[i] = bitswap<8>(rom[i], 3, 7, 4, 5, 6, 2, 1, 0);
+	}
 }
 
+} // Anonymous namespace
 
 
 /*************************************
@@ -584,5 +606,5 @@ GAME( 1985, dokidoki, 0, sg1000a,  dokidoki, sg1000a_state, empty_init, ROT0, "S
 
 // inputs aren't hooked up, probably needs to be connected to the main board anyway
 // TODO: move these guys over to sderby2.cpp
-GAME( 1984, sderbys,  0, sderbys, sderbys, sg1000a_state, init_sderby, ROT0, "Sega", "Super Derby (satellite board)", MACHINE_NOT_WORKING )
-GAME( 1985, sderby2s, 0, sderbys, sderbys, sg1000a_state, empty_init,  ROT0, "Sega", "Super Derby II (satellite board)", MACHINE_NOT_WORKING )
+GAME( 1984, sderbys,  0, sderbys,  sderbys, sg1000a_state, init_sderby, ROT0, "Sega", "Super Derby (satellite board)", MACHINE_NOT_WORKING ) // decryption incomplete, currently displays IC23 and IC24 bad if resetted a few times
+GAME( 1985, sderby2s, 0, sderby2s, sderbys, sg1000a_state, empty_init,  ROT0, "Sega", "Super Derby II (satellite board)", MACHINE_NOT_WORKING )

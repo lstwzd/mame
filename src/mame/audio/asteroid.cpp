@@ -281,7 +281,7 @@ static DISCRETE_SOUND_START(astdelux_discrete)
 DISCRETE_SOUND_END
 
 
-WRITE8_MEMBER(asteroid_state::asteroid_explode_w)
+void asteroid_state::asteroid_explode_w(uint8_t data)
 {
 	m_discrete->write(ASTEROID_EXPLODE_DATA,(data&0x3c)>>2);                // Volume
 	/* We will modify the pitch data to send the divider value. */
@@ -303,23 +303,23 @@ WRITE8_MEMBER(asteroid_state::asteroid_explode_w)
 	m_discrete->write(ASTEROID_EXPLODE_PITCH, data);
 }
 
-WRITE8_MEMBER(asteroid_state::asteroid_thump_w)
+void asteroid_state::asteroid_thump_w(uint8_t data)
 {
 	m_discrete->write(ASTEROID_THUMP_EN,   data & 0x10);
 	m_discrete->write(ASTEROID_THUMP_DATA, data & 0x0f);
 }
 
-WRITE8_MEMBER(asteroid_state::asteroid_noise_reset_w)
+void asteroid_state::asteroid_noise_reset_w(uint8_t data)
 {
 	m_discrete->write(ASTEROID_NOISE_RESET, 0);
 }
 
 
-MACHINE_CONFIG_START(asteroid_state::asteroid_sound)
+void asteroid_state::asteroid_sound(machine_config &config)
+{
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("discrete", DISCRETE, asteroid_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.4)
+	DISCRETE(config, m_discrete, asteroid_discrete).add_route(ALL_OUTPUTS, "mono", 1.4);
 
 	ls259_device &audiolatch(LS259(config, "audiolatch")); // M10
 	audiolatch.q_out_cb<0>().set("discrete", FUNC(discrete_device::write_line<ASTEROID_SAUCER_SND_EN>));
@@ -328,15 +328,15 @@ MACHINE_CONFIG_START(asteroid_state::asteroid_sound)
 	audiolatch.q_out_cb<3>().set("discrete", FUNC(discrete_device::write_line<ASTEROID_THRUST_EN>));
 	audiolatch.q_out_cb<4>().set("discrete", FUNC(discrete_device::write_line<ASTEROID_SHIP_FIRE_EN>));
 	audiolatch.q_out_cb<5>().set("discrete", FUNC(discrete_device::write_line<ASTEROID_LIFE_EN>));
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(asteroid_state::astdelux_sound)
+void asteroid_state::astdelux_sound(machine_config &config)
+{
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("discrete", DISCRETE, astdelux_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	DISCRETE(config, m_discrete, astdelux_discrete).add_route(ALL_OUTPUTS, "mono", 1.0);
 
 	ls259_device &audiolatch(LS259(config, "audiolatch")); // M10
 	audiolatch.q_out_cb<3>().set("discrete", FUNC(discrete_device::write_line<ASTEROID_THRUST_EN>));
-MACHINE_CONFIG_END
+}

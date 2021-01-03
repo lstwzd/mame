@@ -63,7 +63,7 @@ void md_rom_ggenie_device::device_reset()
  mapper specific handlers
  -------------------------------------------------*/
 
-READ16_MEMBER(md_rom_ggenie_device::read)
+uint16_t md_rom_ggenie_device::read(offs_t offset)
 {
 	if (!m_gg_bypass || !m_exp->m_cart)
 	{
@@ -88,13 +88,13 @@ READ16_MEMBER(md_rom_ggenie_device::read)
 		else if (offset == m_gg_addr[5]/2 && BIT(m_gg_regs[0], 5))
 			return m_gg_data[5];
 		else
-			return m_exp->m_cart->read(space, offset);
+			return m_exp->m_cart->read(offset);
 	}
 	else
 		return 0xffff;
 }
 
-WRITE16_MEMBER(md_rom_ggenie_device::write)
+void md_rom_ggenie_device::write(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (offset >= 0x40/2)
 		return;
@@ -172,7 +172,8 @@ static void ggenie_sub_cart(device_slot_interface &device)
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(md_rom_ggenie_device::device_add_mconfig)
-	MCFG_MD_CARTRIDGE_ADD("subslot", ggenie_sub_cart, nullptr)
-	MCFG_MD_CARTRIDGE_NOT_MANDATORY
-MACHINE_CONFIG_END
+void md_rom_ggenie_device::device_add_mconfig(machine_config &config)
+{
+	MD_CART_SLOT(config, m_exp, ggenie_sub_cart, nullptr);
+	m_exp->set_must_be_loaded(false);
+}

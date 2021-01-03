@@ -50,21 +50,21 @@ void wiz_state::wiz_palette(palette_device &palette) const
 		bit1 = BIT(color_prom[i + 0x000], 1);
 		bit2 = BIT(color_prom[i + 0x000], 2);
 		bit3 = BIT(color_prom[i + 0x000], 3);
-		int const r = combine_4_weights(rweights, bit0, bit1, bit2, bit3);
+		int const r = combine_weights(rweights, bit0, bit1, bit2, bit3);
 
 		// green component
 		bit0 = BIT(color_prom[i + 0x100], 0);
 		bit1 = BIT(color_prom[i + 0x100], 1);
 		bit2 = BIT(color_prom[i + 0x100], 2);
 		bit3 = BIT(color_prom[i + 0x100], 3);
-		int const g = combine_4_weights(gweights, bit0, bit1, bit2, bit3);
+		int const g = combine_weights(gweights, bit0, bit1, bit2, bit3);
 
 		// blue component
 		bit0 = BIT(color_prom[i + 0x200], 0);
 		bit1 = BIT(color_prom[i + 0x200], 1);
 		bit2 = BIT(color_prom[i + 0x200], 2);
 		bit3 = BIT(color_prom[i + 0x200], 3);
-		int const b = combine_4_weights(bweights, bit0, bit1, bit2, bit3);
+		int const b = combine_weights(bweights, bit0, bit1, bit2, bit3);
 
 		m_palette->set_pen_color(i, rgb_t(r, g, b));
 	}
@@ -78,32 +78,32 @@ void wiz_state::wiz_palette(palette_device &palette) const
 
 ***************************************************************************/
 
-WRITE8_MEMBER(wiz_state::wiz_palette_bank_w)
+void wiz_state::wiz_palette_bank_w(offs_t offset, uint8_t data)
 {
 	m_palbank[offset] = data & 1;
 }
 
-WRITE8_MEMBER(wiz_state::wiz_char_bank_w)
+void wiz_state::wiz_char_bank_w(offs_t offset, uint8_t data)
 {
 	m_charbank[offset] = data & 1;
 }
 
-WRITE8_MEMBER(wiz_state::wiz_sprite_bank_w)
+void wiz_state::wiz_sprite_bank_w(uint8_t data)
 {
 	m_sprite_bank = data & 1;
 }
 
-WRITE8_MEMBER(wiz_state::wiz_bgcolor_w)
+void wiz_state::wiz_bgcolor_w(uint8_t data)
 {
 	m_bgcolor = data;
 }
 
-WRITE8_MEMBER(wiz_state::wiz_flipx_w)
+void wiz_state::wiz_flipx_w(uint8_t data)
 {
 	m_flipx = data & 1;
 }
 
-WRITE8_MEMBER(wiz_state::wiz_flipy_w)
+void wiz_state::wiz_flipy_w(uint8_t data)
 {
 	m_flipy = data & 1;
 }

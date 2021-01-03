@@ -282,11 +282,11 @@
 #include "machine/timer.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 #include "babydad.lh"
 #include "babypkr.lh"
@@ -315,30 +315,30 @@ public:
 		, m_lamps(*this, "lamp%u", 0U)
 	{ }
 
-	void babypkr(machine_config &config);
-	void videodad(machine_config &config);
 	void videopkr(machine_config &config);
-	void fortune1(machine_config &config);
 	void blckjack(machine_config &config);
+	void videodad(machine_config &config);
+	void babypkr(machine_config &config);
+	void fortune1(machine_config &config);
 	void bpoker(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(videopkr_io_r);
-	DECLARE_WRITE8_MEMBER(videopkr_io_w);
-	DECLARE_READ8_MEMBER(videopkr_p1_data_r);
-	DECLARE_READ8_MEMBER(videopkr_p2_data_r);
-	DECLARE_WRITE8_MEMBER(videopkr_p1_data_w);
-	DECLARE_WRITE8_MEMBER(videopkr_p2_data_w);
+	uint8_t videopkr_io_r(offs_t offset);
+	void videopkr_io_w(offs_t offset, uint8_t data);
+	uint8_t videopkr_p1_data_r();
+	uint8_t videopkr_p2_data_r();
+	void videopkr_p1_data_w(uint8_t data);
+	void videopkr_p2_data_w(uint8_t data);
 	DECLARE_READ_LINE_MEMBER(videopkr_t0_latch);
 	DECLARE_WRITE_LINE_MEMBER(prog_w);
-	DECLARE_READ8_MEMBER(sound_io_r);
-	DECLARE_WRITE8_MEMBER(sound_io_w);
-	DECLARE_READ8_MEMBER(sound_p2_r);
-	DECLARE_WRITE8_MEMBER(sound_p2_w);
-	DECLARE_READ8_MEMBER(baby_sound_p0_r);
-	DECLARE_WRITE8_MEMBER(baby_sound_p0_w);
-	DECLARE_READ8_MEMBER(baby_sound_p1_r);
-	DECLARE_WRITE8_MEMBER(baby_sound_p3_w);
+	uint8_t sound_io_r();
+	void sound_io_w(uint8_t data);
+	uint8_t sound_p2_r();
+	void sound_p2_w(uint8_t data);
+	uint8_t baby_sound_p0_r();
+	void baby_sound_p0_w(uint8_t data);
+	uint8_t baby_sound_p1_r();
+	void baby_sound_p3_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	void videopkr_palette(palette_device &palette) const;
 	DECLARE_VIDEO_START(vidadcba);
@@ -521,18 +521,18 @@ TILE_GET_INFO_MEMBER(videopkr_state::get_bg_tile_info)
 	int attr = m_color_ram[offs] + ioport("IN2")->read(); /* Color Switch Action */
 	int code = m_video_ram[offs];
 	int color = attr;
-	SET_TILE_INFO_MEMBER(0, code, color, 0);
+	tileinfo.set(0, code, color, 0);
 }
 
 
 void videopkr_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(videopkr_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(videopkr_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 }
 
 VIDEO_START_MEMBER(videopkr_state,vidadcba)
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(videopkr_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 16, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(videopkr_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 16, 8, 32, 32);
 }
 
 
@@ -548,7 +548,7 @@ uint32_t videopkr_state::screen_update_videopkr(screen_device &screen, bitmap_in
 *      R/W Handlers      *
 *************************/
 
-READ8_MEMBER(videopkr_state::videopkr_io_r)
+uint8_t videopkr_state::videopkr_io_r(offs_t offset)
 {
 	uint8_t valor = 0, hf, co;
 
@@ -628,7 +628,7 @@ READ8_MEMBER(videopkr_state::videopkr_io_r)
 	return valor;
 }
 
-WRITE8_MEMBER(videopkr_state::videopkr_io_w)
+void videopkr_state::videopkr_io_w(offs_t offset, uint8_t data)
 {
 	switch (m_p2)
 	{
@@ -697,17 +697,17 @@ WRITE8_MEMBER(videopkr_state::videopkr_io_w)
 	}
 }
 
-READ8_MEMBER(videopkr_state::videopkr_p1_data_r)
+uint8_t videopkr_state::videopkr_p1_data_r()
 {
 	return m_p1;
 }
 
-READ8_MEMBER(videopkr_state::videopkr_p2_data_r)
+uint8_t videopkr_state::videopkr_p2_data_r()
 {
 	return m_p2;
 }
 
-WRITE8_MEMBER(videopkr_state::videopkr_p1_data_w)
+void videopkr_state::videopkr_p1_data_w(uint8_t data)
 {
 	m_p1 = data;
 
@@ -749,7 +749,7 @@ WRITE8_MEMBER(videopkr_state::videopkr_p1_data_w)
 	m_ant_jckp = m_jckp;
 }
 
-WRITE8_MEMBER(videopkr_state::videopkr_p2_data_w)
+void videopkr_state::videopkr_p2_data_w(uint8_t data)
 {
 	m_p2 = data;
 }
@@ -801,7 +801,7 @@ WRITE_LINE_MEMBER(videopkr_state::prog_w)
 
 */
 
-READ8_MEMBER(videopkr_state::sound_io_r)
+uint8_t videopkr_state::sound_io_r()
 {
 	switch (m_vp_sound_p2)
 	{
@@ -823,7 +823,7 @@ READ8_MEMBER(videopkr_state::sound_io_r)
 	return m_sound_latch;
 }
 
-WRITE8_MEMBER(videopkr_state::sound_io_w)
+void videopkr_state::sound_io_w(uint8_t data)
 {
 	if (m_vp_sound_p2 == 0x5f || m_vp_sound_p2 == 0xdf)
 	{
@@ -832,12 +832,12 @@ WRITE8_MEMBER(videopkr_state::sound_io_w)
 	}
 }
 
-READ8_MEMBER(videopkr_state::sound_p2_r)
+uint8_t videopkr_state::sound_p2_r()
 {
 	return m_vp_sound_p2;
 }
 
-WRITE8_MEMBER(videopkr_state::sound_p2_w)
+void videopkr_state::sound_p2_w(uint8_t data)
 {
 	m_vp_sound_p2 = data;
 
@@ -869,17 +869,17 @@ WRITE8_MEMBER(videopkr_state::sound_p2_w)
 
 /* Baby Sound Handlers */
 
-READ8_MEMBER(videopkr_state::baby_sound_p0_r)
+uint8_t videopkr_state::baby_sound_p0_r()
 {
 	return m_sbp0;
 }
 
-WRITE8_MEMBER(videopkr_state::baby_sound_p0_w)
+void videopkr_state::baby_sound_p0_w(uint8_t data)
 {
 	m_sbp0 = data;
 }
 
-READ8_MEMBER(videopkr_state::baby_sound_p1_r)
+uint8_t videopkr_state::baby_sound_p1_r()
 {
 	m_c_io = (m_p1 >> 5) & 1;
 	m_hp_1 = (~m_p24_data >> 6) & 1;
@@ -889,7 +889,7 @@ READ8_MEMBER(videopkr_state::baby_sound_p1_r)
 	return m_c_io | (m_hp_1 << 1) | (m_hp_2 << 2) | (m_bell << 3) | (m_aux3 << 4) | 0xe0;
 }
 
-WRITE8_MEMBER(videopkr_state::baby_sound_p3_w)
+void videopkr_state::baby_sound_p3_w(uint8_t data)
 {
 	uint8_t lmp_ports, ay_intf;
 	lmp_ports = data >> 1 & 0x07;
@@ -911,11 +911,11 @@ WRITE8_MEMBER(videopkr_state::baby_sound_p3_w)
 		case 0x00:  break;
 		case 0x01:  break;
 		case 0x02:  break;
-		case 0x03:  m_aysnd->data_w(space, 1, m_sbp0); break;
+		case 0x03:  m_aysnd->data_w(m_sbp0); break;
 		case 0x04:  break;
-		case 0x05:  m_sbp0 = m_aysnd->data_r(space, m_sbp0); break;
+		case 0x05:  m_sbp0 = m_aysnd->data_r(); break;
 		case 0x06:  break;
-		case 0x07:  m_aysnd->address_w(space, 0, m_sbp0); break;
+		case 0x07:  m_aysnd->address_w(m_sbp0); break;
 	}
 }
 
@@ -956,10 +956,10 @@ void videopkr_state::i8751_io_port(address_map &map)
 {
 	map(0x0000, 0x0fff).ram(); // NVRAM?
 	map(0x8000, 0x8000).noprw(); // ???
-	map(0x9000, 0x9000).writeonly(); // ???
+	map(0x9000, 0x9000).nopw(); // ???
 	map(0xa000, 0xbfff).ram(); // video RAM?
 	map(0xc000, 0xc003).rw("ppi", FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0xf000, 0xf000).writeonly(); // ???
+	map(0xf000, 0xf000).nopw(); // ???
 }
 
 void videopkr_state::i8039_sound_mem(address_map &map)
@@ -994,7 +994,7 @@ static INPUT_PORTS_START( videopkr )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) PORT_NAME("Books")
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_IMPULSE(2)
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Discard") PORT_CODE(KEYCODE_2)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_DEAL ) PORT_NAME("Discard")
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_POKER_CANCEL )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_POKER_HOLD1 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_POKER_HOLD2 )
@@ -1103,7 +1103,7 @@ static INPUT_PORTS_START( babypkr )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) PORT_NAME("Books")
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_IMPULSE(2)
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_D_UP ) PORT_NAME("Double / Discard") PORT_CODE(KEYCODE_3)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_DEAL ) PORT_NAME("Double / Discard")
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_POKER_CANCEL ) PORT_NAME("Cancel / Take")
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_POKER_HOLD1 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_POKER_HOLD2 )
@@ -1220,8 +1220,8 @@ void videopkr_state::machine_start()
 *    Machine Drivers    *
 ************************/
 
-MACHINE_CONFIG_START(videopkr_state::videopkr)
-
+void videopkr_state::videopkr(machine_config &config)
+{
 	/* basic machine hardware */
 	i8039_device &maincpu(I8039(config, m_maincpu, CPU_CLOCK));
 	maincpu.set_addrmap(AS_PROGRAM, &videopkr_state::i8039_map);
@@ -1243,57 +1243,58 @@ MACHINE_CONFIG_START(videopkr_state::videopkr)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("t1_timer", videopkr_state, sound_t1_callback, attotime::from_hz(50))
+	TIMER(config, "t1_timer").configure_periodic(FUNC(videopkr_state::sound_t1_callback), attotime::from_hz(50));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(5*8, 31*8-1, 3*8, 29*8-1)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(2080)
-	MCFG_SCREEN_UPDATE_DRIVER(videopkr_state, screen_update_videopkr)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(5*8, 31*8-1, 3*8, 29*8-1);
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(2080);
+	screen.set_screen_update(FUNC(videopkr_state::screen_update_videopkr));
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_videopkr)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_videopkr);
 	PALETTE(config, "palette", FUNC(videopkr_state::videopkr_palette), 256);
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", MC1408, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.275)
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	MC1408(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.275);
+}
 
 
-MACHINE_CONFIG_START(videopkr_state::blckjack)
+void videopkr_state::blckjack(machine_config &config)
+{
 	videopkr(config);
 
 	/* basic machine hardware */
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(4*8, 31*8-1, 2*8, 30*8-1)
-MACHINE_CONFIG_END
+	screen_device &screen(*subdevice<screen_device>("screen"));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(4*8, 31*8-1, 2*8, 30*8-1);
+}
 
 
-MACHINE_CONFIG_START(videopkr_state::videodad)
+void videopkr_state::videodad(machine_config &config)
+{
 	videopkr(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_clock(CPU_CLOCK_ALT);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(32*16, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(4*16, 31*16-1, 2*8, 30*8-1)
+	screen_device &screen(*subdevice<screen_device>("screen"));
+	screen.set_size(32*16, 32*8);
+	screen.set_visarea(4*16, 31*16-1, 2*8, 30*8-1);
 
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_videodad)
+	m_gfxdecode->set_info(gfx_videodad);
 	MCFG_VIDEO_START_OVERRIDE(videopkr_state,vidadcba)
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(videopkr_state::babypkr)
+void videopkr_state::babypkr(machine_config &config)
+{
 	videopkr(config);
 
 	/* basic machine hardware */
@@ -1310,28 +1311,31 @@ MACHINE_CONFIG_START(videopkr_state::babypkr)
 	soundcpu.port_out_cb<3>().set(FUNC(videopkr_state::baby_sound_p3_w));
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(32*16, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(5*16, 31*16-1, 3*8, 29*8-1)
+	screen_device &screen(*subdevice<screen_device>("screen"));
+	screen.set_size(32*16, 32*8);
+	screen.set_visarea(5*16, 31*16-1, 3*8, 29*8-1);
 
 	subdevice<palette_device>("palette")->set_init(FUNC(videopkr_state::babypkr_palette));
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_videodad)
+	m_gfxdecode->set_info(gfx_videodad);
 	MCFG_VIDEO_START_OVERRIDE(videopkr_state,vidadcba)
 
 	AY8910(config, m_aysnd, CPU_CLOCK / 6).add_route(ALL_OUTPUTS, "speaker", 0.3); /* no ports used */
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(videopkr_state::fortune1)
+void videopkr_state::fortune1(machine_config &config)
+{
 	videopkr(config);
 
 	/* basic machine hardware */
 	m_maincpu->set_clock(CPU_CLOCK_ALT);
 
 	subdevice<palette_device>("palette")->set_init(FUNC(videopkr_state::fortune1_palette));
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(videopkr_state::bpoker)
+void videopkr_state::bpoker(machine_config &config)
+{
 	babypkr(config);
+
 	i8751_device &maincpu(I8751(config.replace(), m_maincpu, XTAL(6'000'000)));
 	maincpu.set_addrmap(AS_PROGRAM, &videopkr_state::i8751_map);
 	maincpu.set_addrmap(AS_IO, &videopkr_state::i8751_io_port);
@@ -1344,7 +1348,7 @@ MACHINE_CONFIG_START(videopkr_state::bpoker)
 	//ppi.in_pb_callback()
 	//ppi.out_pc_callback()
 	//ppi.in_pc_callback()
-MACHINE_CONFIG_END
+}
 
 
 /*************************

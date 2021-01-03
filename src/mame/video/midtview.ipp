@@ -45,7 +45,7 @@ void midtunit_video_device::device_add_mconfig(machine_config &config)
 	debugscreen.set_raw(8000000 * 2, 506, 100, 500, 289, 20, 274);
 	debugscreen.set_screen_update(FUNC(midtunit_video_device::debug_screen_update));
 
-	PALETTE(config, m_debug_palette, 32768).set_format(PALETTE_FORMAT_xRRRRRGGGGGBBBBB);
+	PALETTE(config, m_debug_palette).set_format(palette_device::xRGB_555, 32768);
 }
 
 void midwunit_video_device::device_add_mconfig(machine_config &config)
@@ -54,7 +54,7 @@ void midwunit_video_device::device_add_mconfig(machine_config &config)
 	debugscreen.set_raw(8000000, 506, 101, 501, 289, 20, 274);
 	debugscreen.set_screen_update(FUNC(midwunit_video_device::debug_screen_update));
 
-	PALETTE(config, m_debug_palette, 32768).set_format(PALETTE_FORMAT_xRRRRRGGGGGBBBBB);
+	PALETTE(config, m_debug_palette).set_format(palette_device::xRGB_555, 32768);
 }
 
 void midtunit_video_device::do_debug_blit()
@@ -266,7 +266,7 @@ uint32_t midtunit_video_device::debug_screen_update(screen_device &screen, bitma
 	const pen_t *pens = m_debug_palette->pens();
 	for (int y = 0; y <= cliprect.max_y; y++)
 	{
-		uint32_t *dest = &bitmap.pix32(y);
+		uint32_t *dest = &bitmap.pix(y);
 		uint16_t *src = &m_debug_videoram[y * 512];
 		for (int x = 0; x < cliprect.max_x; x++)
 		{

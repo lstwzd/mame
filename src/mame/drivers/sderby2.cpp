@@ -65,15 +65,15 @@ private:
 	void sderby2_palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	DECLARE_WRITE8_MEMBER(palette_w);
-	DECLARE_READ8_MEMBER(host_r);
-	DECLARE_WRITE8_MEMBER(main_nmi);
-	DECLARE_WRITE8_MEMBER(sub_nmi);
-	DECLARE_READ8_MEMBER(sub_r);
-	DECLARE_WRITE8_MEMBER(host_io_40_w);
-	DECLARE_READ8_MEMBER(sub_io_0_r);
-	DECLARE_READ8_MEMBER(sub_unk_r);
-	DECLARE_WRITE8_MEMBER(sub_unk_w);
+	void palette_w(offs_t offset, uint8_t data);
+	uint8_t host_r();
+	void main_nmi(uint8_t data);
+	void sub_nmi(uint8_t data);
+	uint8_t sub_r();
+	void host_io_40_w(uint8_t data);
+	uint8_t sub_io_0_r();
+	uint8_t sub_unk_r();
+	void sub_unk_w(uint8_t data);
 
 	required_device<z80_device> m_maincpu;
 	required_device<z80_device> m_subcpu;
@@ -102,7 +102,7 @@ void sderby2_state::sderby2_palette(palette_device &palette) const
 
 }
 
-WRITE8_MEMBER(sderby2_state::palette_w)
+void sderby2_state::palette_w(offs_t offset, uint8_t data)
 {
 	const rgb_t color = m_palette->pen_color(data & 0xff);
 	m_palette->set_pen_color(0x100 + offset, color);
@@ -126,46 +126,46 @@ uint32_t sderby2_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
  *
  *************************************/
 
-READ8_MEMBER(sderby2_state::host_r)
+uint8_t sderby2_state::host_r()
 {
 	return main_data;
 }
 
-WRITE8_MEMBER(sderby2_state::main_nmi)
+void sderby2_state::main_nmi(uint8_t data)
 {
 	m_maincpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 	m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 	main_data = data;
 }
 
-WRITE8_MEMBER(sderby2_state::host_io_40_w)
+void sderby2_state::host_io_40_w(uint8_t data)
 {
 	host_io_40 = data;
 }
 
-READ8_MEMBER(sderby2_state::sub_r)
+uint8_t sderby2_state::sub_r()
 {
 	return sub_data;
 }
 
-WRITE8_MEMBER(sderby2_state::sub_nmi)
+void sderby2_state::sub_nmi(uint8_t data)
 {
 	m_subcpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 	m_subcpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 	sub_data = data;
 }
 
-READ8_MEMBER(sderby2_state::sub_unk_r)
+uint8_t sderby2_state::sub_unk_r()
 {
 	return machine().rand();
 }
 
-WRITE8_MEMBER(sderby2_state::sub_unk_w)
+void sderby2_state::sub_unk_w(uint8_t data)
 {
 
 }
 
-READ8_MEMBER(sderby2_state::sub_io_0_r)
+uint8_t sderby2_state::sub_io_0_r()
 {
 	return host_io_40;
 }
@@ -298,32 +298,33 @@ void sderby2_state::machine_reset()
 
 }
 
-MACHINE_CONFIG_START(sderby2_state::sderby2)
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(3'579'545))
-	MCFG_DEVICE_PROGRAM_MAP(main_program_map)
-	MCFG_DEVICE_IO_MAP(main_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sderby2_state, irq0_line_hold)
+void sderby2_state::sderby2(machine_config &config)
+{
+	Z80(config, m_maincpu, XTAL(3'579'545));
+	m_maincpu->set_addrmap(AS_PROGRAM, &sderby2_state::main_program_map);
+	m_maincpu->set_addrmap(AS_IO, &sderby2_state::main_io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(sderby2_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("subcpu", Z80, XTAL(3'579'545))
-	MCFG_DEVICE_PROGRAM_MAP(sub_program_map)
-	MCFG_DEVICE_IO_MAP(sub_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", sderby2_state, irq0_line_hold)
+	Z80(config, m_subcpu, XTAL(3'579'545));
+	m_subcpu->set_addrmap(AS_PROGRAM, &sderby2_state::sub_program_map);
+	m_subcpu->set_addrmap(AS_IO, &sderby2_state::sub_io_map);
+	m_subcpu->set_vblank_int("screen", FUNC(sderby2_state::irq0_line_hold));
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256 - 1, 0, 256 - 1)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_UPDATE_DRIVER(sderby2_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(256, 256);
+	screen.set_visarea(0, 256 - 1, 0, 256 - 1);
+	screen.set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	screen.set_screen_update(FUNC(sderby2_state::screen_update));
+	screen.set_palette(m_palette);
 	PALETTE(config, m_palette, FUNC(sderby2_state::sderby2_palette), 256+256*3);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_sderby2);
 
 	// sound hardware
-MACHINE_CONFIG_END
+}
 
 /*************************************
  *

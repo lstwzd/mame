@@ -86,7 +86,7 @@ Some bugs left :
     - Implement full Asic for CPC+ emulation.  Soft scroll is rather dodgy.
     - The KC Compact should not reuse the gate array functionality. Instead z8536 support should be added. (bug #42)
 
- ******************************************************************************/
+******************************************************************************/
 
 /* Core includes */
 #include "emu.h"
@@ -98,7 +98,6 @@ Some bugs left :
 #include "video/mc6845.h"       /* CRTC */
 #include "machine/upd765.h" /* for floppy disc controller */
 #include "sound/ay8910.h"
-#include "sound/wave.h"
 #include "machine/mc146818.h"  /* Aleste RTC */
 #include "bus/centronics/ctronics.h"
 
@@ -242,12 +241,12 @@ static INPUT_PORTS_START( amstrad_keyboard )
 	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_KEYBOARD)                                    PORT_CODE(KEYCODE_Z)          PORT_CHAR('z') PORT_CHAR('Z')
 
 	PORT_START("kbrow.9")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP)    PORT_PLAYER(1) PORT_8WAY
-	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN)  PORT_PLAYER(1) PORT_8WAY
-	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT)  PORT_PLAYER(1) PORT_8WAY
-	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT) PORT_PLAYER(1) PORT_8WAY
-	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON1)        PORT_PLAYER(1)
-	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON2)        PORT_PLAYER(1)
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP)    PORT_PLAYER(1) PORT_8WAY PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN)  PORT_PLAYER(1) PORT_8WAY PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT)  PORT_PLAYER(1) PORT_8WAY PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT) PORT_PLAYER(1) PORT_8WAY PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON1)        PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON2)        PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
 	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_UNUSED)
 /* The bit for the third button is officially undocumented: Amstrad joysticks actually
    use only two buttons. The only device that reads this bit is the AMX mouse, which uses
@@ -336,28 +335,41 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( amx_mouse )
 	PORT_START("mouse_input1")
-	PORT_BIT(0xff , 0, IPT_MOUSE_X) PORT_SENSITIVITY(100) PORT_KEYDELTA(10) PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0xff , 0, IPT_MOUSE_X) PORT_SENSITIVITY(100) PORT_KEYDELTA(10) PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x02, EQUALS, 0x02)
 
 	PORT_START("mouse_input2")
-	PORT_BIT(0xff , 0, IPT_MOUSE_Y) PORT_SENSITIVITY(100) PORT_KEYDELTA(10) PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0xff , 0, IPT_MOUSE_Y) PORT_SENSITIVITY(100) PORT_KEYDELTA(10) PORT_PLAYER(1) PORT_CONDITION("controller_type", 0x02, EQUALS, 0x02)
 
 	PORT_START("mouse_input3")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON4) PORT_NAME("Left mouse button") PORT_CODE(MOUSECODE_BUTTON1) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
-	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_BUTTON5) PORT_NAME("Right mouse button") PORT_CODE(MOUSECODE_BUTTON2) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
-	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_BUTTON6) PORT_NAME("Middle mouse button") PORT_CODE(MOUSECODE_BUTTON3) PORT_CONDITION("controller_type", 0x01, EQUALS, 0x01)
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON4) PORT_NAME("Left mouse button") PORT_CODE(MOUSECODE_BUTTON1) PORT_CONDITION("controller_type", 0x02, EQUALS, 0x02)
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_BUTTON5) PORT_NAME("Right mouse button") PORT_CODE(MOUSECODE_BUTTON2) PORT_CONDITION("controller_type", 0x02, EQUALS, 0x02)
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_BUTTON6) PORT_NAME("Middle mouse button") PORT_CODE(MOUSECODE_BUTTON3) PORT_CONDITION("controller_type", 0x02, EQUALS, 0x02)
 
 	PORT_START("controller_type")
-	PORT_CONFNAME( 0x03, 0x00, "Joystick port device" )
-	PORT_CONFSETTING(0x00, "2-button Joystick" )
-	PORT_CONFSETTING(0x01, "AMX mouse interface" )
-	PORT_CONFSETTING(0x02, "Nothing" )
+	PORT_CONFNAME( 0x07, 0x01, "Joystick port device" )
+	PORT_CONFSETTING(0x00, "Nothing" )
+	PORT_CONFSETTING(0x01, "2-button joystick" )
+	PORT_CONFSETTING(0x02, "AMX mouse interface" )
+	PORT_CONFSETTING(0x04, "Cheetah 125 Special rotational joystick" )
 
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( cheetah_125_special )
+	PORT_START("cheetah")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP)    PORT_PLAYER(1) PORT_8WAY PORT_NAME("Cheetah 125 Up") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN)  PORT_PLAYER(1) PORT_8WAY PORT_NAME("Cheetah 125 Down") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT)  PORT_PLAYER(1) PORT_8WAY PORT_NAME("Cheetah 125 Left") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT) PORT_PLAYER(1) PORT_8WAY PORT_NAME("Cheetah 125 Right") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON1)        PORT_PLAYER(1) PORT_NAME("Cheetah 125 Fire") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_BUTTON2)        PORT_PLAYER(1) PORT_NAME("Cheetah 125 Rotate Left") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_BUTTON3)        PORT_PLAYER(1) PORT_NAME("Cheetah 125 Rotate Right") PORT_CONDITION("controller_type", 0x04, EQUALS, 0x04)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( cpc464 )
 	PORT_INCLUDE(amstrad_keyboard)
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 
@@ -384,6 +396,7 @@ static INPUT_PORTS_START( cpc664 )
 
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 
@@ -416,6 +429,7 @@ static INPUT_PORTS_START( cpc6128 )
 
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 
@@ -484,6 +498,7 @@ static INPUT_PORTS_START( cpc6128f )
 
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( cpc6128s )
@@ -555,6 +570,7 @@ static INPUT_PORTS_START( kccomp )
 
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 
@@ -744,6 +760,7 @@ static INPUT_PORTS_START( aleste )
 
 	PORT_INCLUDE(crtc_links)
 	PORT_INCLUDE(amx_mouse)
+	PORT_INCLUDE(cheetah_125_special)
 INPUT_PORTS_END
 
 
@@ -807,14 +824,14 @@ FLOPPY_FORMATS_MEMBER( amstrad_state::aleste_floppy_formats )
 	FLOPPY_MSX_FORMAT
 FLOPPY_FORMATS_END
 
-MACHINE_CONFIG_START(amstrad_state::cpcplus_cartslot)
-	MCFG_GENERIC_CARTSLOT_ADD("cartslot", generic_plain_slot, "gx4000_cart")
-	MCFG_GENERIC_EXTENSIONS("bin,cpr")
-	MCFG_GENERIC_MANDATORY
-	MCFG_GENERIC_LOAD(amstrad_state, amstrad_plus_cartridge)
+void amstrad_state::cpcplus_cartslot(machine_config &config)
+{
+	generic_cartslot_device &cartslot(GENERIC_CARTSLOT(config, "cartslot", generic_plain_slot, "gx4000_cart", "bin,cpr"));
+	cartslot.set_must_be_loaded(true);
+	cartslot.set_device_load(FUNC(amstrad_state::amstrad_plus_cartridge));
 
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "gx4000")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("gx4000");
+}
 
 void cpc464_exp_cards(device_slot_interface &device)
 {
@@ -834,6 +851,7 @@ void cpc464_exp_cards(device_slot_interface &device)
 	device.option_add("hd20", CPC_HD20);
 	device.option_add("doubler", CPC_DOUBLER);
 	device.option_add("transtape", CPC_TRANSTAPE);
+	device.option_add("musicmachine", CPC_MUSICMACHINE);
 }
 
 void cpc_exp_cards(device_slot_interface &device)
@@ -853,6 +871,7 @@ void cpc_exp_cards(device_slot_interface &device)
 	device.option_add("hd20", CPC_HD20);
 	device.option_add("doubler", CPC_DOUBLER);
 	device.option_add("transtape", CPC_TRANSTAPE);
+	device.option_add("musicmachine", CPC_MUSICMACHINE);
 }
 
 void cpcplus_exp_cards(device_slot_interface &device)
@@ -870,6 +889,7 @@ void cpcplus_exp_cards(device_slot_interface &device)
 	device.option_add("hd20", CPC_HD20);
 	device.option_add("doubler", CPC_DOUBLER);
 	device.option_add("transtape", CPC_TRANSTAPE);  // Plus compatible?
+	device.option_add("musicmachine", CPC_MUSICMACHINE);
 }
 
 void aleste_exp_cards(device_slot_interface &device)
@@ -889,6 +909,7 @@ void aleste_exp_cards(device_slot_interface &device)
 	device.option_add("hd20", CPC_HD20);
 	device.option_add("doubler", CPC_DOUBLER);
 	device.option_add("transtape", CPC_TRANSTAPE);
+	device.option_add("musicmachine", CPC_MUSICMACHINE);
 	device.option_add("magicsound", AL_MAGICSOUND);
 }
 
@@ -903,14 +924,15 @@ void amstrad_centronics_devices(device_slot_interface &device)
 	device.option_add("digiblst", CENTRONICS_DIGIBLASTER);
 }
 
-MACHINE_CONFIG_START(amstrad_state::amstrad_base)
+void amstrad_state::amstrad_base(machine_config &config)
+{
 	/* Machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 16_MHz_XTAL / 4)
-	MCFG_DEVICE_PROGRAM_MAP(amstrad_mem)
-	MCFG_DEVICE_IO_MAP(amstrad_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(amstrad_state,amstrad_cpu_acknowledge_int)
+	Z80(config, m_maincpu, 16_MHz_XTAL / 4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &amstrad_state::amstrad_mem);
+	m_maincpu->set_addrmap(AS_IO, &amstrad_state::amstrad_io);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(amstrad_state::amstrad_cpu_acknowledge_int));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	MCFG_MACHINE_START_OVERRIDE(amstrad_state, amstrad )
 	MCFG_MACHINE_RESET_OVERRIDE(amstrad_state, amstrad )
@@ -922,16 +944,16 @@ MACHINE_CONFIG_START(amstrad_state::amstrad_base)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(16_MHz_XTAL, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15)
-	MCFG_SCREEN_UPDATE_DRIVER(amstrad_state, screen_update_amstrad)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, amstrad_state, screen_vblank_amstrad))
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(16_MHz_XTAL, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
+	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
+	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));
+	m_screen->set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	m_screen->set_palette(m_palette);
 
 	PALETTE(config, m_palette, FUNC(amstrad_state::amstrad_cpc_palette), 32);
 
-	HD6845(config, m_crtc, 16_MHz_XTAL / 16);
+	HD6845S(config, m_crtc, 16_MHz_XTAL / 16);
 	m_crtc->set_screen(nullptr);
 	m_crtc->set_show_border_area(false);
 	m_crtc->set_char_width(16);
@@ -944,28 +966,28 @@ MACHINE_CONFIG_START(amstrad_state::amstrad_base)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.25);
 	AY8912(config, m_ay, 16_MHz_XTAL / 16);
 	m_ay->port_a_read_callback().set(FUNC(amstrad_state::amstrad_psg_porta_read));
 	m_ay->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	/* printer */
-	MCFG_DEVICE_ADD("centronics", CENTRONICS, amstrad_centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, amstrad_state, write_centronics_busy))
+	CENTRONICS(config, m_centronics, amstrad_centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(amstrad_state::write_centronics_busy));
 
 	/* snapshot */
-	MCFG_SNAPSHOT_ADD("snapshot", amstrad_state, amstrad, "sna", 0)
+	SNAPSHOT(config, "snapshot", "sna").set_load_callback(FUNC(amstrad_state::snapshot_cb));
 
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_FORMATS(cdt_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED)
-	MCFG_CASSETTE_INTERFACE("cpc_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_formats(cdt_cassette_formats);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.10);
+	m_cassette->set_interface("cpc_cass");
 
-	MCFG_SOFTWARE_LIST_ADD("cass_list","cpc_cass")
+	SOFTWARE_LIST(config, "cass_list").set_original("cpc_cass");
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(amstrad_state::cpc464)
+void amstrad_state::cpc464(machine_config &config)
+{
 	amstrad_base(config);
 
 	cpc_expansion_slot_device &exp(CPC_EXPANSION_SLOT(config, "exp", 16_MHz_XTAL / 4, cpc464_exp_cards, nullptr));
@@ -977,14 +999,15 @@ MACHINE_CONFIG_START(amstrad_state::cpc464)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("64K").set_extra_options("128K,320K,576K");
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(amstrad_state::cpc664)
+void amstrad_state::cpc664(machine_config &config)
+{
 	amstrad_base(config);
 	UPD765A(config, m_fdc, 16_MHz_XTAL / 4, true, true);
-	MCFG_FLOPPY_DRIVE_ADD("upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_SOFTWARE_LIST_ADD("flop_list","cpc_flop")
+	FLOPPY_CONNECTOR(config, "upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats);
+	SOFTWARE_LIST(config, "flop_list").set_original("cpc_flop");
 
 	cpc_expansion_slot_device &exp(CPC_EXPANSION_SLOT(config, "exp", 16_MHz_XTAL / 4, cpc_exp_cards, nullptr));
 	exp.set_cpu_tag(m_maincpu);
@@ -995,14 +1018,15 @@ MACHINE_CONFIG_START(amstrad_state::cpc664)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("64K").set_extra_options("128K,320K,576K");
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(amstrad_state::cpc6128)
+void amstrad_state::cpc6128(machine_config &config)
+{
 	amstrad_base(config);
 	UPD765A(config, m_fdc, 16_MHz_XTAL / 4, true, true);
-	MCFG_FLOPPY_DRIVE_ADD("upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_SOFTWARE_LIST_ADD("flop_list","cpc_flop")
+	FLOPPY_CONNECTOR(config, "upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats);
+	SOFTWARE_LIST(config, "flop_list").set_original("cpc_flop");
 
 	cpc_expansion_slot_device &exp(CPC_EXPANSION_SLOT(config, "exp", 16_MHz_XTAL / 4, cpc_exp_cards, nullptr));
 	exp.set_cpu_tag(m_maincpu);
@@ -1013,26 +1037,28 @@ MACHINE_CONFIG_START(amstrad_state::cpc6128)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("128K").set_extra_options("320K,576K");
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(amstrad_state::kccomp)
+void amstrad_state::kccomp(machine_config &config)
+{
 	cpc6128(config);
 	MCFG_MACHINE_START_OVERRIDE(amstrad_state,kccomp)
 	MCFG_MACHINE_RESET_OVERRIDE(amstrad_state,kccomp)
 
 	m_palette->set_init(FUNC(amstrad_state::kccomp_palette));
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(amstrad_state::cpcplus)
+void amstrad_state::cpcplus(machine_config &config)
+{
 	/* Machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 40_MHz_XTAL / 10)
-	MCFG_DEVICE_PROGRAM_MAP(amstrad_mem)
-	MCFG_DEVICE_IO_MAP(amstrad_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(amstrad_state,amstrad_cpu_acknowledge_int)
+	Z80(config, m_maincpu, 40_MHz_XTAL / 10);
+	m_maincpu->set_addrmap(AS_PROGRAM, &amstrad_state::amstrad_mem);
+	m_maincpu->set_addrmap(AS_IO, &amstrad_state::amstrad_io);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(amstrad_state::amstrad_cpu_acknowledge_int));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	MCFG_MACHINE_START_OVERRIDE(amstrad_state, plus )
 	MCFG_MACHINE_RESET_OVERRIDE(amstrad_state, plus )
@@ -1044,12 +1070,12 @@ MACHINE_CONFIG_START(amstrad_state::cpcplus)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15)
-	MCFG_SCREEN_UPDATE_DRIVER(amstrad_state, screen_update_amstrad)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, amstrad_state, screen_vblank_amstrad))
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
+	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
+	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));
+	m_screen->set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	m_screen->set_palette(m_palette);
 
 	PALETTE(config, m_palette, FUNC(amstrad_state::amstrad_plus_palette), 4096);
 
@@ -1065,31 +1091,31 @@ MACHINE_CONFIG_START(amstrad_state::cpcplus)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.25);
 	AY8912(config, m_ay, 40_MHz_XTAL / 40);
 	m_ay->port_a_read_callback().set(FUNC(amstrad_state::amstrad_psg_porta_read));
 	m_ay->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	/* printer */
-	MCFG_DEVICE_ADD("centronics", CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, amstrad_state, write_centronics_busy))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(amstrad_state::write_centronics_busy));
 
 	/* snapshot */
-	MCFG_SNAPSHOT_ADD("snapshot", amstrad_state, amstrad, "sna", 0)
+	SNAPSHOT(config, "snapshot", "sna").set_load_callback(FUNC(amstrad_state::snapshot_cb));
 
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_FORMATS(cdt_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED)
-	MCFG_CASSETTE_INTERFACE("cpc_cass")
-	MCFG_SOFTWARE_LIST_ADD("cass_list","cpc_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_formats(cdt_cassette_formats);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.10);
+	m_cassette->set_interface("cpc_cass");
+	SOFTWARE_LIST(config, "cass_list").set_original("cpc_cass");
 
 	UPD765A(config, m_fdc, 40_MHz_XTAL / 10, true, true);
 
 	cpcplus_cartslot(config);
 
-	MCFG_FLOPPY_DRIVE_ADD("upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats)
-	MCFG_SOFTWARE_LIST_ADD("flop_list","cpc_flop")
+	FLOPPY_CONNECTOR(config, "upd765:0", amstrad_floppies, "3ssdd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "upd765:1", amstrad_floppies, "35ssdd", floppy_image_device::default_floppy_formats);
+	SOFTWARE_LIST(config, "flop_list").set_original("cpc_flop");
 
 	cpc_expansion_slot_device &exp(CPC_EXPANSION_SLOT(config, "exp", 40_MHz_XTAL / 10, cpcplus_exp_cards, nullptr));
 	exp.set_cpu_tag(m_maincpu);
@@ -1100,17 +1126,18 @@ MACHINE_CONFIG_START(amstrad_state::cpcplus)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("128K").set_extra_options("64K,320K,576K");
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(amstrad_state::gx4000)
+void amstrad_state::gx4000(machine_config &config)
+{
 	/* Machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 40_MHz_XTAL / 10)
-	MCFG_DEVICE_PROGRAM_MAP(amstrad_mem)
-	MCFG_DEVICE_IO_MAP(amstrad_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(amstrad_state,amstrad_cpu_acknowledge_int)
+	Z80(config, m_maincpu, 40_MHz_XTAL / 10);
+	m_maincpu->set_addrmap(AS_PROGRAM, &amstrad_state::amstrad_mem);
+	m_maincpu->set_addrmap(AS_IO, &amstrad_state::amstrad_io);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(amstrad_state::amstrad_cpu_acknowledge_int));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	MCFG_MACHINE_START_OVERRIDE(amstrad_state, gx4000 )
 	MCFG_MACHINE_RESET_OVERRIDE(amstrad_state, gx4000 )
@@ -1122,12 +1149,12 @@ MACHINE_CONFIG_START(amstrad_state::gx4000)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15)
-	MCFG_SCREEN_UPDATE_DRIVER(amstrad_state, screen_update_amstrad)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, amstrad_state, screen_vblank_amstrad))
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
+	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
+	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));
+	m_screen->set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	m_screen->set_palette(m_palette);
 
 	PALETTE(config, m_palette, FUNC(amstrad_state::amstrad_plus_palette), 4096);
 
@@ -1151,10 +1178,11 @@ MACHINE_CONFIG_START(amstrad_state::gx4000)
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("64K");
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(amstrad_state::aleste)
+void amstrad_state::aleste(machine_config &config)
+{
 	cpc6128(config);
 	MCFG_MACHINE_START_OVERRIDE(amstrad_state,aleste)
 	MCFG_MACHINE_RESET_OVERRIDE(amstrad_state,aleste)
@@ -1166,7 +1194,7 @@ MACHINE_CONFIG_START(amstrad_state::aleste)
 	m_palette->set_entries(32+64);
 	m_palette->set_init(FUNC(amstrad_state::aleste_palette));
 
-	MCFG_DEVICE_ADD("rtc", MC146818, 4.194304_MHz_XTAL)
+	MC146818(config, m_rtc, 4.194304_MHz_XTAL);
 
 	I8272A(config.replace(), m_fdc, 16_MHz_XTAL / 4, true);
 
@@ -1177,16 +1205,15 @@ MACHINE_CONFIG_START(amstrad_state::aleste)
 	exp.romdis_callback().set(FUNC(amstrad_state::cpc_romdis));  // ROMDIS
 	exp.rom_select_callback().set(FUNC(amstrad_state::rom_select));
 
-	MCFG_FLOPPY_DRIVE_ADD("upd765:0", aleste_floppies, "35dd", amstrad_state::aleste_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("upd765:1", aleste_floppies, "35dd", amstrad_state::aleste_floppy_formats)
+	FLOPPY_CONNECTOR(config, "upd765:0", aleste_floppies, "35dd", amstrad_state::aleste_floppy_formats);
+	FLOPPY_CONNECTOR(config, "upd765:1", aleste_floppies, "35dd", amstrad_state::aleste_floppy_formats);
 
-	MCFG_DEVICE_REMOVE("flop_list")
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "aleste")
-	MCFG_SOFTWARE_LIST_COMPATIBLE_ADD("cpc_list", "cpc_flop")
+	SOFTWARE_LIST(config.replace(), "flop_list").set_original("aleste");
+	SOFTWARE_LIST(config, "cpc_list").set_compatible("cpc_flop");
 
 	/* internal ram */
 	m_ram->set_default_size("2M");
-MACHINE_CONFIG_END
+}
 
 
 
@@ -1318,5 +1345,5 @@ COMP( 1985, cpc6128sp, cpc464, 0,      cpc6128, cpc6128sp, amstrad_state, empty_
 COMP( 1990, cpc464p,   0,      0,      cpcplus, plus,      amstrad_state, empty_init, "Amstrad plc",         "Amstrad CPC464+",                           0 )
 COMP( 1990, cpc6128p,  0,      0,      cpcplus, plus,      amstrad_state, empty_init, "Amstrad plc",         "Amstrad CPC6128+",                          0 )
 CONS( 1990, gx4000,    0,      0,      gx4000,  gx4000,    amstrad_state, empty_init, "Amstrad plc",         "Amstrad GX4000",                            0 )
-COMP( 1989, kccomp,    cpc464, 0,      kccomp,  kccomp,    amstrad_state, empty_init, "VEB Mikroelektronik", "KC Compact",                                0 )
+COMP( 1989, kccomp,    cpc464, 0,      kccomp,  kccomp,    amstrad_state, empty_init, u8"VEB Mikroelektronik \"Wilhelm Pieck\" Mühlhausen", "KC Compact", 0 )
 COMP( 1993, al520ex,   cpc464, 0,      aleste,  aleste,    amstrad_state, empty_init, "Patisonic",           "Aleste 520EX",                              MACHINE_IMPERFECT_SOUND )

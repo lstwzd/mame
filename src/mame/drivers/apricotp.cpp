@@ -97,8 +97,7 @@ public:
 		, m_floppy1(*this, WD2797_TAG":1")
 		, m_floppy(nullptr)
 		, m_centronics(*this, CENTRONICS_TAG)
-		, m_work_ram(*this, "work_ram")
-		, m_video_ram(*this, "video_ram")
+		, m_video_ram(*this, "video_ram", 0x20000, ENDIANNESS_LITTLE)
 	{ }
 
 	void fp(machine_config &config);
@@ -127,22 +126,22 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	MC6845_UPDATE_ROW(update_row);
-	DECLARE_READ16_MEMBER( mem_r );
-	DECLARE_WRITE16_MEMBER( mem_w );
-	DECLARE_READ8_MEMBER( prtr_snd_r );
-	DECLARE_WRITE8_MEMBER( pint_clr_w );
-	DECLARE_WRITE8_MEMBER( ls_w );
-	DECLARE_WRITE8_MEMBER( contrast_w );
-	DECLARE_WRITE8_MEMBER( palette_w );
-	DECLARE_WRITE16_MEMBER( video_w );
-	DECLARE_WRITE8_MEMBER( lat_w );
+	uint16_t mem_r(offs_t offset);
+	void mem_w(offs_t offset, uint16_t data);
+	uint8_t prtr_snd_r();
+	void pint_clr_w(uint8_t data);
+	void ls_w(uint8_t data);
+	void contrast_w(uint8_t data);
+	void palette_w(uint8_t data);
+	void video_w(uint16_t data);
+	void lat_w(offs_t offset, uint8_t data);
 
 	void lat_ls259_w(offs_t offset, int state);
 
-	optional_shared_ptr<uint16_t> m_work_ram;
+	uint16_t *m_work_ram;
 
 	// video state
-	optional_shared_ptr<uint16_t> m_video_ram;
+	memory_share_creator<uint16_t> m_video_ram;
 	uint8_t m_video;
 
 	int m_centronics_busy;
@@ -168,8 +167,6 @@ private:
 
 void fp_state::video_start()
 {
-	// allocate memory
-	m_video_ram.allocate(0x20000);
 }
 
 MC6845_UPDATE_ROW( fp_state::update_row )
@@ -190,7 +187,7 @@ uint32_t fp_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, co
 			{
 				int color = BIT(data, 15);
 
-				bitmap.pix16(y, (sx * 16) + x) = color;
+				bitmap.pix(y, (sx * 16) + x) = color;
 
 				data <<= 1;
 			}
@@ -218,7 +215,7 @@ static GFXDECODE_START( gfx_act_f1 )
 GFXDECODE_END
 
 
-READ8_MEMBER( fp_state::prtr_snd_r )
+uint8_t fp_state::prtr_snd_r()
 {
 	/*
 
@@ -249,24 +246,24 @@ READ8_MEMBER( fp_state::prtr_snd_r )
 	return data;
 }
 
-WRITE8_MEMBER( fp_state::pint_clr_w )
+void fp_state::pint_clr_w(uint8_t data)
 {
 	m_pic->ir6_w(CLEAR_LINE);
 }
 
 
-WRITE8_MEMBER( fp_state::ls_w )
+void fp_state::ls_w(uint8_t data)
 {
 	m_centronics->write_strobe(!BIT(data, 0));
 }
 
 
-WRITE8_MEMBER( fp_state::contrast_w )
+void fp_state::contrast_w(uint8_t data)
 {
 }
 
 
-WRITE8_MEMBER( fp_state::palette_w )
+void fp_state::palette_w(uint8_t data)
 {
 	/*
 
@@ -285,7 +282,7 @@ WRITE8_MEMBER( fp_state::palette_w )
 }
 
 
-WRITE16_MEMBER( fp_state::video_w )
+void fp_state::video_w(uint16_t data)
 {
 	/*
 
@@ -333,13 +330,13 @@ void fp_state::lat_ls259_w(offs_t offset, int state)
 	}
 }
 
-WRITE8_MEMBER( fp_state::lat_w )
+void fp_state::lat_w(offs_t offset, uint8_t data)
 {
 	lat_ls259_w((offset >> 1) & 0x07, BIT(data, 0));
 }
 
 
-READ16_MEMBER( fp_state::mem_r )
+uint16_t fp_state::mem_r(offs_t offset)
 {
 	uint16_t data = 0xffff;
 
@@ -369,7 +366,7 @@ READ16_MEMBER( fp_state::mem_r )
 }
 
 
-WRITE16_MEMBER( fp_state::mem_w )
+void fp_state::mem_w(offs_t offset, uint16_t data)
 {
 	if (offset >= 0xd0000/2 && offset < 0xe0000/2)
 	{
@@ -443,10 +440,10 @@ void fp_state::fp_io(address_map &map)
 	map(0x000, 0x007).rw(m_fdc, FUNC(wd2797_device::read), FUNC(wd2797_device::write)).umask16(0x00ff);
 	map(0x008, 0x00f).rw(m_pit, FUNC(pit8253_device::read), FUNC(pit8253_device::write)).umask16(0x00ff);
 	map(0x018, 0x01f).rw(m_sio, FUNC(z80sio_device::ba_cd_r), FUNC(z80sio_device::ba_cd_w)).umask16(0x00ff);
-	map(0x020, 0x020).w("cent_data_out", FUNC(output_latch_device::bus_w));
+	map(0x020, 0x020).w("cent_data_out", FUNC(output_latch_device::write));
 	map(0x022, 0x022).w(FUNC(fp_state::pint_clr_w));
 	map(0x024, 0x024).r(FUNC(fp_state::prtr_snd_r));
-	map(0x026, 0x026).w(SN76489AN_TAG, FUNC(sn76489a_device::command_w));
+	map(0x026, 0x026).w(SN76489AN_TAG, FUNC(sn76489a_device::write));
 	map(0x028, 0x028).w(FUNC(fp_state::contrast_w));
 	map(0x02a, 0x02a).w(FUNC(fp_state::palette_w));
 	map(0x02e, 0x02f).w(FUNC(fp_state::video_w));
@@ -535,7 +532,7 @@ WRITE_LINE_MEMBER( fp_state::write_centronics_perror )
 void fp_state::machine_start()
 {
 	// allocate memory
-	m_work_ram.allocate(m_ram->size() / 2);
+	m_work_ram = reinterpret_cast<uint16_t *>(m_ram->pointer());
 }
 
 
@@ -563,51 +560,51 @@ FLOPPY_FORMATS_END
 
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( fp )
+//  machine_config( fp )
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(fp_state::fp)
+void fp_state::fp(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(I8086_TAG, I8086, 15_MHz_XTAL / 3)
-	MCFG_DEVICE_PROGRAM_MAP(fp_mem)
-	MCFG_DEVICE_IO_MAP(fp_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE(I8259A_TAG, pic8259_device, inta_cb)
+	I8086(config, m_maincpu, 15_MHz_XTAL / 3);
+	m_maincpu->set_addrmap(AS_PROGRAM, &fp_state::fp_mem);
+	m_maincpu->set_addrmap(AS_IO, &fp_state::fp_io);
+	m_maincpu->set_irq_acknowledge_callback(I8259A_TAG, FUNC(pic8259_device::inta_cb));
 
-	MCFG_DEVICE_ADD(HD63B01V1_TAG, HD6301, 2000000)
-	MCFG_DEVICE_PROGRAM_MAP(sound_mem)
-	MCFG_DEVICE_DISABLE()
+	HD6301V1(config, m_soundcpu, 2000000);
+	m_soundcpu->set_addrmap(AS_PROGRAM, &fp_state::sound_mem);
+	m_soundcpu->set_disable();
 
 	/* video hardware */
 	config.set_default_layout(layout_apricotp);
 
-	MCFG_SCREEN_ADD(SCREEN_LCD_TAG, LCD)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DRIVER(fp_state, screen_update)
-	MCFG_SCREEN_SIZE(640, 200)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 200-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen_lcd(SCREEN(config, SCREEN_LCD_TAG, SCREEN_TYPE_RASTER));
+	screen_lcd.set_refresh_hz(50);
+	screen_lcd.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen_lcd.set_screen_update(FUNC(fp_state::screen_update));
+	screen_lcd.set_size(640, 200);
+	screen_lcd.set_visarea_full();
+	screen_lcd.set_palette("palette");
 
-	MCFG_SCREEN_ADD(SCREEN_CRT_TAG, RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DEVICE(MC6845_TAG, mc6845_device, screen_update)
-	MCFG_SCREEN_SIZE(640, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 256-1)
+	screen_device &screen_crt(SCREEN(config, SCREEN_CRT_TAG, SCREEN_TYPE_RASTER));
+	screen_crt.set_refresh_hz(50);
+	screen_crt.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen_crt.set_screen_update(MC6845_TAG, FUNC(mc6845_device::screen_update));
+	screen_crt.set_size(640, 256);
+	screen_crt.set_visarea_full();
 
-	MCFG_PALETTE_ADD("palette", 16)
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_act_f1)
+	PALETTE(config, "palette").set_entries(16);
+	GFXDECODE(config, "gfxdecode", "palette", gfx_act_f1);
 
 	MC6845(config, m_crtc, 4000000);
 	m_crtc->set_screen(SCREEN_CRT_TAG);
 	m_crtc->set_show_border_area(false);
 	m_crtc->set_char_width(8);
-	m_crtc->set_update_row_callback(FUNC(fp_state::update_row), this);
+	m_crtc->set_update_row_callback(FUNC(fp_state::update_row));
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD(SN76489AN_TAG, SN76489A, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+	SN76489A(config, SN76489AN_TAG, 2000000).add_route(ALL_OUTPUTS, "mono", 1.00);
 
 	/* Devices */
 	APRICOT_KEYBOARD(config, APRICOT_KEYBOARD_TAG, 0);
@@ -642,11 +639,12 @@ MACHINE_CONFIG_START(fp_state::fp)
 	m_centronics->fault_handler().set(FUNC(fp_state::write_centronics_fault));
 	m_centronics->perror_handler().set(FUNC(fp_state::write_centronics_perror));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", CENTRONICS_TAG)
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("256K").set_extra_options("512K,1M");
-MACHINE_CONFIG_END
+}
 
 
 

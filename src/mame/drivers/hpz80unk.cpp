@@ -44,6 +44,7 @@ Z nothing
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "machine/ay31015.h"
+#include "machine/clock.h"
 #include "bus/rs232/rs232.h"
 
 
@@ -60,56 +61,57 @@ public:
 	void hpz80unk(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(port00_r);
-	DECLARE_READ8_MEMBER(port02_r);
-	DECLARE_READ8_MEMBER(port03_r);
-	DECLARE_READ8_MEMBER(port0d_r);
-	DECLARE_READ8_MEMBER(portfc_r);
+	u8 port00_r();
+	u8 port02_r();
+	u8 port03_r();
+	u8 port0d_r();
+	u8 portfc_r();
 
-	void hpz80unk_io(address_map &map);
-	void hpz80unk_mem(address_map &map);
+	void io_map(address_map &map);
+	void mem_map(address_map &map);
 
-	uint8_t m_port02_data;
-	virtual void machine_reset() override;
+	u8 m_port02_data;
+	void machine_reset() override;
+	void machine_start() override;
 	required_device<cpu_device> m_maincpu;
-	required_shared_ptr<uint8_t> m_p_rom;
+	required_shared_ptr<u8> m_p_rom;
 	required_device_array<ay51013_device, 3> m_uart;
 };
 
-READ8_MEMBER( hpz80unk_state::port00_r )
+u8 hpz80unk_state::port00_r()
 {
 	return (m_uart[0]->dav_r() << 1) | (m_uart[0]->tbmt_r()) | 0xfc;
 }
 
-READ8_MEMBER( hpz80unk_state::port02_r )
+u8 hpz80unk_state::port02_r()
 {
 	m_port02_data ^= 1;
 	return m_port02_data;
 }
 
-READ8_MEMBER( hpz80unk_state::port03_r )
+u8 hpz80unk_state::port03_r()
 {
 	return (m_uart[1]->dav_r() << 1) | (m_uart[1]->tbmt_r()) | 0xfc;
 }
 
-READ8_MEMBER( hpz80unk_state::port0d_r )
+u8 hpz80unk_state::port0d_r()
 {
 	return (m_uart[2]->dav_r() << 1) | (m_uart[2]->tbmt_r()) | 0xfc;
 }
 
-READ8_MEMBER( hpz80unk_state::portfc_r )
+u8 hpz80unk_state::portfc_r()
 {
 	return 0xfe; // or it halts
 }
 
-void hpz80unk_state::hpz80unk_mem(address_map &map)
+void hpz80unk_state::mem_map(address_map &map)
 {
 	map.unmap_value_high();
 	map(0x0000, 0xbfff).ram();
 	map(0xc000, 0xffff).rom().share("rom");
 }
 
-void hpz80unk_state::hpz80unk_io(address_map &map)
+void hpz80unk_state::io_map(address_map &map)
 {
 	map.unmap_value_high();
 	map.global_mask(0xff);
@@ -137,10 +139,15 @@ static INPUT_PORTS_START( hpz80unk )
 INPUT_PORTS_END
 
 
+void hpz80unk_state::machine_start()
+{
+	save_item(NAME(m_port02_data));
+}
+
 void hpz80unk_state::machine_reset()
 {
-	uint8_t* user1 = memregion("user1")->base();
-	memcpy((uint8_t*)m_p_rom, user1, 0x4000);
+	u8* user1 = memregion("user1")->base();
+	memcpy((u8*)m_p_rom, user1, 0x4000);
 	m_maincpu->set_pc(0xc000);
 
 	// no idea if these are hard-coded, or programmable
@@ -166,33 +173,34 @@ void hpz80unk_state::hpz80unk(machine_config &config)
 {
 	/* basic machine hardware */
 	Z80(config, m_maincpu, XTAL(4'000'000));
-	m_maincpu->set_addrmap(AS_PROGRAM, &hpz80unk_state::hpz80unk_mem);
-	m_maincpu->set_addrmap(AS_IO, &hpz80unk_state::hpz80unk_io);
+	m_maincpu->set_addrmap(AS_PROGRAM, &hpz80unk_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &hpz80unk_state::io_map);
 
-	/* video hardware */
 	AY51013(config, m_uart[0]); // COM2502
-	m_uart[0]->set_tx_clock(153600);
-	m_uart[0]->set_rx_clock(153600);
 	m_uart[0]->read_si_callback().set("rs232a", FUNC(rs232_port_device::rxd_r));
 	m_uart[0]->write_so_callback().set("rs232a", FUNC(rs232_port_device::write_txd));
 	m_uart[0]->set_auto_rdav(true);
 	RS232_PORT(config, "rs232a", default_rs232_devices, "terminal");
 
 	AY51013(config, m_uart[1]); // COM2502
-	m_uart[1]->set_tx_clock(153600);
-	m_uart[1]->set_rx_clock(153600);
 	m_uart[1]->read_si_callback().set("rs232b", FUNC(rs232_port_device::rxd_r));
 	m_uart[1]->write_so_callback().set("rs232b", FUNC(rs232_port_device::write_txd));
 	m_uart[1]->set_auto_rdav(true);
 	RS232_PORT(config, "rs232b", default_rs232_devices, nullptr);
 
 	AY51013(config, m_uart[2]); // COM2502
-	m_uart[2]->set_tx_clock(153600);
-	m_uart[2]->set_rx_clock(153600);
 	m_uart[2]->read_si_callback().set("rs232c", FUNC(rs232_port_device::rxd_r));
 	m_uart[2]->write_so_callback().set("rs232c", FUNC(rs232_port_device::write_txd));
 	m_uart[2]->set_auto_rdav(true);
 	RS232_PORT(config, "rs232c", default_rs232_devices, nullptr);
+
+	clock_device &uart_clock(CLOCK(config, "uart_clock", 153600));
+	uart_clock.signal_handler().set(m_uart[0], FUNC(ay51013_device::write_tcp));
+	uart_clock.signal_handler().append(m_uart[0], FUNC(ay51013_device::write_rcp));
+	uart_clock.signal_handler().append(m_uart[1], FUNC(ay51013_device::write_tcp));
+	uart_clock.signal_handler().append(m_uart[1], FUNC(ay51013_device::write_rcp));
+	uart_clock.signal_handler().append(m_uart[2], FUNC(ay51013_device::write_tcp));
+	uart_clock.signal_handler().append(m_uart[2], FUNC(ay51013_device::write_rcp));
 }
 
 /* ROM definition */
@@ -221,4 +229,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE   INPUT     CLASS           INIT        COMPANY            FULLNAME                       FLAGS
-COMP( 1977, hpz80unk, 0,      0,      hpz80unk, hpz80unk, hpz80unk_state, empty_init, "Hewlett-Packard", "unknown Z80-based mainframe", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+COMP( 1977, hpz80unk, 0,      0,      hpz80unk, hpz80unk, hpz80unk_state, empty_init, "Hewlett-Packard", "unknown Z80-based mainframe", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE )

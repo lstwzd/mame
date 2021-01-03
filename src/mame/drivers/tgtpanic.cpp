@@ -35,7 +35,7 @@ private:
 
 	uint8_t m_color;
 
-	DECLARE_WRITE8_MEMBER(color_w);
+	void color_w(uint8_t data);
 
 	virtual void machine_start() override;
 
@@ -59,39 +59,37 @@ void tgtpanic_state::machine_start()
 uint32_t tgtpanic_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	uint32_t colors[4];
-	uint32_t offs;
-	uint32_t x, y;
 
 	colors[0] = 0;
 	colors[1] = 0xffffffff;
 	colors[2] = rgb_t(pal1bit(m_color >> 2), pal1bit(m_color >> 1), pal1bit(m_color >> 0));
 	colors[3] = rgb_t(pal1bit(m_color >> 6), pal1bit(m_color >> 5), pal1bit(m_color >> 4));
 
-	for (offs = 0; offs < 0x2000; ++offs)
+	for (uint32_t offs = 0; offs < 0x2000; ++offs)
 	{
 		uint8_t val = m_ram[offs];
 
-		y = (offs & 0x7f) << 1;
-		x = (offs >> 7) << 2;
+		uint32_t const y = (offs & 0x7f) << 1;
+		uint32_t const x = (offs >> 7) << 2;
 
 		/* I'm guessing the hardware doubles lines */
-		bitmap.pix32(y + 0, x + 0) = colors[val & 3];
-		bitmap.pix32(y + 1, x + 0) = colors[val & 3];
+		bitmap.pix(y + 0, x + 0) = colors[val & 3];
+		bitmap.pix(y + 1, x + 0) = colors[val & 3];
 		val >>= 2;
-		bitmap.pix32(y + 0, x + 1) = colors[val & 3];
-		bitmap.pix32(y + 1, x + 1) = colors[val & 3];
+		bitmap.pix(y + 0, x + 1) = colors[val & 3];
+		bitmap.pix(y + 1, x + 1) = colors[val & 3];
 		val >>= 2;
-		bitmap.pix32(y + 0, x + 2) = colors[val & 3];
-		bitmap.pix32(y + 1, x + 2) = colors[val & 3];
+		bitmap.pix(y + 0, x + 2) = colors[val & 3];
+		bitmap.pix(y + 1, x + 2) = colors[val & 3];
 		val >>= 2;
-		bitmap.pix32(y + 0, x + 3) = colors[val & 3];
-		bitmap.pix32(y + 1, x + 3) = colors[val & 3];
+		bitmap.pix(y + 0, x + 3) = colors[val & 3];
+		bitmap.pix(y + 1, x + 3) = colors[val & 3];
 	}
 
 	return 0;
 }
 
-WRITE8_MEMBER(tgtpanic_state::color_w)
+void tgtpanic_state::color_w(uint8_t data)
 {
 	m_screen->update_partial(m_screen->vpos());
 	m_color = data;
@@ -153,22 +151,22 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(tgtpanic_state::tgtpanic)
-
+void tgtpanic_state::tgtpanic(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(4'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(prg_map)
-	MCFG_DEVICE_IO_MAP(io_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(tgtpanic_state, irq0_line_hold,  20) /* Unverified */
+	Z80(config,m_maincpu, XTAL(4'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &tgtpanic_state::prg_map);
+	m_maincpu->set_addrmap(AS_IO, &tgtpanic_state::io_map);
+	m_maincpu->set_periodic_int(FUNC(tgtpanic_state::irq0_line_hold), attotime::from_hz(20)); /* Unverified */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60) /* Unverified */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* Unverified */
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 192 - 1, 0, 192 - 1)
-	MCFG_SCREEN_UPDATE_DRIVER(tgtpanic_state, screen_update)
-MACHINE_CONFIG_END
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60); /* Unverified */
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* Unverified */
+	m_screen->set_size(256, 256);
+	m_screen->set_visarea(0, 192 - 1, 0, 192 - 1);
+	m_screen->set_screen_update(FUNC(tgtpanic_state::screen_update));
+}
 
 
 	/*************************************

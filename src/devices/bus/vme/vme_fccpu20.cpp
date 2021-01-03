@@ -252,11 +252,17 @@ static DEVICE_INPUT_DEFAULTS_START( terminal )
 	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_2 )
 DEVICE_INPUT_DEFAULTS_END
 
-MACHINE_CONFIG_START(vme_fccpu20_device::device_add_mconfig)
+void vme_fccpu20_device::cpu_space_map(address_map &map)
+{
+	map(0xfffffff2, 0xffffffff).lr16(NAME([this](offs_t offset) -> u16 { return m_bim->iack(offset+1); }));
+}
+
+void vme_fccpu20_device::device_add_mconfig(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68020, CLOCK50 / 3) /* Crytstal verified from picture HCI */
-	MCFG_DEVICE_PROGRAM_MAP (cpu20_mem)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE("bim", bim68153_device, iack)
+	M68020(config, m_maincpu, CLOCK50 / 3); /* Crytstal verified from picture HCI */
+	m_maincpu->set_addrmap(AS_PROGRAM, &vme_fccpu20_device::cpu20_mem);
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &vme_fccpu20_device::cpu_space_map);
 
 	/* PIT Parallel Interface and Timer device, assumed strapped for on board clock */
 	PIT68230(config, m_pit, CLOCK32 / 4); /* Crystal not verified */
@@ -312,59 +318,60 @@ MACHINE_CONFIG_START(vme_fccpu20_device::device_add_mconfig)
 	rs232_port_device &rs232p3(RS232_PORT(config, RS232P3_TAG, default_rs232_devices, nullptr));
 	rs232p3.rxd_handler().set(m_mpcc3, FUNC(mpcc68561_device::write_rx));
 	rs232p3.cts_handler().set(m_mpcc3, FUNC(mpcc68561_device::cts_w));
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(vme_fccpu20_card_device::device_add_mconfig)
+void vme_fccpu20_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
-MACHINE_CONFIG_END
+}
 
 // SYS68K/CPU-21S Part No.1 01 041 - 68020 CPU board + FPU 68881 at 12.5 MHz, 512 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21s_card_device::device_add_mconfig)
+void vme_fccpu21s_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK50 / 4)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK50 / 4);
+}
 
 // SYS68K/CPU-21 Part No.1 01 001 - 68020 CPU board (CPU-20) + FPU 68881 at 16.7 MHz, 512 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21_card_device::device_add_mconfig)
+void vme_fccpu21_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK50 / 3)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK50 / 3);
+}
 
 // SYS68K/CPU-21A Part No.1 01 011 - 68020 CPU board + FPU 68881 at 20 MHz, 512 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21a_card_device::device_add_mconfig)
+void vme_fccpu21a_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK40 / 2)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK40 / 2);
+}
 
 // SYS68K/CPU-21YA Part No.1 01 061 - 68020 CPU board + FPU 68881 at 20 MHz, 2048 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21ya_card_device::device_add_mconfig)
+void vme_fccpu21ya_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK40 / 2)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK40 / 2);
+}
 
 // SYS68K/CPU-21B Part No.1 01 021 - 68020 CPU board + FPU 68881 at 25 MHz, 512 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21b_card_device::device_add_mconfig)
+void vme_fccpu21b_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK50 / 2)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK50 / 2);
+}
 
 // SYS68K/CPU-21YB Part No.1 01 071 - 68020 CPU board + FPU 68881 at 25 MHz, 2048 KB RAM
-MACHINE_CONFIG_START(vme_fccpu21yb_card_device::device_add_mconfig)
+void vme_fccpu21yb_card_device::device_add_mconfig(machine_config &config)
+{
 	vme_fccpu20_device::device_add_mconfig(config);
 
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(CLOCK50 / 2)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(CLOCK50 / 2);
+}
 
 
 //**************************************************************************
@@ -452,9 +459,9 @@ void vme_fccpu20_device::device_start()
 #if 0 // TODO: Setup VME access handlers for shared memory area
 	uint32_t base = 0xFFFF5000;
 	m_vme->install_device(base + 0, base + 1, // Channel B - Data
-							 read8_delegate(FUNC(z80sio_device::db_r),  subdevice<z80sio_device>("pit")), write8_delegate(FUNC(z80sio_device::db_w), subdevice<z80sio_device>("pit")), 0x00ff);
+			read8_delegate(*subdevice<z80sio_device>("pit"), FUNC(z80sio_device::db_r)), write8_delegate(*subdevice<z80sio_device>("pit"), FUNC(z80sio_device::db_w)), 0x00ff);
 	m_vme->install_device(base + 2, base + 3, // Channel B - Control
-							 read8_delegate(FUNC(z80sio_device::cb_r),  subdevice<z80sio_device>("pit")), write8_delegate(FUNC(z80sio_device::cb_w), subdevice<z80sio_device>("pit")), 0x00ff);
+			read8_delegate(*subdevice<z80sio_device>("pit"), FUNC(z80sio_device::cb_r)), write8_delegate(*subdevice<z80sio_device>("pit"), FUNC(z80sio_device::cb_w)), 0x00ff);
 #endif
 }
 
@@ -489,13 +496,13 @@ void vme_fccpu20_device::device_timer (emu_timer &timer, device_timer_id id, int
 }
 
 /* Boot vector handler, the PCB hardwires the first 8 bytes from 0xff800000 to 0x0 at reset*/
-READ32_MEMBER (vme_fccpu20_device::bootvect_r)
+uint32_t vme_fccpu20_device::bootvect_r(offs_t offset)
 {
 	LOG("%s\n", FUNCNAME);
 	return m_sysrom[offset];
 }
 
-WRITE32_MEMBER (vme_fccpu20_device::bootvect_w)
+void vme_fccpu20_device::bootvect_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	LOG("%s\n", FUNCNAME);
 	m_sysram[offset % ARRAY_LENGTH(m_sysram)] &= ~mem_mask;
@@ -551,14 +558,14 @@ void vme_fccpu20_device::update_irq_to_maincpu()
 #define BR8N38400  0x08
 #define FORCEBUG   0x30
 
-READ8_MEMBER (vme_fccpu20_device::pita_r)
+uint8_t vme_fccpu20_device::pita_r()
 {
 	LOG("%s\n", FUNCNAME);
 	return FORCEBUG | BR7N9600;
 }
 
 /* Enabling/Disabling of VME IRQ 1-7 */
-READ8_MEMBER (vme_fccpu20_device::pitb_r)
+uint8_t vme_fccpu20_device::pitb_r()
 {
 	LOG("%s\n", FUNCNAME);
 	return 0xff;
@@ -566,7 +573,7 @@ READ8_MEMBER (vme_fccpu20_device::pitb_r)
 
 /* VME board ID bit and bus release software settings (output) (ROR, RAT, RATAR, RATBCLR, RORAT, RORRAT */
 /* Bit 4 is bus available */
-READ8_MEMBER (vme_fccpu20_device::pitc_r)
+uint8_t vme_fccpu20_device::pitc_r()
 {
 	uint8_t board_id = 0;
 

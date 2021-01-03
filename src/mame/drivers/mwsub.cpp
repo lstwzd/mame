@@ -35,14 +35,14 @@ public:
 private:
 	virtual void machine_start() override;
 
-	DECLARE_READ8_MEMBER(submar_sensor0_r);
-	DECLARE_READ8_MEMBER(submar_sensor1_r);
-	DECLARE_WRITE8_MEMBER(submar_motor_w);
-	DECLARE_WRITE8_MEMBER(submar_lamp_w);
-	DECLARE_WRITE8_MEMBER(submar_solenoid_w);
-	DECLARE_WRITE8_MEMBER(submar_sound_w);
-	DECLARE_WRITE8_MEMBER(submar_led_w);
-	DECLARE_WRITE8_MEMBER(submar_irq_clear_w);
+	uint8_t submar_sensor0_r();
+	uint8_t submar_sensor1_r();
+	void submar_motor_w(uint8_t data);
+	void submar_lamp_w(uint8_t data);
+	void submar_solenoid_w(uint8_t data);
+	void submar_sound_w(uint8_t data);
+	void submar_led_w(offs_t offset, uint8_t data);
+	void submar_irq_clear_w(uint8_t data);
 
 	void submar_map(address_map &map);
 	void submar_portmap(address_map &map);
@@ -69,19 +69,19 @@ void submar_state::machine_start()
 	m_digits.resolve();
 }
 
-READ8_MEMBER(submar_state::submar_sensor0_r)
+uint8_t submar_state::submar_sensor0_r()
 {
 	// ?
 	return 0;
 }
 
-READ8_MEMBER(submar_state::submar_sensor1_r)
+uint8_t submar_state::submar_sensor1_r()
 {
 	// ?
 	return (ioport("IN1")->read() & 0x70) | 0x8f;
 }
 
-WRITE8_MEMBER(submar_state::submar_motor_w)
+void submar_state::submar_motor_w(uint8_t data)
 {
 	// d0: torpedo follow
 	// d1: ship movement
@@ -95,7 +95,7 @@ WRITE8_MEMBER(submar_state::submar_motor_w)
 		m_motors[i] = BIT(data, i);
 }
 
-WRITE8_MEMBER(submar_state::submar_lamp_w)
+void submar_state::submar_lamp_w(uint8_t data)
 {
 	// d0: torpedo
 	// d1: target ship on water
@@ -109,7 +109,7 @@ WRITE8_MEMBER(submar_state::submar_lamp_w)
 		m_lamps[i] = BIT(data, i);
 }
 
-WRITE8_MEMBER(submar_state::submar_solenoid_w)
+void submar_state::submar_solenoid_w(uint8_t data)
 {
 	// d0-d4: ship1-5
 	// d5-d7: n/c
@@ -117,7 +117,7 @@ WRITE8_MEMBER(submar_state::submar_solenoid_w)
 		m_solenoids[i] = BIT(data, i);
 }
 
-WRITE8_MEMBER(submar_state::submar_sound_w)
+void submar_state::submar_sound_w(uint8_t data)
 {
 	// d0: torpedo
 	// d1: "summer"
@@ -129,7 +129,7 @@ WRITE8_MEMBER(submar_state::submar_sound_w)
 	// d7: n/c
 }
 
-WRITE8_MEMBER(submar_state::submar_led_w)
+void submar_state::submar_led_w(offs_t offset, uint8_t data)
 {
 	// 7447 (BCD to LED segment)
 	static constexpr uint8_t _7447_map[16] =
@@ -140,7 +140,7 @@ WRITE8_MEMBER(submar_state::submar_led_w)
 	m_digits[((offset << 1) & 2) | 1] = _7447_map[data & 0x0f];
 }
 
-WRITE8_MEMBER(submar_state::submar_irq_clear_w)
+void submar_state::submar_irq_clear_w(uint8_t data)
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
@@ -222,13 +222,13 @@ INPUT_PORTS_END
 
 ***************************************************************************/
 
-MACHINE_CONFIG_START(submar_state::submar)
-
+void submar_state::submar(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(19'968'000)/8)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(submar_state, irq0_line_assert, 124.675) // 555 IC
-	MCFG_DEVICE_PROGRAM_MAP(submar_map)
-	MCFG_DEVICE_IO_MAP(submar_portmap)
+	Z80(config, m_maincpu, XTAL(19'968'000)/8);
+	m_maincpu->set_periodic_int(FUNC(submar_state::irq0_line_assert), attotime::from_hz(124.675)); // 555 IC
+	m_maincpu->set_addrmap(AS_PROGRAM, &submar_state::submar_map);
+	m_maincpu->set_addrmap(AS_IO, &submar_state::submar_portmap);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
@@ -236,7 +236,7 @@ MACHINE_CONFIG_START(submar_state::submar)
 
 	/* sound hardware */
 	//...
-MACHINE_CONFIG_END
+}
 
 
 

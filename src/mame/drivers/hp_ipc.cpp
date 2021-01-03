@@ -8,25 +8,19 @@ Hewlett-Packard, 1985
 Driver to-do list
 =================
 
-- softlist: merge dumps from coho.org and classiccmp.org
-- keyboard: NMI generation, autorepeat
-- HP-HIL mouse
-- RTC chip: proper month, day
-- switchable graphics resolution ("_desktop" mode uses 640x400)
-- HP-IB chip
-- CS/80, SS/80 storage protocol(s) and drives
+- keyboard: NMI generation
+- RTC chip: proper month, day (possibly a different chip, 82167)
 - HP-IL printer
-- sound (needs dump of COP452)
 
 QA
-- diagnstc.td0: display test [cannot execute]
-- diagnstc.td0: complete keyboard test [keyboard stops responding]
-- diagnstc.td0: speaker test
++ diagnstc.td0: display test
+- diagnstc.td0: complete keyboard test [second connector not implemented]
++ diagnstc.td0: speaker test
 - diagnstc.td0: printer test
 + diagnstc.td0: auto: floppy disc test
 + diagnstc.td0: auto: ram test
 - diagnstc.td0: auto: rtc test [cannot execute]
-- diagnstc.td0: auto: short keyboard test [cannot execute + keyboard stops responding]
++ diagnstc.td0: auto: short keyboard test
 
 maybe
 - drive AP line of MLC from a timer
@@ -171,6 +165,7 @@ Notes:
          ROM - 16Kb (32Kx4) Some kind of very early DIP28 PROM/ROM? Same pinout as 1Kb RAM above. Holds the character font table for the printer
                Four versions of this ROM exist, one each for Japan/Arabic/Hebrew and one for all other regions
     NS58167A - National Semiconductor NS58167A Clock Controller RTC at U44. Clock input 32.768kHz (DIP24)
+               (Tony Duell's schematics show a 82167 instead)
        LM358 - National Semiconductor LM358 Operational Amplifier at U40 (DIP8)
        LM393 - Texas Instruments LM393 Dual Comparator at U34 (DIP8)
          BT1 - 3v lithium battery
@@ -356,7 +351,7 @@ Software to look for
 00095-60006 (original System III-based HP-UX 1.0 ROM)
 82995A (same bits as 82991A; the latter is an upgrade kit, former was pre-installed)
 82989J Technical Basic ROM (Jan'1986)
-82987A Software Engineering ROM (Nov'1986) (possibly can be rebuilt from floppy images on coho?)
+82987A Software Engineering ROM (Nov'1986)
 
 ******************************************************************************/
 
@@ -374,6 +369,11 @@ Software to look for
 #include "video/hp1ll3.h"
 #include "machine/tms9914.h"
 #include "bus/ieee488/ieee488.h"
+#include "machine/cop452.h"
+#include "speaker.h"
+#include "sound/dac.h"
+#include "machine/input_merger.h"
+#include "bus/hp_ipc_io/hp_ipc_io.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -390,6 +390,14 @@ public:
 		, m_ram(*this, RAM_TAG)
 		, m_gpu(*this , "gpu")
 		, m_screen(*this, "screen")
+		, m_spkr(*this , "spkr")
+		, m_dac(*this , "dac")
+		, m_irq3_merger(*this , "merge_irq3")
+		, m_irq4_merger(*this , "merge_irq4")
+		, m_irq5_merger(*this , "merge_irq5")
+		, m_irq6_merger(*this , "merge_irq6")
+		, m_io_slot_a(*this , "slot_a")
+		, m_io_slot_b(*this , "slot_b")
 	{ }
 
 	void hp_ipc_base(machine_config &config);
@@ -400,17 +408,18 @@ private:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
-	DECLARE_READ16_MEMBER(mem_r);
-	DECLARE_WRITE16_MEMBER(mem_w);
-	DECLARE_READ16_MEMBER(mmu_r);
-	DECLARE_WRITE16_MEMBER(mmu_w);
-	DECLARE_READ16_MEMBER(ram_r);
-	DECLARE_WRITE16_MEMBER(ram_w);
-	DECLARE_READ16_MEMBER(trap_r);
-	DECLARE_WRITE16_MEMBER(trap_w);
+	uint16_t mem_r(offs_t offset, uint16_t mem_mask);
+	void mem_w(offs_t offset, uint16_t data, uint16_t mem_mask);
+	uint16_t mmu_r(offs_t offset);
+	void mmu_w(offs_t offset, uint16_t data);
+	uint16_t ram_r(offs_t offset, uint16_t mem_mask);
+	void ram_w(offs_t offset, uint16_t data, uint16_t mem_mask);
+	uint16_t trap_r(offs_t offset, uint16_t mem_mask);
+	void trap_w(offs_t offset, uint16_t data, uint16_t mem_mask);
+	void spkr_w(offs_t offset, uint16_t data);
 
-	DECLARE_READ8_MEMBER(floppy_id_r);
-	DECLARE_WRITE8_MEMBER(floppy_id_w);
+	uint8_t floppy_id_r();
+	void floppy_id_w(uint8_t data);
 	DECLARE_FLOPPY_FORMATS(floppy_formats);
 
 	DECLARE_WRITE_LINE_MEMBER(irq_1);
@@ -435,6 +444,14 @@ private:
 	required_device<ram_device> m_ram;
 	required_device<hp1ll3_device> m_gpu;
 	required_device<screen_device> m_screen;
+	required_device<cop452_device> m_spkr;
+	required_device<dac_1bit_device> m_dac;
+	required_device<input_merger_any_high_device> m_irq3_merger;
+	required_device<input_merger_any_high_device> m_irq4_merger;
+	required_device<input_merger_any_high_device> m_irq5_merger;
+	required_device<input_merger_any_high_device> m_irq6_merger;
+	required_device<hp_ipc_io_slot_device> m_io_slot_a;
+	required_device<hp_ipc_io_slot_device> m_io_slot_b;
 
 	uint32_t m_mmu[4], m_lowest_ram_addr;
 	uint16_t *m_internal_ram;
@@ -499,10 +516,11 @@ void hp_ipc_state::hp_ipc_mem_inner_base(address_map &map)
 	map(0x0610000, 0x0610007).rw(FUNC(hp_ipc_state::floppy_id_r), FUNC(hp_ipc_state::floppy_id_w)).umask16(0x00ff);
 	map(0x0610008, 0x061000F).rw(m_fdc, FUNC(wd2797_device::read), FUNC(wd2797_device::write)).umask16(0x00ff);
 	map(0x0620000, 0x0620007).rw(m_gpu, FUNC(hp1ll3_device::read), FUNC(hp1ll3_device::write)).umask16(0x00ff);
-	map(0x0630000, 0x063FFFF).mask(0xf).rw("hpib" , FUNC(tms9914_device::reg8_r) , FUNC(tms9914_device::reg8_w)).umask16(0x00ff);
+	map(0x0630000, 0x063FFFF).mask(0xf).rw("hpib" , FUNC(tms9914_device::read) , FUNC(tms9914_device::write)).umask16(0x00ff);
 	map(0x0640000, 0x064002F).rw("rtc", FUNC(mm58167_device::read), FUNC(mm58167_device::write)).umask16(0x00ff);
 	map(0x0660000, 0x06600FF).rw("mlc", FUNC(hp_hil_mlc_device::read), FUNC(hp_hil_mlc_device::write)).umask16(0x00ff);  // 'caravan', scrn/caravan.h
-	map(0x0670000, 0x067FFFF).noprw();       // Speaker (NatSemi COP 452)
+	map(0x0670000, 0x067FFFF).w(FUNC(hp_ipc_state::spkr_w));    // Speaker (NatSemi COP 452)
+	map(0x0670000, 0x067FFFF).nopr();   // Speaker (NatSemi COP 452)
 	map(0x0680000, 0x068FFFF).noprw();       // 'SIMON (98628) fast HP-IB card' -- sys/simon.h
 	map(0x0700000, 0x07FFFFF).unmaprw();     // External I/O
 	map(0x0800000, 0x0FFFFFF).rw(FUNC(hp_ipc_state::ram_r), FUNC(hp_ipc_state::ram_w));
@@ -523,19 +541,19 @@ static INPUT_PORTS_START(hp_ipc)
 INPUT_PORTS_END
 
 
-READ16_MEMBER(hp_ipc_state::mmu_r)
+uint16_t hp_ipc_state::mmu_r(offs_t offset)
 {
 	uint16_t data = (m_mmu[offset & 3] >> 10);
 
 	return data;
 }
 
-WRITE16_MEMBER(hp_ipc_state::mmu_w)
+void hp_ipc_state::mmu_w(offs_t offset, uint16_t data)
 {
 	m_mmu[offset & 3] = (data & 0xFFF) << 10;
 }
 
-READ16_MEMBER(hp_ipc_state::mem_r)
+uint16_t hp_ipc_state::mem_r(offs_t offset, uint16_t mem_mask)
 {
 	int fc = m_maincpu->get_fc() & 4;
 
@@ -545,10 +563,10 @@ READ16_MEMBER(hp_ipc_state::mem_r)
 		m_bankdev->set_bank(m_fc ? 0 : 1);
 	}
 
-	return m_bankdev->read16(space, offset, mem_mask);
+	return m_bankdev->read16(offset, mem_mask);
 }
 
-WRITE16_MEMBER(hp_ipc_state::mem_w)
+void hp_ipc_state::mem_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	int fc = m_maincpu->get_fc() & 4;
 
@@ -558,23 +576,29 @@ WRITE16_MEMBER(hp_ipc_state::mem_w)
 		m_bankdev->set_bank(m_fc ? 0 : 1);
 	}
 
-	m_bankdev->write16(space, offset, data, mem_mask);
+	m_bankdev->write16(offset, data, mem_mask);
 }
 
-READ16_MEMBER(hp_ipc_state::trap_r)
+uint16_t hp_ipc_state::trap_r(offs_t offset, uint16_t mem_mask)
 {
 	if (!machine().side_effects_disabled()) set_bus_error((offset << 1) & 0xFFFFFF, true, mem_mask);
 
 	return 0xffff;
 }
 
-WRITE16_MEMBER(hp_ipc_state::trap_w)
+void hp_ipc_state::trap_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (!machine().side_effects_disabled()) set_bus_error((offset << 1) & 0xFFFFFF, false, mem_mask);
 }
 
+void hp_ipc_state::spkr_w(offs_t offset, uint16_t data)
+{
+	m_spkr->cs_w(!BIT(data , 0));
+	m_spkr->sk_w(BIT(data , 1));
+	m_spkr->di_w(BIT(data , 2));
+}
 
-READ16_MEMBER(hp_ipc_state::ram_r)
+uint16_t hp_ipc_state::ram_r(offs_t offset, uint16_t mem_mask)
 {
 	uint32_t ram_address = get_ram_address(offset);
 	uint16_t data = 0xffff;
@@ -592,7 +616,7 @@ READ16_MEMBER(hp_ipc_state::ram_r)
 	return data;
 }
 
-WRITE16_MEMBER(hp_ipc_state::ram_w)
+void hp_ipc_state::ram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint32_t ram_address = get_ram_address(offset);
 
@@ -613,7 +637,7 @@ WRITE16_MEMBER(hp_ipc_state::ram_w)
  * bit 1 -- disk changed (from drive)
  * bit 0 -- write protect (from drive)
  */
-READ8_MEMBER(hp_ipc_state::floppy_id_r)
+uint8_t hp_ipc_state::floppy_id_r()
 {
 	uint8_t data = 0;
 
@@ -634,7 +658,7 @@ READ8_MEMBER(hp_ipc_state::floppy_id_r)
  * bit 1 -- 1: drive select (via inverter to drive's /DRIVE SEL 1)
  * bit 0 -- 1: reset disc_changed (via inverter to drive's /DSKRST)
  */
-WRITE8_MEMBER(hp_ipc_state::floppy_id_w)
+void hp_ipc_state::floppy_id_w(uint8_t data)
 {
 	floppy_image_device *floppy0 = m_fdc->subdevice<floppy_connector>("0")->get_device();
 
@@ -667,37 +691,37 @@ WRITE8_MEMBER(hp_ipc_state::floppy_id_w)
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_1)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_1, state, M68K_INT_ACK_AUTOVECTOR);
+	m_maincpu->set_input_line(M68K_IRQ_1, state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_2)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_2, state, M68K_INT_ACK_AUTOVECTOR);
+	m_maincpu->set_input_line(M68K_IRQ_2, state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_3)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_3, state, M68K_INT_ACK_AUTOVECTOR);
+	m_irq3_merger->in_w<0>(state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_4)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_4, state, M68K_INT_ACK_AUTOVECTOR);
+	m_irq4_merger->in_w<0>(state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_5)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_5, state, M68K_INT_ACK_AUTOVECTOR);
+	m_irq5_merger->in_w<0>(state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_6)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_6, state, M68K_INT_ACK_AUTOVECTOR);
+	m_irq6_merger->in_w<0>(state);
 }
 
 WRITE_LINE_MEMBER(hp_ipc_state::irq_7)
 {
-	m_maincpu->set_input_line_and_vector(M68K_IRQ_7, state, M68K_INT_ACK_AUTOVECTOR);
+	m_maincpu->set_input_line(M68K_IRQ_7, state);
 }
 
 
@@ -709,11 +733,17 @@ void hp_ipc_state::machine_start()
 
 	m_lowest_ram_addr = 0x3c0000 - (m_ram->size() >> 1);
 	m_internal_ram = (uint16_t *)m_ram->pointer();
+
+	m_io_slot_a->install_read_write_handlers(m_bankdev->space());
+	m_io_slot_b->install_read_write_handlers(m_bankdev->space());
 }
 
 void hp_ipc_state::machine_reset()
 {
 	m_floppy = nullptr;
+	m_spkr->cs_w(1);
+	m_spkr->sk_w(0);
+	m_spkr->di_w(0);
 }
 
 
@@ -737,9 +767,10 @@ static void hp_ipc_floppies(device_slot_interface &device)
  *  2   HP-HIL devices (keyboard, mouse)
  *  1   Real-time clock
  */
-MACHINE_CONFIG_START(hp_ipc_state::hp_ipc_base)
-	MCFG_DEVICE_ADD("maincpu", M68000, 15.92_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(hp_ipc_mem_outer)
+void hp_ipc_state::hp_ipc_base(machine_config &config)
+{
+	M68000(config, m_maincpu, 15.92_MHz_XTAL / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &hp_ipc_state::hp_ipc_mem_outer);
 
 	HP1LL3(config , m_gpu , 24_MHz_XTAL / 8).set_screen("screen");
 
@@ -747,13 +778,13 @@ MACHINE_CONFIG_START(hp_ipc_state::hp_ipc_base)
 	// XXX when floppy code correctly handles 600 rpm drives.
 	WD2797(config, m_fdc, 2_MHz_XTAL);
 	m_fdc->intrq_wr_callback().set(FUNC(hp_ipc_state::irq_5));
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", hp_ipc_floppies, "35dd", hp_ipc_state::floppy_formats)
+	FLOPPY_CONNECTOR(config, "fdc:0", hp_ipc_floppies, "35dd", hp_ipc_state::floppy_formats);
 
-	MCFG_SOFTWARE_LIST_ADD("flop_list","hp_ipc")
+	SOFTWARE_LIST(config, "flop_list").set_original("hp_ipc");
 
-	MCFG_DEVICE_ADD("rtc", MM58167, 32.768_kHz_XTAL)
-	MCFG_MM58167_IRQ_CALLBACK(WRITELINE(*this, hp_ipc_state, irq_1))
-//  MCFG_MM58167_STANDBY_IRQ_CALLBACK(WRITELINE(*this, hp_ipc_state, irq_6))
+	mm58167_device &rtc(MM58167(config, "rtc", 32.768_kHz_XTAL));
+	rtc.irq().set(FUNC(hp_ipc_state::irq_1));
+//  rtc.standby_irq().set(FUNC(hp_ipc_state::irq_6));
 
 	hp_hil_mlc_device &mlc(HP_HIL_MLC(config, "mlc", XTAL(15'920'000)/2));
 	mlc.int_callback().set(FUNC(hp_ipc_state::irq_2));
@@ -774,21 +805,47 @@ MACHINE_CONFIG_START(hp_ipc_state::hp_ipc_base)
 	hpib.srq_write_cb().set(IEEE488_TAG, FUNC(ieee488_device::host_srq_w));
 	hpib.atn_write_cb().set(IEEE488_TAG, FUNC(ieee488_device::host_atn_w));
 	hpib.ren_write_cb().set(IEEE488_TAG, FUNC(ieee488_device::host_ren_w));
-	MCFG_IEEE488_BUS_ADD()
-	MCFG_IEEE488_EOI_CALLBACK(WRITELINE("hpib" , tms9914_device , eoi_w))
-	MCFG_IEEE488_DAV_CALLBACK(WRITELINE("hpib" , tms9914_device , dav_w))
-	MCFG_IEEE488_NRFD_CALLBACK(WRITELINE("hpib" , tms9914_device , nrfd_w))
-	MCFG_IEEE488_NDAC_CALLBACK(WRITELINE("hpib" , tms9914_device , ndac_w))
-	MCFG_IEEE488_IFC_CALLBACK(WRITELINE("hpib" , tms9914_device , ifc_w))
-	MCFG_IEEE488_SRQ_CALLBACK(WRITELINE("hpib" , tms9914_device , srq_w))
-	MCFG_IEEE488_ATN_CALLBACK(WRITELINE("hpib" , tms9914_device , atn_w))
-	MCFG_IEEE488_REN_CALLBACK(WRITELINE("hpib" , tms9914_device , ren_w))
-	MCFG_IEEE488_SLOT_ADD("ieee_rem" , 0 , remote488_devices , nullptr)
+
+	ieee488_device &ieee(IEEE488(config, IEEE488_TAG));
+	ieee.eoi_callback().set("hpib" , FUNC(tms9914_device::eoi_w));
+	ieee.dav_callback().set("hpib" , FUNC(tms9914_device::dav_w));
+	ieee.nrfd_callback().set("hpib" , FUNC(tms9914_device::nrfd_w));
+	ieee.ndac_callback().set("hpib" , FUNC(tms9914_device::ndac_w));
+	ieee.ifc_callback().set("hpib" , FUNC(tms9914_device::ifc_w));
+	ieee.srq_callback().set("hpib" , FUNC(tms9914_device::srq_w));
+	ieee.atn_callback().set("hpib" , FUNC(tms9914_device::atn_w));
+	ieee.ren_callback().set("hpib" , FUNC(tms9914_device::ren_w));
+	IEEE488_SLOT(config , "ieee_rem" , 0 , remote488_devices , nullptr);
+
+	// Beeper
+	COP452(config , m_spkr , 2_MHz_XTAL);
+	SPEAKER(config, "mono").front_center();
+	DAC_1BIT(config, m_dac , 0).add_route(ALL_OUTPUTS, "mono", 0.5, AUTO_ALLOC_INPUT, 0);
+	m_spkr->oa_w().set(m_dac , FUNC(dac_1bit_device::write));
+
+	// IO slots
+	HP_IPC_IO_SLOT(config , m_io_slot_a).set_slot_idx(0);
+	HP_IPC_IO_SLOT(config , m_io_slot_b).set_slot_idx(1);
+
+	// IRQ3/4/5/6 mergers
+	INPUT_MERGER_ANY_HIGH(config , m_irq3_merger).output_handler().set_inputline(m_maincpu , M68K_IRQ_3);
+	INPUT_MERGER_ANY_HIGH(config , m_irq4_merger).output_handler().set_inputline(m_maincpu , M68K_IRQ_4);
+	INPUT_MERGER_ANY_HIGH(config , m_irq5_merger).output_handler().set_inputline(m_maincpu , M68K_IRQ_5);
+	INPUT_MERGER_ANY_HIGH(config , m_irq6_merger).output_handler().set_inputline(m_maincpu , M68K_IRQ_6);
+	m_io_slot_a->irq3_cb().set(m_irq3_merger , FUNC(input_merger_any_high_device::in_w<1>));
+	m_io_slot_a->irq4_cb().set(m_irq4_merger , FUNC(input_merger_any_high_device::in_w<1>));
+	m_io_slot_a->irq5_cb().set(m_irq5_merger , FUNC(input_merger_any_high_device::in_w<1>));
+	m_io_slot_a->irq6_cb().set(m_irq6_merger , FUNC(input_merger_any_high_device::in_w<1>));
+	m_io_slot_b->irq3_cb().set(m_irq3_merger , FUNC(input_merger_any_high_device::in_w<2>));
+	m_io_slot_b->irq4_cb().set(m_irq4_merger , FUNC(input_merger_any_high_device::in_w<2>));
+	m_io_slot_b->irq5_cb().set(m_irq5_merger , FUNC(input_merger_any_high_device::in_w<2>));
+	m_io_slot_b->irq6_cb().set(m_irq6_merger , FUNC(input_merger_any_high_device::in_w<2>));
 
 	RAM(config, RAM_TAG).set_default_size("512K").set_extra_options("768K,1M,1576K,2M,3M,4M,5M,6M,7M,7680K");
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(hp_ipc_state::hp_ipc)
+void hp_ipc_state::hp_ipc(machine_config &config)
+{
 	hp_ipc_base(config);
 
 	ADDRESS_MAP_BANK(config, "bankdev").set_map(&hp_ipc_state::hp_ipc_mem_inner_9807a).set_options(ENDIANNESS_BIG, 16, 25, 0x1000000);
@@ -807,9 +864,10 @@ MACHINE_CONFIG_START(hp_ipc_state::hp_ipc)
 	m_screen->set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(hp_ipc_state::hp9808a)
+void hp_ipc_state::hp9808a(machine_config &config)
+{
 	hp_ipc_base(config);
 
 	ADDRESS_MAP_BANK(config, "bankdev").set_map(&hp_ipc_state::hp_ipc_mem_inner_9808a).set_options(ENDIANNESS_BIG, 16, 25, 0x1000000);
@@ -825,7 +883,7 @@ MACHINE_CONFIG_START(hp_ipc_state::hp9808a)
 	m_screen->set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START(hp_ipc)
@@ -855,5 +913,5 @@ ROM_END
 #define rom_hp9808a rom_hp_ipc
 
 //    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY            FULLNAME                            FLAGS
-COMP( 1985, hp_ipc,  0,      0,      hp_ipc,  hp_ipc, hp_ipc_state, empty_init, "Hewlett-Packard", "Integral Personal Computer 9807A", MACHINE_NO_SOUND | MACHINE_IMPERFECT_GRAPHICS)
+COMP( 1985, hp_ipc,  0,      0,      hp_ipc,  hp_ipc, hp_ipc_state, empty_init, "Hewlett-Packard", "Integral Personal Computer 9807A", 0)
 COMP( 1985, hp9808a, 0,      0,      hp9808a, hp_ipc, hp_ipc_state, empty_init, "Hewlett-Packard", "Integral Personal Computer 9808A", MACHINE_NOT_WORKING)

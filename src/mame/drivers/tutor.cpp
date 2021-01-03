@@ -213,15 +213,15 @@ private:
 	memory_region *m_cart_rom;
 
 	int m_bank1_switching;
-	DECLARE_READ8_MEMBER(key_r);
-	DECLARE_READ8_MEMBER(tutor_mapper_r);
-	DECLARE_WRITE8_MEMBER(tutor_mapper_w);
-	DECLARE_READ8_MEMBER(tutor_cassette_r);
-	DECLARE_WRITE8_MEMBER(tutor_cassette_w);
-	DECLARE_READ8_MEMBER(tutor_printer_r);
-	DECLARE_WRITE8_MEMBER(tutor_printer_w);
+	uint8_t key_r(offs_t offset);
+	uint8_t tutor_mapper_r(offs_t offset);
+	void tutor_mapper_w(offs_t offset, uint8_t data);
+	uint8_t tutor_cassette_r();
+	void tutor_cassette_w(offs_t offset, uint8_t data);
+	uint8_t tutor_printer_r(offs_t offset);
+	void tutor_printer_w(offs_t offset, uint8_t data);
 
-	DECLARE_READ8_MEMBER(tutor_highmem_r);
+	uint8_t tutor_highmem_r(offs_t offset);
 	int m_tape_interrupt_enable;
 	emu_timer *m_tape_interrupt_timer;
 	virtual void machine_start() override;
@@ -239,7 +239,7 @@ private:
 void tutor_state::machine_start()
 {
 	std::string region_tag;
-	m_cart_rom = memregion(region_tag.assign(m_cart->tag()).append(GENERIC_ROM_REGION_TAG).c_str());
+	m_cart_rom = memregion(region_tag.assign(m_cart->tag()).append(GENERIC_ROM_REGION_TAG));
 
 	m_tape_interrupt_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(tutor_state::tape_interrupt_handler),this));
 
@@ -291,22 +291,22 @@ void tutor_state::machine_reset()
     mapped to both a keyboard key and a joystick switch.
 */
 
-READ8_MEMBER( tutor_state::key_r )
+uint8_t tutor_state::key_r(offs_t offset)
 {
 	char port[12];
 	uint8_t value;
 
-	snprintf(port, ARRAY_LENGTH(port), "LINE%d", offset);
+	snprintf(port, ARRAY_LENGTH(port), "LINE%d", (offset & 0x007e) >> 3);
 	value = ioport(port)->read();
 
 	/* hack for ports overlapping with joystick */
-	if (offset == 4 || offset == 5)
+	if (offset >= 32 && offset < 48)
 	{
-		snprintf(port, ARRAY_LENGTH(port), "LINE%d_alt", offset);
+		snprintf(port, ARRAY_LENGTH(port), "LINE%d_alt", (offset & 0x007e) >> 3);
 		value |= ioport(port)->read();
 	}
 
-	return value;
+	return BIT(value, offset & 7);
 }
 
 
@@ -324,7 +324,7 @@ READ8_MEMBER( tutor_state::key_r )
     Cartridge may also define a boot ROM at base >0000 (see below).
 */
 
-READ8_MEMBER( tutor_state::tutor_mapper_r )
+uint8_t tutor_state::tutor_mapper_r(offs_t offset)
 {
 	int reply;
 
@@ -344,7 +344,7 @@ READ8_MEMBER( tutor_state::tutor_mapper_r )
 	return reply;
 }
 
-WRITE8_MEMBER( tutor_state::tutor_mapper_w )
+void tutor_state::tutor_mapper_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -379,7 +379,7 @@ WRITE8_MEMBER( tutor_state::tutor_mapper_w )
     This is only called from the debugger; the on-chip memory is handled
     within the CPU itself.
 */
-READ8_MEMBER( tutor_state::tutor_highmem_r )
+uint8_t tutor_state::tutor_highmem_r(offs_t offset)
 {
 	if (m_maincpu->is_onchip(offset | 0xf000)) return m_maincpu->debug_read_onchip_memory(offset&0xff);
 	return 0;
@@ -411,13 +411,13 @@ TIMER_CALLBACK_MEMBER(tutor_state::tape_interrupt_handler)
 }
 
 /* CRU handler */
-READ8_MEMBER( tutor_state::tutor_cassette_r )
+uint8_t tutor_state::tutor_cassette_r()
 {
 	return (m_cass->input() > 0.0) ? 1 : 0;
 }
 
 /* memory handler */
-WRITE8_MEMBER( tutor_state::tutor_cassette_w )
+void tutor_state::tutor_cassette_w(offs_t offset, uint8_t data)
 {
 	if (offset & /*0x1f*/0x1e)
 		logerror("unknown port in %s %d\n", __FILE__, __LINE__);
@@ -465,7 +465,7 @@ WRITE_LINE_MEMBER( tutor_state::write_centronics_busy )
 }
 
 /* memory handlers */
-READ8_MEMBER( tutor_state::tutor_printer_r )
+uint8_t tutor_state::tutor_printer_r(offs_t offset)
 {
 	int reply;
 
@@ -486,7 +486,7 @@ READ8_MEMBER( tutor_state::tutor_printer_r )
 	return reply;
 }
 
-WRITE8_MEMBER( tutor_state::tutor_printer_w )
+void tutor_state::tutor_printer_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -541,7 +541,7 @@ WRITE8_MEMBER( tutor_state::tutor_printer_w )
 */
 
 #ifdef UNUSED_FUNCTION
-WRITE8_MEMBER( tutor_state::test_w )
+void tutor_state::test_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
 	{
@@ -559,10 +559,10 @@ void tutor_state::tutor_memmap(address_map &map)
 	map(0x8000, 0xbfff).bankr("bank2").nopw();
 	map(0xc000, 0xdfff).noprw(); /*free for expansion, or cartridge ROM?*/
 
-	map(0xe000, 0xe000).rw("tms9928a", FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));    /*VDP data*/
-	map(0xe002, 0xe002).rw("tms9928a", FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));/*VDP status*/
+	map(0xe000, 0xe000).rw("tms9928a", FUNC(tms9928a_device::vram_read), FUNC(tms9928a_device::vram_write));    /*VDP data*/
+	map(0xe002, 0xe002).rw("tms9928a", FUNC(tms9928a_device::register_read), FUNC(tms9928a_device::register_write));/*VDP status*/
 	map(0xe100, 0xe1ff).rw(FUNC(tutor_state::tutor_mapper_r), FUNC(tutor_state::tutor_mapper_w));   /*cartridge mapper*/
-	map(0xe200, 0xe200).w("sn76489a", FUNC(sn76489a_device::command_w));    /*sound chip*/
+	map(0xe200, 0xe200).w("sn76489a", FUNC(sn76489a_device::write));    /*sound chip*/
 	map(0xe800, 0xe8ff).rw(FUNC(tutor_state::tutor_printer_r), FUNC(tutor_state::tutor_printer_w)); /*printer*/
 	map(0xee00, 0xeeff).nopr().w(FUNC(tutor_state::tutor_cassette_w));     /*cassette interface*/
 
@@ -576,10 +576,10 @@ void tutor_state::pyuutajr_mem(address_map &map)
 	map(0x8000, 0xbfff).bankr("bank2").nopw();
 	map(0xc000, 0xdfff).noprw(); /*free for expansion, or cartridge ROM?*/
 
-	map(0xe000, 0xe000).rw("tms9928a", FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));    /*VDP data*/
-	map(0xe002, 0xe002).rw("tms9928a", FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));/*VDP status*/
+	map(0xe000, 0xe000).rw("tms9928a", FUNC(tms9928a_device::vram_read), FUNC(tms9928a_device::vram_write));    /*VDP data*/
+	map(0xe002, 0xe002).rw("tms9928a", FUNC(tms9928a_device::register_read), FUNC(tms9928a_device::register_write));/*VDP status*/
 	map(0xe100, 0xe1ff).rw(FUNC(tutor_state::tutor_mapper_r), FUNC(tutor_state::tutor_mapper_w));   /*cartridge mapper*/
-	map(0xe200, 0xe200).w("sn76489a", FUNC(sn76489a_device::command_w));    /*sound chip*/
+	map(0xe200, 0xe200).w("sn76489a", FUNC(sn76489a_device::write));    /*sound chip*/
 	map(0xe800, 0xe800).portr("LINE0");
 	map(0xea00, 0xea00).portr("LINE1");
 	map(0xec00, 0xec00).portr("LINE2");
@@ -600,8 +600,8 @@ void tutor_state::pyuutajr_mem(address_map &map)
 
 void tutor_state::tutor_io(address_map &map)
 {
-	map(0xec0, 0xec7).r(FUNC(tutor_state::key_r));               /*keyboard interface*/
-	map(0xed0, 0xed0).r(FUNC(tutor_state::tutor_cassette_r));        /*cassette interface*/
+	map(0xec00, 0xec7f).r(FUNC(tutor_state::key_r));               /*keyboard interface*/
+	map(0xed00, 0xed01).r(FUNC(tutor_state::tutor_cassette_r));        /*cassette interface*/
 }
 
 /* tutor keyboard: 56 keys
@@ -676,7 +676,7 @@ static INPUT_PORTS_START(tutor)
 		/* Unused? */
 		PORT_BIT(0x03, IP_ACTIVE_HIGH, IPT_UNUSED)
 
-		PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("o  ^") PORT_CODE(KEYCODE_EQUALS) PORT_CHAR('^')
+		PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("o  ^") PORT_CODE(KEYCODE_EQUALS) PORT_CHAR(186) PORT_CHAR('^')
 		PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_OPENBRACE)       PORT_CHAR('_') PORT_CHAR('@')
 		PORT_BIT(0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_QUOTE)           PORT_CHAR(':') PORT_CHAR('*')
 		PORT_BIT(0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_BACKSLASH)       PORT_CHAR('[') PORT_CHAR('{')
@@ -743,7 +743,8 @@ static INPUT_PORTS_START(pyuutajr)
 		PORT_BIT(0xff, IP_ACTIVE_HIGH, IPT_UNUSED)
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(tutor_state::tutor)
+void tutor_state::tutor(machine_config &config)
+{
 	// basic machine hardware
 	// TMS9995 CPU @ 10.7 MHz
 	// No lines connected yet
@@ -763,7 +764,8 @@ MACHINE_CONFIG_START(tutor_state::tutor)
 
 	CENTRONICS(config, m_centronics, centronics_devices, "printer").busy_handler().set(FUNC(tutor_state::write_centronics_busy));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
+	OUTPUT_LATCH(config, m_cent_data_out);
+	m_centronics->set_output_latch(*m_cent_data_out);
 
 	// Cassette
 	SPEAKER(config, "cass_out").front_center();
@@ -773,17 +775,17 @@ MACHINE_CONFIG_START(tutor_state::tutor)
 	GENERIC_CARTSLOT(config, "cartslot", generic_linear_slot, "tutor_cart", "bin");
 
 	// software lists
-	SOFTWARE_LIST(config, "cart_list").set_type("tutor", SOFTWARE_LIST_ORIGINAL_SYSTEM);
+	SOFTWARE_LIST(config, "cart_list").set_original("tutor");
 
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(tutor_state::pyuutajr)
+void tutor_state::pyuutajr(machine_config &config)
+{
 	tutor(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(pyuutajr_mem)
-	//MCFG_DEVICE_REMOVE("centronics")
-	//MCFG_DEVICE_REMOVE("cassette")
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &tutor_state::pyuutajr_mem);
+	//config.device_remove("centronics");
+	//config.device_remove("cassette");
+}
 
 /*
   ROM loading

@@ -187,7 +187,7 @@ void beathead_state::update_interrupts()
 }
 
 
-WRITE32_MEMBER( beathead_state::interrupt_control_w )
+void beathead_state::interrupt_control_w(offs_t offset, uint32_t data)
 {
 	int irq = offset & 3;
 	int control = (offset >> 2) & 1;
@@ -205,7 +205,7 @@ WRITE32_MEMBER( beathead_state::interrupt_control_w )
 }
 
 
-READ32_MEMBER( beathead_state::interrupt_control_r )
+uint32_t beathead_state::interrupt_control_r()
 {
 	/* return the enables as a bitfield */
 	return (m_irq_enable[0]) | (m_irq_enable[1] << 1) | (m_irq_enable[2] << 2);
@@ -219,7 +219,7 @@ READ32_MEMBER( beathead_state::interrupt_control_r )
  *
  *************************************/
 
-WRITE32_MEMBER( beathead_state::sound_reset_w )
+void beathead_state::sound_reset_w(offs_t offset, uint32_t data)
 {
 	logerror("Sound reset = %d\n", !offset);
 	m_jsa->soundcpu().set_input_line(INPUT_LINE_RESET, offset ? CLEAR_LINE : ASSERT_LINE);
@@ -233,7 +233,7 @@ WRITE32_MEMBER( beathead_state::sound_reset_w )
  *
  *************************************/
 
-WRITE32_MEMBER( beathead_state::coin_count_w )
+void beathead_state::coin_count_w(offs_t offset, uint32_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, !offset);
 }
@@ -249,7 +249,7 @@ WRITE32_MEMBER( beathead_state::coin_count_w )
 void beathead_state::main_map(address_map &map)
 {
 	map(0x00000000, 0x0001ffff).ram().share("ram_base");
-	map(0x01800000, 0x01bfffff).rom().region("user1", 0).share("rom_base");
+	map(0x01800000, 0x01bfffff).rom().region("user1", 0);
 	map(0x40000000, 0x400007ff).rw("eeprom", FUNC(eeprom_parallel_28xx_device::read), FUNC(eeprom_parallel_28xx_device::write)).umask32(0x000000ff);
 	map(0x41000000, 0x41000000).rw(m_jsa, FUNC(atari_jsa_iii_device::main_response_r), FUNC(atari_jsa_iii_device::main_command_w));
 	map(0x41000100, 0x41000103).r(FUNC(beathead_state::interrupt_control_r));
@@ -333,26 +333,26 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(beathead_state::beathead)
-
+void beathead_state::beathead(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", ASAP, ATARI_CLOCK_14MHz)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	ASAP(config, m_maincpu, 14.318181_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &beathead_state::main_map);
 
 	EEPROM_2804(config, "eeprom").lock_after_write(true);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
-	MCFG_TIMER_DRIVER_ADD(m_scan_timer, beathead_state, scanline_callback)
+	TIMER(config, m_scan_timer).configure_generic(FUNC(beathead_state::scanline_callback));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE_DRIVER(beathead_state, screen_update)
-	MCFG_SCREEN_SIZE(42*8, 262)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 42*8-1, 0*8, 30*8-1)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_screen_update(FUNC(beathead_state::screen_update));
+	m_screen->set_size(42*8, 262);
+	m_screen->set_visarea(0*8, 42*8-1, 0*8, 30*8-1);
+	m_screen->set_palette(m_palette);
 
 	PALETTE(config, m_palette);
 	m_palette->set_format(palette_device::IRGB_1555, 32768);
@@ -364,7 +364,7 @@ MACHINE_CONFIG_START(beathead_state::beathead)
 	ATARI_JSA_III(config, m_jsa, 0);
 	m_jsa->test_read_cb().set_ioport("IN2").bit(6);
 	m_jsa->add_route(ALL_OUTPUTS, "mono", 1.0);
-MACHINE_CONFIG_END
+}
 
 
 

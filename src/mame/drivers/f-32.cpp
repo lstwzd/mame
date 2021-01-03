@@ -56,7 +56,7 @@ private:
 	/* memory pointers */
 	required_shared_ptr<uint32_t> m_videoram;
 
-	DECLARE_READ32_MEMBER(f32_input_port_1_r);
+	uint32_t f32_input_port_1_r();
 	uint32_t screen_update_mosaicf2(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void common_map(address_map &map);
 	void mosaicf2_io(address_map &map);
@@ -67,17 +67,15 @@ private:
 
 uint32_t mosaicf2_state::screen_update_mosaicf2(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	offs_t offs;
-
-	for (offs = 0; offs < 0x10000; offs++)
+	for (offs_t offs = 0; offs < 0x10000; offs++)
 	{
 		int y = offs >> 8;
 		int x = offs & 0xff;
 
 		if ((x < 0xa0) && (y < 0xe0))
 		{
-			bitmap.pix16(y, (x * 2) + 0) = (m_videoram[offs] >> 16) & 0x7fff;
-			bitmap.pix16(y, (x * 2) + 1) = (m_videoram[offs] >>  0) & 0x7fff;
+			bitmap.pix(y, (x * 2) + 0) = (m_videoram[offs] >> 16) & 0x7fff;
+			bitmap.pix(y, (x * 2) + 1) = (m_videoram[offs] >>  0) & 0x7fff;
 		}
 	}
 
@@ -94,7 +92,7 @@ void mosaicf2_state::common_map(address_map &map)
 	map(0xfff00000, 0xffffffff).rom().region("user1", 0);
 }
 
-READ32_MEMBER(mosaicf2_state::f32_input_port_1_r)
+uint32_t mosaicf2_state::f32_input_port_1_r()
 {
 	/* burn a bunch of cycles because this is polled frequently during busy loops */
 
@@ -168,26 +166,26 @@ INPUT_PORTS_END
 
 
 
-MACHINE_CONFIG_START(mosaicf2_state::mosaicf2)
-
+void mosaicf2_state::mosaicf2(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", E132XN, XTAL(20'000'000)*4) /* 4x internal multiplier */
-	MCFG_DEVICE_PROGRAM_MAP(common_map)
-	MCFG_DEVICE_IO_MAP(mosaicf2_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", mosaicf2_state,  irq0_line_hold)
+	E132XN(config, m_maincpu, XTAL(20'000'000)*4); /* 4x internal multiplier */
+	m_maincpu->set_addrmap(AS_PROGRAM, &mosaicf2_state::common_map);
+	m_maincpu->set_addrmap(AS_IO, &mosaicf2_state::mosaicf2_io);
+	m_maincpu->set_vblank_int("screen", FUNC(mosaicf2_state::irq0_line_hold));
 
 	EEPROM_93C46_16BIT(config, "eeprom")
 		.erase_time(attotime::from_usec(1))
 		.write_time(attotime::from_usec(1));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 223)
-	MCFG_SCREEN_UPDATE_DRIVER(mosaicf2_state, screen_update_mosaicf2)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(512, 512);
+	screen.set_visarea(0, 319, 0, 223);
+	screen.set_screen_update(FUNC(mosaicf2_state::screen_update_mosaicf2));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::RGB_555);
 
@@ -199,10 +197,10 @@ MACHINE_CONFIG_START(mosaicf2_state::mosaicf2)
 	ymsnd.add_route(0, "lspeaker", 1.0);
 	ymsnd.add_route(1, "rspeaker", 1.0);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(14'318'181)/8, okim6295_device::PIN7_HIGH) /* 1.7897725 MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", XTAL(14'318'181)/8, okim6295_device::PIN7_HIGH)); /* 1.7897725 MHz */
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 1.0);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 1.0);
+}
 
 
 
@@ -247,26 +245,26 @@ void mosaicf2_state::royalpk2_io(address_map &map)
 	map(0x6a00, 0x6a03).portw("EEPROMOUT");
 }
 
-MACHINE_CONFIG_START(mosaicf2_state::royalpk2)
-
+void mosaicf2_state::royalpk2(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", GMS30C2132, XTAL(50'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(royalpk2_map)
-	MCFG_DEVICE_IO_MAP(royalpk2_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", mosaicf2_state,  irq1_line_hold)
+	GMS30C2132(config, m_maincpu, XTAL(50'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &mosaicf2_state::royalpk2_map);
+	m_maincpu->set_addrmap(AS_IO, &mosaicf2_state::royalpk2_io);
+	m_maincpu->set_vblank_int("screen", FUNC(mosaicf2_state::irq1_line_hold));
 
 	EEPROM_93C46_16BIT(config, "eeprom")
 		.erase_time(attotime::from_usec(1))
 		.write_time(attotime::from_usec(1));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 223)
-	MCFG_SCREEN_UPDATE_DRIVER(mosaicf2_state, screen_update_mosaicf2)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(512, 512);
+	screen.set_visarea(0, 319, 0, 223);
+	screen.set_screen_update(FUNC(mosaicf2_state::screen_update_mosaicf2));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::RGB_555);
 
@@ -278,12 +276,12 @@ MACHINE_CONFIG_START(mosaicf2_state::royalpk2)
 //  ymsnd.add_route(0, "lspeaker", 1.0);
 //  ymsnd.add_route(1, "rspeaker", 1.0);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(14'318'181)/8, okim6295_device::PIN7_HIGH) /* 1.7897725 MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
+	okim6295_device &oki(OKIM6295(config, "oki", XTAL(14'318'181)/8, okim6295_device::PIN7_HIGH)); /* 1.7897725 MHz */
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 1.0);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 1.0);
 
 	// there is a 16c550 for communication
-MACHINE_CONFIG_END
+}
 
 
 /*

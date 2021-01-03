@@ -2,7 +2,7 @@
 // copyright-holders:Kevin Thacker,Sandro Ronco
 /******************************************************************************
 
-    kc.c
+    kc.cpp
     system driver
 
     A big thankyou to Torsten Paul for his great help with this
@@ -11,12 +11,13 @@
 
     Kevin Thacker [MESS driver]
 
- ******************************************************************************/
+******************************************************************************/
 
 /* Core includes */
 #include "emu.h"
 #include "includes/kc.h"
 
+#include "machine/input_merger.h"
 #include "softlist.h"
 #include "screen.h"
 #include "speaker.h"
@@ -96,14 +97,56 @@ void kc85_exp(device_slot_interface &device)
 }
 
 
-MACHINE_CONFIG_START(kc_state::kc85_3)
+void kc_state::kc85_slots(machine_config &config)
+{
+	/* devices */
+	QUICKLOAD(config, "quickload", "kcc", attotime::from_seconds(2)).set_load_callback(FUNC(kc_state::quickload_cb));
+
+	CASSETTE(config, m_cassette);
+	m_cassette->set_formats(kc_cassette_formats);
+	m_cassette->set_default_state(CASSETTE_PLAY);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.05);
+	m_cassette->set_interface("kc_cass");
+
+	INPUT_MERGER_ANY_HIGH(config, "irq").output_handler().set_inputline(m_maincpu, 0);
+	INPUT_MERGER_ANY_HIGH(config, "nmi").output_handler().set_inputline(m_maincpu, INPUT_LINE_NMI);
+	INPUT_MERGER_ANY_HIGH(config, "halt").output_handler().set_inputline(m_maincpu, INPUT_LINE_HALT);
+
+	/* cartridge slot */
+	KCCART_SLOT(config, m_expansions[0], kc85_cart, "m011");
+	m_expansions[0]->set_next_slot(m_expansions[1]);
+	m_expansions[0]->irq().set("irq", FUNC(input_merger_device::in_w<0>));
+	m_expansions[0]->nmi().set("nmi", FUNC(input_merger_device::in_w<0>));
+	m_expansions[0]->halt().set("halt", FUNC(input_merger_device::in_w<0>));
+
+	KCCART_SLOT(config, m_expansions[1], kc85_cart, nullptr);
+	m_expansions[1]->set_next_slot(m_expansions[2]);
+	m_expansions[1]->irq().set("irq", FUNC(input_merger_device::in_w<1>));
+	m_expansions[1]->nmi().set("nmi", FUNC(input_merger_device::in_w<1>));
+	m_expansions[1]->halt().set("halt", FUNC(input_merger_device::in_w<1>));
+
+	/* expansion interface */
+	KCEXP_SLOT(config, m_expansions[2], kc85_exp, nullptr);
+	m_expansions[2]->irq().set("irq", FUNC(input_merger_device::in_w<2>));
+	m_expansions[2]->nmi().set("nmi", FUNC(input_merger_device::in_w<2>));
+	m_expansions[2]->halt().set("halt", FUNC(input_merger_device::in_w<2>));
+
+	/* Software lists */
+	SOFTWARE_LIST(config, "cart_list").set_original("kc_cart");
+	SOFTWARE_LIST(config, "flop_list").set_original("kc_flop");
+	SOFTWARE_LIST(config, "cass_list").set_original("kc_cass");
+}
+
+
+void kc_state::kc85_3(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, KC85_3_CLOCK);
 	m_maincpu->set_addrmap(AS_PROGRAM, &kc_state::kc85_3_mem);
 	m_maincpu->set_addrmap(AS_IO, &kc_state::kc85_3_io);
 	m_maincpu->set_daisy_config(kc85_daisy_chain);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	Z80PIO(config, m_z80pio, KC85_3_CLOCK);
 	m_z80pio->out_int_callback().set_inputline(m_maincpu, 0);
@@ -121,11 +164,11 @@ MACHINE_CONFIG_START(kc_state::kc85_3)
 	m_z80ctc->zc_callback<2>().set(FUNC(kc_state::video_toggle_blink_state));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(XTAL(28'375'160)/2, 908, 0, 320, 312, 0, 256)
-	MCFG_SCREEN_UPDATE_DRIVER(kc_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", kc_state, kc_scanline, "screen", 0, 1)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(XTAL(28'375'160)/2, 908, 0, 320, 312, 0, 256);
+	m_screen->set_screen_update(FUNC(kc_state::screen_update));
+	m_screen->set_palette("palette");
+	TIMER(config, "scantimer").configure_scanline(FUNC(kc_state::kc_scanline), "screen", 0, 1);
 
 	PALETTE(config, "palette", FUNC(kc_state::kc85_palette), KC85_PALETTE_SIZE);
 
@@ -134,56 +177,22 @@ MACHINE_CONFIG_START(kc_state::kc85_3)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.25);
 	SPEAKER_SOUND(config, "speaker").add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	/* devices */
-	MCFG_QUICKLOAD_ADD("quickload", kc_state, kc, "kcc", 2)
-
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_FORMATS(kc_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_PLAY)
-	MCFG_CASSETTE_INTERFACE("kc_cass")
-
-	/* cartridge slot */
-	MCFG_DEVICE_ADD("m8", KCCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_cart, "m011", false)
-	MCFG_KCCART_SLOT_NEXT_SLOT("mc")
-	MCFG_KCCART_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCCART_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCCART_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-	MCFG_DEVICE_ADD("mc", KCCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_cart, nullptr, false)
-	MCFG_KCCART_SLOT_NEXT_SLOT("exp")
-	MCFG_KCCART_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCCART_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCCART_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-
-	/* expansion interface */
-	MCFG_DEVICE_ADD("exp", KCEXP_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_exp, nullptr, false)
-	MCFG_KCEXP_SLOT_NEXT_SLOT(nullptr)
-	MCFG_KCEXP_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCEXP_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCEXP_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-
-	/* Software lists */
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "kc_cart")
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "kc_flop")
-	MCFG_SOFTWARE_LIST_ADD("cass_list", "kc_cass")
+	kc85_slots(config);
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("16K");
-MACHINE_CONFIG_END
+}
 
-
-MACHINE_CONFIG_START(kc85_4_state::kc85_4)
+void kc85_4_state::kc85_4(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, KC85_4_CLOCK);
 	m_maincpu->set_addrmap(AS_PROGRAM, &kc85_4_state::kc85_4_mem);
 	m_maincpu->set_addrmap(AS_IO, &kc85_4_state::kc85_4_io);
 	m_maincpu->set_daisy_config(kc85_daisy_chain);
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	Z80PIO(config, m_z80pio, KC85_4_CLOCK);
 	m_z80pio->out_int_callback().set_inputline(m_maincpu, 0);
@@ -201,11 +210,11 @@ MACHINE_CONFIG_START(kc85_4_state::kc85_4)
 	m_z80ctc->zc_callback<2>().set(FUNC(kc_state::video_toggle_blink_state));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(XTAL(28'375'160)/2, 908, 0, 320, 312, 0, 256)
-	MCFG_SCREEN_UPDATE_DRIVER(kc85_4_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", kc85_4_state, kc_scanline, "screen", 0, 1)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(XTAL(28'375'160)/2, 908, 0, 320, 312, 0, 256);
+	m_screen->set_screen_update(FUNC(kc85_4_state::screen_update));
+	m_screen->set_palette("palette");
+	TIMER(config, "scantimer").configure_scanline(FUNC(kc85_4_state::kc_scanline), "screen", 0, 1);
 
 	PALETTE(config, "palette", FUNC(kc85_4_state::kc85_palette), KC85_PALETTE_SIZE);
 
@@ -214,47 +223,13 @@ MACHINE_CONFIG_START(kc85_4_state::kc85_4)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.25);
 	SPEAKER_SOUND(config, "speaker").add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	/* devices */
-	MCFG_QUICKLOAD_ADD("quickload", kc_state, kc, "kcc", 2)
-
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_FORMATS(kc_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_PLAY)
-	MCFG_CASSETTE_INTERFACE("kc_cass")
-
-	/* cartridge slot */
-	MCFG_DEVICE_ADD("m8", KCCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_cart, "m011", false)
-	MCFG_KCCART_SLOT_NEXT_SLOT("mc")
-	MCFG_KCCART_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCCART_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCCART_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-	MCFG_DEVICE_ADD("mc", KCCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_cart, nullptr, false)
-	MCFG_KCCART_SLOT_NEXT_SLOT("exp")
-	MCFG_KCCART_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCCART_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCCART_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-
-	/* expansion interface */
-	MCFG_DEVICE_ADD("exp", KCEXP_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(kc85_exp, nullptr, false)
-	MCFG_KCEXP_SLOT_NEXT_SLOT(nullptr)
-	MCFG_KCEXP_SLOT_OUT_IRQ_CB(INPUTLINE("maincpu", 0))
-	MCFG_KCEXP_SLOT_OUT_NMI_CB(INPUTLINE("maincpu", INPUT_LINE_NMI))
-	MCFG_KCEXP_SLOT_OUT_HALT_CB(INPUTLINE("maincpu", INPUT_LINE_HALT))
-
-	/* Software lists */
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "kc_cart")
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "kc_flop")
-	MCFG_SOFTWARE_LIST_ADD("cass_list", "kc_cass")
+	kc85_slots(config);
 
 	/* internal ram */
 	RAM(config, m_ram).set_default_size("64K");
-MACHINE_CONFIG_END
+}
 
 void kc85_4_state::kc85_5(machine_config &config)
 {
@@ -316,8 +291,8 @@ ROM_START(kc85_5)
 	ROMX_LOAD("caos43e.855", 0x2000, 0x2000, CRC(b66fc6c3) SHA1(521ac2fbded4148220f8af2d5a5ab99634364079), ROM_BIOS(1))
 ROM_END
 
-//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT  CLASS         INIT        COMPANY                FULLNAME           wFLAGS
-COMP( 1987, kc85_2, 0,      0,      kc85_3,  kc85,  kc_state,     empty_init, "VEB Mikroelektronik", "HC900 / KC 85/2", MACHINE_NOT_WORKING)
-COMP( 1987, kc85_3, kc85_2, 0,      kc85_3,  kc85,  kc_state,     empty_init, "VEB Mikroelektronik", "KC 85/3",         MACHINE_NOT_WORKING)
-COMP( 1989, kc85_4, kc85_2, 0,      kc85_4,  kc85,  kc85_4_state, empty_init, "VEB Mikroelektronik", "KC 85/4",         MACHINE_NOT_WORKING)
-COMP( 1989, kc85_5, kc85_2, 0,      kc85_5,  kc85,  kc85_4_state, empty_init, "VEB Mikroelektronik", "KC 85/5",         MACHINE_NOT_WORKING)
+//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT  CLASS         INIT        COMPANY, FULLNAME, FLAGS
+COMP( 1987, kc85_2, 0,      0,      kc85_3,  kc85,  kc_state,     empty_init, u8"VEB Mikroelektronik \"Wilhelm Pieck\" Mühlhausen", "HC900 / KC 85/2", MACHINE_NOT_WORKING)
+COMP( 1987, kc85_3, kc85_2, 0,      kc85_3,  kc85,  kc_state,     empty_init, u8"VEB Mikroelektronik \"Wilhelm Pieck\" Mühlhausen", "KC 85/3",         MACHINE_NOT_WORKING)
+COMP( 1989, kc85_4, kc85_2, 0,      kc85_4,  kc85,  kc85_4_state, empty_init, u8"VEB Mikroelektronik \"Wilhelm Pieck\" Mühlhausen", "KC 85/4",         MACHINE_NOT_WORKING)
+COMP( 1989, kc85_5, kc85_2, 0,      kc85_5,  kc85,  kc85_4_state, empty_init, u8"VEB Mikroelektronik \"Wilhelm Pieck\" Mühlhausen", "KC 85/5",         MACHINE_NOT_WORKING)

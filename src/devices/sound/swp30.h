@@ -8,7 +8,10 @@
 
 #pragma once
 
-class swp30_device : public device_t, public device_sound_interface, public device_rom_interface
+#include "meg.h"
+#include "dirom.h"
+
+class swp30_device : public device_t, public device_sound_interface, public device_rom_interface<25+2, 2, 0, ENDIANNESS_LITTLE>
 {
 public:
 	swp30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 33868800);
@@ -18,10 +21,13 @@ public:
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 	virtual void rom_bank_updated() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
 private:
+	required_device<meg_embedded_device> m_meg;
+
 	sound_stream *m_stream;
 
 	s32 m_sample_increment[0x4000];
@@ -99,8 +105,8 @@ private:
 	// MEG registers
 	template<int sel> u16 prg_fp_r(offs_t offset);
 	template<int sel> void prg_fp_w(offs_t offset, u16 data);
-	template<int sel> u16 prg_int_r(offs_t offset);
-	template<int sel> void prg_int_w(offs_t offset, u16 data);
+	template<int sel> u16 prg_off_r(offs_t offset);
+	template<int sel> void prg_off_w(offs_t offset, u16 data);
 	template<int sel> u16 prg_lfo_r(offs_t offset);
 	template<int sel> void prg_lfo_w(offs_t offset, u16 data);
 

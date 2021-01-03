@@ -45,13 +45,12 @@ public:
 
 private:
 	// screen updates
-	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void konblands_palette(palette_device &palette) const;
-	DECLARE_READ8_MEMBER(ldp_r);
-	DECLARE_WRITE8_MEMBER(ldp_w);
-	DECLARE_WRITE8_MEMBER(nmi_enable_w);
-	DECLARE_WRITE8_MEMBER(irq_enable_w);
-	DECLARE_WRITE8_MEMBER(firq_enable_w);
+	uint8_t ldp_r();
+	void nmi_enable_w(uint8_t data);
+	void irq_enable_w(uint8_t data);
+	void firq_enable_w(uint8_t data);
 	INTERRUPT_GEN_MEMBER(vblank_irq);
 	INTERRUPT_GEN_MEMBER(timer_irq);
 	DECLARE_WRITE_LINE_MEMBER(ld_command_strobe_cb);
@@ -102,19 +101,18 @@ void konblands_state::video_start()
 {
 }
 
-uint32_t konblands_state::screen_update( screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect )
+uint32_t konblands_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	gfx_element *gfx = m_gfxdecode->gfx(0);
-	int y,x;
 	int count = 0;
 
-	for (y=0;y<32;y++)
+	for (int y = 0; y < 32; y++)
 	{
-		for (x=0;x<64;x++)
+		for (int x = 0; x < 64; x++)
 		{
 			uint8_t tile = m_vram[count];
 
-			gfx->opaque(bitmap,cliprect,tile,0,0,0,x*8,y*8);
+			gfx->opaque(bitmap, cliprect, tile, 0, 0, 0, x * 8, y * 8);
 
 			count++;
 		}
@@ -123,27 +121,22 @@ uint32_t konblands_state::screen_update( screen_device &screen, bitmap_ind16 &bi
 	return 0;
 }
 
-READ8_MEMBER(konblands_state::ldp_r)
+uint8_t konblands_state::ldp_r()
 {
 	return m_laserdisc->status_r();
 }
 
-WRITE8_MEMBER(konblands_state::ldp_w)
-{
-	m_laserdisc->data_w(data);
-}
-
-WRITE8_MEMBER(konblands_state::nmi_enable_w)
+void konblands_state::nmi_enable_w(uint8_t data)
 {
 	m_nmi_enable = bool(BIT(data,0));
 }
 
-WRITE8_MEMBER(konblands_state::irq_enable_w)
+void konblands_state::irq_enable_w(uint8_t data)
 {
 	m_irq_enable = bool(BIT(data,0));
 }
 
-WRITE8_MEMBER(konblands_state::firq_enable_w)
+void konblands_state::firq_enable_w(uint8_t data)
 {
 	m_firq_enable = bool(BIT(data,0));
 }
@@ -151,7 +144,7 @@ WRITE8_MEMBER(konblands_state::firq_enable_w)
 void konblands_state::konblands_map(address_map &map)
 {
 	map(0x0000, 0x0000).portr("DSW1").nopw(); // sn latch
-	map(0x0800, 0x0800).portr("DSW2").w(FUNC(konblands_state::ldp_w));
+	map(0x0800, 0x0800).portr("DSW2").w(m_laserdisc, FUNC(pioneer_ldv1000_device::data_w));
 	map(0x1000, 0x1000).nopw().r(FUNC(konblands_state::ldp_r)); // led
 	map(0x1001, 0x1001).nopw(); // coin counter 2
 	map(0x1002, 0x1002).nopw(); // coin counter 1
@@ -160,7 +153,7 @@ void konblands_state::konblands_map(address_map &map)
 	map(0x1005, 0x1005).nopw(); // enable audio
 	map(0x1006, 0x1006).w(FUNC(konblands_state::irq_enable_w));
 	map(0x1007, 0x1007).w(FUNC(konblands_state::firq_enable_w));
-	map(0x1800, 0x1800).portr("INPUTS").w("sn", FUNC(sn76496_device::command_w));
+	map(0x1800, 0x1800).portr("INPUTS").w("sn", FUNC(sn76496_device::write));
 	map(0x4000, 0x47ff).ram().share("vram");
 	map(0x4800, 0x4bff).ram();
 	map(0x5800, 0x5800).nopw(); // watchdog
@@ -171,14 +164,14 @@ void konblands_state::konblands_map(address_map &map)
 void konblands_state::konblandsh_map(address_map &map)
 {
 	map(0x0000, 0x0000).r(FUNC(konblands_state::ldp_r));
-	map(0x0400, 0x0400).w(FUNC(konblands_state::ldp_w));
+	map(0x0400, 0x0400).w(m_laserdisc, FUNC(pioneer_ldv1000_device::data_w));
 	map(0x0802, 0x0802).nopw(); // led
 	map(0x0803, 0x0803).nopw(); // enable overlay transparency
 	map(0x0806, 0x0806).nopr().w(FUNC(konblands_state::irq_enable_w));
 	map(0x0807, 0x0807).nopr().w(FUNC(konblands_state::firq_enable_w));
 	map(0x0c00, 0x0c00).portr("INPUTS");
 	map(0x1000, 0x1000).portr("DSW1");
-	map(0x1400, 0x1400).w("sn", FUNC(sn76496_device::command_w));
+	map(0x1400, 0x1400).w("sn", FUNC(sn76496_device::write));
 	map(0x1800, 0x1800).nopw(); // sn latch
 	map(0x2000, 0x27ff).ram().share("vram");
 	map(0x2800, 0x2fff).ram();
@@ -276,23 +269,22 @@ WRITE_LINE_MEMBER(konblands_state::ld_command_strobe_cb)
 		m_maincpu->set_input_line(M6809_IRQ_LINE, state ? ASSERT_LINE : CLEAR_LINE);
 }
 
-MACHINE_CONFIG_START(konblands_state::konblands)
-
+void konblands_state::konblands(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",MC6809E,MASTER_CLOCK/12)
-	MCFG_DEVICE_PROGRAM_MAP(konblands_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", konblands_state,  vblank_irq)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(konblands_state, timer_irq,  8) // 8 times per frame
+	MC6809E(config, m_maincpu, MASTER_CLOCK/12);
+	m_maincpu->set_addrmap(AS_PROGRAM, &konblands_state::konblands_map);
+	m_maincpu->set_vblank_int("screen", FUNC(konblands_state::vblank_irq));
+	m_maincpu->set_periodic_int(FUNC(konblands_state::timer_irq), attotime::from_hz(8)); // 8 times per frame
 
 	/* video hardware */
-	MCFG_LASERDISC_LDV1000_ADD("laserdisc")
-	MCFG_LASERDISC_LDV1000_COMMAND_STROBE_CB(WRITELINE(*this, konblands_state, ld_command_strobe_cb))
+	PIONEER_LDV1000(config, m_laserdisc, 0);
+	m_laserdisc->command_strobe_callback().set(FUNC(konblands_state::ld_command_strobe_cb));
 	// TODO: might be different
-	MCFG_LASERDISC_OVERLAY_DRIVER(512, 256, konblands_state, screen_update)
-	MCFG_LASERDISC_OVERLAY_PALETTE("palette")
+	m_laserdisc->set_overlay(512, 256, FUNC(konblands_state::screen_update));
 
 	/* video hardware */
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", "laserdisc")
+	m_laserdisc->add_ntsc_screen(config, "screen");
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_konblands);
 
@@ -300,15 +292,14 @@ MACHINE_CONFIG_START(konblands_state::konblands)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("sn", SN76496, MASTER_CLOCK/12)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	SN76496(config, "sn", MASTER_CLOCK/12).add_route(ALL_OUTPUTS, "mono", 0.50);
+}
 
-MACHINE_CONFIG_START(konblands_state::konblandsh)
+void konblands_state::konblandsh(machine_config &config)
+{
 	konblands(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(konblandsh_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &konblands_state::konblandsh_map);
+}
 
 /***************************************************************************
 

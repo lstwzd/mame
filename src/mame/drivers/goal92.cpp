@@ -20,16 +20,16 @@
 #include "speaker.h"
 
 
-WRITE16_MEMBER(goal92_state::goal92_sound_command_w)
+void goal92_state::goal92_sound_command_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_8_15)
 	{
-		m_soundlatch->write(space, 0, (data >> 8) & 0xff);
+		m_soundlatch->write((data >> 8) & 0xff);
 		m_audiocpu->set_input_line(0, HOLD_LINE);
 	}
 }
 
-READ16_MEMBER(goal92_state::goal92_inputs_r)
+uint16_t goal92_state::goal92_inputs_r(offs_t offset, uint16_t mem_mask)
 {
 	switch(offset)
 	{
@@ -73,14 +73,14 @@ void goal92_state::goal92_map(address_map &map)
 
 /* Sound CPU */
 
-WRITE8_MEMBER(goal92_state::adpcm_control_w)
+void goal92_state::adpcm_control_w(uint8_t data)
 {
 	membank("bank1")->set_entry(data & 0x01);
 
 	m_msm->reset_w(data & 0x08);
 }
 
-WRITE8_MEMBER(goal92_state::adpcm_data_w)
+void goal92_state::adpcm_data_w(uint8_t data)
 {
 	m_msm5205next = data;
 }
@@ -223,7 +223,7 @@ WRITE_LINE_MEMBER(goal92_state::irqhandler)
 
 WRITE_LINE_MEMBER(goal92_state::goal92_adpcm_int)
 {
-	m_msm->write_data(m_msm5205next);
+	m_msm->data_w(m_msm5205next);
 	m_msm5205next >>= 4;
 	m_adpcm_toggle^= 1;
 
@@ -304,7 +304,7 @@ void goal92_state::goal92(machine_config &config)
 	m_maincpu->set_vblank_int("screen", FUNC(goal92_state::irq6_line_hold)); /* VBL */
 
 	Z80(config, m_audiocpu, 2500000);
-	m_audiocpu->set_addrmap(AS_PROGRAM, &goal92_state::sound_cpu);	/* IRQs are triggered by the main CPU */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &goal92_state::sound_cpu);  /* IRQs are triggered by the main CPU */
 
 	/* video hardware */
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));

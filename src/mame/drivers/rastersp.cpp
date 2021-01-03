@@ -16,15 +16,14 @@
 ****************************************************************************/
 
 #include "emu.h"
+#include "bus/nscsi/hd.h"
 #include "cpu/i386/i386.h"
 #include "cpu/tms32031/tms32031.h"
 #include "machine/53c7xx.h"
 #include "machine/mc146818.h"
-#include "machine/nscsi_hd.h"
 #include "machine/nvram.h"
 #include "machine/timer.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
@@ -115,22 +114,22 @@ private:
 	emu_timer *m_tms_timer1;
 	emu_timer *m_tms_tx_timer;
 
-	DECLARE_WRITE32_MEMBER(cyrix_cache_w);
-	DECLARE_READ8_MEMBER(nvram_r);
-	DECLARE_WRITE8_MEMBER(nvram_w);
-	DECLARE_WRITE32_MEMBER(port1_w);
-	DECLARE_WRITE32_MEMBER(port2_w);
-	DECLARE_WRITE32_MEMBER(port3_w);
-	DECLARE_WRITE32_MEMBER(dpylist_w);
-	DECLARE_READ32_MEMBER(tms32031_control_r);
-	DECLARE_WRITE32_MEMBER(tms32031_control_w);
-	DECLARE_WRITE32_MEMBER(dsp_unk_w);
-	DECLARE_WRITE32_MEMBER(dsp_ctrl_w);
-	DECLARE_WRITE32_MEMBER(dsp_486_int_w);
-	DECLARE_READ32_MEMBER(dsp_speedup_r);
-	DECLARE_WRITE32_MEMBER(dsp_speedup_w);
-	DECLARE_READ32_MEMBER(ncr53c700_read);
-	DECLARE_WRITE32_MEMBER(ncr53c700_write);
+	void cyrix_cache_w(uint32_t data);
+	uint8_t nvram_r(offs_t offset);
+	void nvram_w(offs_t offset, uint8_t data);
+	void port1_w(uint32_t data);
+	void port2_w(uint32_t data);
+	void port3_w(uint32_t data);
+	void dpylist_w(uint32_t data);
+	uint32_t tms32031_control_r(offs_t offset);
+	void tms32031_control_w(offs_t offset, uint32_t data);
+	void dsp_unk_w(uint32_t data);
+	void dsp_ctrl_w(uint32_t data);
+	void dsp_486_int_w(uint32_t data);
+	uint32_t dsp_speedup_r();
+	void dsp_speedup_w(uint32_t data);
+	uint32_t ncr53c700_read(offs_t offset, uint32_t mem_mask = ~0);
+	void ncr53c700_write(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(scsi_irq);
 
 	TIMER_CALLBACK_MEMBER(tms_timer1);
@@ -186,8 +185,8 @@ void rastersp_state::machine_start()
 		m_tms_tx_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(rastersp_state::tms_tx_timer), this));
 
 #if USE_SPEEDUP_HACK
-	m_dsp->space(AS_PROGRAM).install_read_handler(0x809923, 0x809923, read32_delegate(FUNC(rastersp_state::dsp_speedup_r), this));
-	m_dsp->space(AS_PROGRAM).install_write_handler(0x809923, 0x809923, write32_delegate(FUNC(rastersp_state::dsp_speedup_w), this));
+	m_dsp->space(AS_PROGRAM).install_read_handler(0x809923, 0x809923, read32smo_delegate(*this, FUNC(rastersp_state::dsp_speedup_r)));
+	m_dsp->space(AS_PROGRAM).install_write_handler(0x809923, 0x809923, write32smo_delegate(*this, FUNC(rastersp_state::dsp_speedup_w)));
 #endif
 }
 
@@ -225,7 +224,7 @@ void rastersp_state::video_start()
 }
 
 
-WRITE32_MEMBER( rastersp_state::dpylist_w )
+void rastersp_state::dpylist_w(uint32_t data)
 {
 	m_dpyaddr = data;
 
@@ -244,7 +243,7 @@ WRITE32_MEMBER( rastersp_state::dpylist_w )
 
 	int y = 0;
 	int x = 0;
-	uint16_t *bmpptr = &m_update_bitmap.pix16(0, 0);
+	uint16_t *bmpptr = &m_update_bitmap.pix(0, 0);
 
 	while (y < 240)
 	{
@@ -445,7 +444,7 @@ WRITE_LINE_MEMBER( rastersp_state::vblank_irq )
  *
  *************************************/
 
-WRITE32_MEMBER( rastersp_state::port1_w )
+void rastersp_state::port1_w(uint32_t data)
 {
 	// x... .... - LED?
 	// ..x. .... - DSP IRQ2 line
@@ -459,14 +458,14 @@ WRITE32_MEMBER( rastersp_state::port1_w )
 }
 
 
-WRITE32_MEMBER( rastersp_state::port2_w )
+void rastersp_state::port2_w(uint32_t data)
 {
 	// .x.. .... - X9313WP /INC
 	// ..x. .... - X9313WP U/#D
 }
 
 
-WRITE32_MEMBER( rastersp_state:: port3_w )
+void rastersp_state:: port3_w(uint32_t data)
 {
 	// xxxx xxxx - 8 LED cluster?
 }
@@ -479,7 +478,7 @@ WRITE32_MEMBER( rastersp_state:: port3_w )
  *
  *************************************/
 
-WRITE8_MEMBER( rastersp_state::nvram_w )
+void rastersp_state::nvram_w(offs_t offset, uint8_t data)
 {
 	offset *= 4;
 
@@ -496,7 +495,7 @@ WRITE8_MEMBER( rastersp_state::nvram_w )
 }
 
 
-READ8_MEMBER( rastersp_state::nvram_r )
+uint8_t rastersp_state::nvram_r(offs_t offset)
 {
 	offset *= 4;
 
@@ -513,7 +512,7 @@ READ8_MEMBER( rastersp_state::nvram_r )
 }
 
 
-WRITE32_MEMBER( rastersp_state::cyrix_cache_w )
+void rastersp_state::cyrix_cache_w(uint32_t data)
 {
 	// TODO?
 }
@@ -557,7 +556,7 @@ TIMER_CALLBACK_MEMBER(rastersp_state::tms_timer1)
 }
 
 
-READ32_MEMBER( rastersp_state::tms32031_control_r )
+uint32_t rastersp_state::tms32031_control_r(offs_t offset)
 {
 	uint32_t val = m_tms_io_regs[offset];
 
@@ -580,7 +579,7 @@ READ32_MEMBER( rastersp_state::tms32031_control_r )
 }
 
 
-WRITE32_MEMBER( rastersp_state::tms32031_control_w )
+void rastersp_state::tms32031_control_w(offs_t offset, uint32_t data)
 {
 	uint32_t old = m_tms_io_regs[offset];
 
@@ -641,19 +640,19 @@ WRITE32_MEMBER( rastersp_state::tms32031_control_w )
 }
 
 
-WRITE32_MEMBER( rastersp_state::dsp_unk_w )
+void rastersp_state::dsp_unk_w(uint32_t data)
 {
 	// TODO: Looks like a debug port?
 }
 
 
-WRITE32_MEMBER( rastersp_state::dsp_486_int_w )
+void rastersp_state::dsp_486_int_w(uint32_t data)
 {
 	update_irq(IRQ_DSP, ASSERT_LINE);
 }
 
 
-WRITE32_MEMBER( rastersp_state::dsp_ctrl_w )
+void rastersp_state::dsp_ctrl_w(uint32_t data)
 {
 	// x... .... LED?
 	// .xx. .... 486 reset control?
@@ -662,7 +661,7 @@ WRITE32_MEMBER( rastersp_state::dsp_ctrl_w )
 }
 
 
-WRITE32_MEMBER( rastersp_state::dsp_speedup_w )
+void rastersp_state::dsp_speedup_w(uint32_t data)
 {
 	// 809e90  48fd, 48d5
 	if (m_dsp->pc() == 0x809c23)
@@ -676,7 +675,7 @@ WRITE32_MEMBER( rastersp_state::dsp_speedup_w )
 }
 
 
-READ32_MEMBER( rastersp_state::dsp_speedup_r )
+uint32_t rastersp_state::dsp_speedup_r()
 {
 	return m_speedup_count;
 }
@@ -842,12 +841,12 @@ INPUT_PORTS_END
  *
  *************************************/
 
-READ32_MEMBER(rastersp_state::ncr53c700_read)
+uint32_t rastersp_state::ncr53c700_read(offs_t offset, uint32_t mem_mask)
 {
 	return m_maincpu->space(AS_PROGRAM).read_dword(offset, mem_mask);
 }
 
-WRITE32_MEMBER(rastersp_state::ncr53c700_write)
+void rastersp_state::ncr53c700_write(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	m_maincpu->space(AS_PROGRAM).write_dword(offset, data, mem_mask);
 }
@@ -918,13 +917,6 @@ void rastersp_state::rastersp(machine_config &config)
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0);
 	m_ldac->add_route(ALL_OUTPUTS, "lspeaker", 0.5); // unknown DAC
 	m_rdac->add_route(ALL_OUTPUTS, "rspeaker", 0.5); // unknown DAC
-
-	voltage_regulator_device &vreg(VOLTAGE_REGULATOR(config, "vref"));
-	vreg.set_output(5.0);
-	vreg.add_route(0, "ldac",  1.0, DAC_VREF_POS_INPUT);
-	vreg.add_route(0, "rdac",  1.0, DAC_VREF_POS_INPUT);
-	vreg.add_route(0, "ldac", -1.0, DAC_VREF_NEG_INPUT);
-	vreg.add_route(0, "rdac", -1.0, DAC_VREF_NEG_INPUT);
 }
 
 
@@ -936,10 +928,10 @@ void rastersp_state::rastersp(machine_config &config)
  *************************************/
 
 ROM_START( rotr )
-	ROM_REGION(0x100000, "bios", 0)
+	ROM_REGION32_LE(0x100000, "bios", 0)
 	ROM_LOAD( "rasterspeed2.1_bootrom4.u10", 0x00000, 0x10000, CRC(6da142d1) SHA1(e2dbd479034677726fc26fd1ba85c4458d89286c) )
 
-	ROM_REGION(0x1000000, "dspboot", 0)
+	ROM_REGION32_LE(0x1000000, "dspboot", 0)
 	ROM_LOAD32_BYTE( "rasterspeed2.1_bootrom4.u10", 0x00000, 0x10000, CRC(6da142d1) SHA1(e2dbd479034677726fc26fd1ba85c4458d89286c) )
 
 	ROM_REGION(0x8000, "proms", 0) /* Xilinx FPGA PROMs */
@@ -953,6 +945,24 @@ ROM_START( rotr )
 	DISK_IMAGE( "rotr", 0, SHA1(d67d7feb52d8c7ba1d2a190a40d97e84871f2d80) )
 ROM_END
 
+
+ROM_START( rotra )
+	ROM_REGION32_LE(0x100000, "bios", 0)
+	ROM_LOAD( "rasterspeed2.1_bootrom4.u10", 0x00000, 0x10000, CRC(6da142d1) SHA1(e2dbd479034677726fc26fd1ba85c4458d89286c) )
+
+	ROM_REGION32_LE(0x1000000, "dspboot", 0)
+	ROM_LOAD32_BYTE( "rasterspeed2.1_bootrom4.u10", 0x00000, 0x10000, CRC(6da142d1) SHA1(e2dbd479034677726fc26fd1ba85c4458d89286c) )
+
+	ROM_REGION(0x8000, "proms", 0) /* Xilinx FPGA PROMs */
+	ROM_LOAD( "17128dpc.u72", 0x0000, 0x4000, CRC(5ddf6ee3) SHA1(f3d15b649b5641374a9e14877cea84ba9c57ef3c) )
+	ROM_LOAD( "17128dpc.u73", 0x2000, 0x4000, CRC(9e274cea) SHA1(e974cad4e4b965bf2c9df7d3d0b4eec64629eeb0) )
+
+	ROM_REGION(0x8000, "nvram", 0) /* Default NVRAM */
+	ROM_LOAD( "rotr.nv", 0x0000, 0x8000, CRC(62543517) SHA1(a4bf3431cdab956839bb155c4a8c140d30e5c7ec) )
+
+	DISK_REGION( "scsibus:0:harddisk:image" )
+	DISK_IMAGE( "rotra", 0, SHA1(570d402e5e9bba123edf7dfa9db7a0e6bdb23823) )
+ROM_END
 
 /*
   Football Crazy runs on the (c)1997 "RASTERSPEED 2.1 31-599-001 ISS 4" PCB, which seems to be a more modern production version.
@@ -970,10 +980,10 @@ ROM_END
 // the rom also exists in some odd hex format like this
 // ROM_LOAD( "95751937.hex", 0x0000, 0x025f91, CRC(8f412e97) SHA1(a5ff924fbc327114e59d75de644ed0d5cd7fa6b3) )
 ROM_START( fbcrazy )
-	ROM_REGION(0x100000, "bios", 0)
+	ROM_REGION32_LE(0x100000, "bios", 0)
 	ROM_LOAD( "95751937.bin", 0x0000, 0x010000, CRC(4a99ee11) SHA1(335398ebc64bbfe86e2652ac080a5943dd413928) )
 
-	ROM_REGION(0x1000000, "dspboot", 0)
+	ROM_REGION32_LE(0x1000000, "dspboot", 0)
 	ROM_LOAD32_BYTE( "95751937.bin", 0x0000, 0x010000, CRC(4a99ee11) SHA1(335398ebc64bbfe86e2652ac080a5943dd413928) )
 
 	ROM_REGION(0x8000, "proms", ROMREGION_ERASEFF )
@@ -991,5 +1001,6 @@ ROM_END
  *
  *************************************/
 
-GAME( 1994, rotr,    0, rastersp, rotr, rastersp_state, empty_init, ROT0, "BFM/Mirage", "Rise of the Robots (prototype)", 0 )
-GAME( 1997, fbcrazy, 0, rastersp, rotr, rastersp_state, empty_init, ROT0, "BFM",        "Football Crazy (Video Quiz)",    MACHINE_NOT_WORKING )
+GAME( 1994, rotr,    0,    rastersp, rotr, rastersp_state, empty_init, ROT0, "BFM/Mirage", "Rise of the Robots (prototype)",        0 )
+GAME( 1994, rotra,   rotr, rastersp, rotr, rastersp_state, empty_init, ROT0, "BFM/Mirage", "Rise of the Robots (prototype, older)", 0 )
+GAME( 1997, fbcrazy, 0,    rastersp, rotr, rastersp_state, empty_init, ROT0, "BFM",        "Football Crazy (Video Quiz)",           MACHINE_NOT_WORKING )

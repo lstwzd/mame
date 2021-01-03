@@ -182,8 +182,9 @@ DEFINE_DEVICE_TYPE(M2COMM, m2comm_device, "m2comm", "Model 2 Communication Board
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(m2comm_device::device_add_mconfig)
-MACHINE_CONFIG_END
+void m2comm_device::device_add_mconfig(machine_config &config)
+{
+}
 
 //**************************************************************************
 //  LIVE DEVICE
@@ -211,6 +212,8 @@ m2comm_device::m2comm_device(const machine_config &mconfig, const char *tag, dev
 	strcat(m_remotehost, mconfig.options().comm_remoteport());
 
 	m_framesync = mconfig.options().comm_framesync() ? 0x01 : 0x00;
+
+	m_frameoffset = 0x1c0; // default
 }
 
 //-------------------------------------------------
@@ -232,38 +235,38 @@ void m2comm_device::device_reset()
 	m_fg = 0;
 }
 
-READ8_MEMBER(m2comm_device::zfg_r)
+uint8_t m2comm_device::zfg_r(offs_t offset)
 {
 	uint8_t result = m_zfg | (~m_fg << 7) | 0x7e;
 	LOG("m2comm-zfg_r: read register %02x for value %02x\n", offset, result);
 	return result;
 }
 
-WRITE8_MEMBER(m2comm_device::zfg_w)
+void m2comm_device::zfg_w(uint8_t data)
 {
 	LOG("m2comm-zfg_w: %02x\n", data);
 	m_zfg = data & 0x01;
 }
 
-READ8_MEMBER(m2comm_device::share_r)
+uint8_t m2comm_device::share_r(offs_t offset)
 {
 	uint8_t result = m_shared[offset];
 	LOG("m2comm-share_r: read shared memory %02x for value %02x\n", offset, result);
 	return result;
 }
 
-WRITE8_MEMBER(m2comm_device::share_w)
+void m2comm_device::share_w(offs_t offset, uint8_t data)
 {
 	LOG("m2comm-share_w: %02x %02x\n", offset, data);
 	m_shared[offset] = data;
 }
 
-READ8_MEMBER(m2comm_device::cn_r)
+uint8_t m2comm_device::cn_r()
 {
 	return m_cn | 0xfe;
 }
 
-WRITE8_MEMBER(m2comm_device::cn_w)
+void m2comm_device::cn_w(uint8_t data)
 {
 	m_cn = data & 0x01;
 
@@ -300,20 +303,20 @@ WRITE8_MEMBER(m2comm_device::cn_w)
 		// TODO - check EPR-16726 on Daytona USA and Sega Rally Championship
 		// EPR-18643(A) - these are accessed by VirtuaON and Sega Touring Car Championship
 
-		// frameSize - 0x0e00
+		// frameSize - 0x0e00. is it = frameoffset*8 ? if true - it should be 0xC00 for Power Sled
 		m_shared[0x12] = 0x00;
 		m_shared[0x13] = 0x0e;
 
-		// frameOffset - 0x01c0
-		m_shared[0x14] = 0xc0;
-		m_shared[0x15] = 0x01;
+		// frameOffset - 0x01c0 in most games or 0x180 in Power Sled
+		m_shared[0x14] = m_frameoffset & 0xff;
+		m_shared[0x15] = m_frameoffset >> 8;
 
 		comm_tick();
 	}
 #endif
 }
 
-READ8_MEMBER(m2comm_device::fg_r)
+uint8_t m2comm_device::fg_r()
 {
 #ifdef M2COMM_SIMULATION
 	read_fg();
@@ -321,7 +324,7 @@ READ8_MEMBER(m2comm_device::fg_r)
 	return m_fg | (~m_zfg << 7) | 0x7e;
 }
 
-WRITE8_MEMBER(m2comm_device::fg_w)
+void m2comm_device::fg_w(uint8_t data)
 {
 	m_fg = data & 0x01;
 }

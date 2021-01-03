@@ -39,10 +39,7 @@
 
 *********************************************************************/
 
-#include "emu.h" // fatalerror
 #include "cbm_crt.h"
-
-#include "corefile.h"
 
 
 //**************************************************************************
@@ -50,6 +47,14 @@
 //**************************************************************************
 
 #define LOG 0
+
+
+#define CRT_SIGNATURE       "C64 CARTRIDGE   "
+
+#define CRT_HEADER_LENGTH   0x40
+#define CRT_CHIP_LENGTH     0x10
+
+#define UNSUPPORTED         "standard"
 
 
 // slot names for the C64 cartridge types

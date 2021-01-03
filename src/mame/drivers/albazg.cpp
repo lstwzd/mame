@@ -44,6 +44,7 @@ PCB:
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 #define MASTER_CLOCK XTAL(12'000'000)
 
@@ -66,16 +67,16 @@ private:
 	virtual void machine_reset() override;
 	virtual void video_start() override;
 
-	DECLARE_WRITE8_MEMBER(yumefuda_vram_w);
-	DECLARE_WRITE8_MEMBER(yumefuda_cram_w);
-	DECLARE_READ8_MEMBER(custom_ram_r);
-	DECLARE_WRITE8_MEMBER(custom_ram_w);
-	DECLARE_WRITE8_MEMBER(prot_lock_w);
-	DECLARE_READ8_MEMBER(mux_r);
-	DECLARE_WRITE8_MEMBER(mux_w);
-	DECLARE_WRITE8_MEMBER(yumefuda_output_w);
+	void yumefuda_vram_w(offs_t offset, uint8_t data);
+	void yumefuda_cram_w(offs_t offset, uint8_t data);
+	uint8_t custom_ram_r(offs_t offset);
+	void custom_ram_w(offs_t offset, uint8_t data);
+	void prot_lock_w(uint8_t data);
+	uint8_t mux_r();
+	void mux_w(uint8_t data);
+	void yumefuda_output_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(y_get_bg_tile_info);
-	uint32_t screen_update_yumefuda(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update_yumefuda(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void main_map(address_map &map);
 	void port_map(address_map &map);
@@ -102,7 +103,7 @@ TILE_GET_INFO_MEMBER(albazg_state::y_get_bg_tile_info)
 	int code = m_videoram[tile_index];
 	int color = m_colorram[tile_index];
 
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			code + ((color & 0xf8) << 3),
 			color & 0x7,
 			0);
@@ -111,10 +112,10 @@ TILE_GET_INFO_MEMBER(albazg_state::y_get_bg_tile_info)
 
 void albazg_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(albazg_state::y_get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(albazg_state::y_get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 }
 
-uint32_t albazg_state::screen_update_yumefuda(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t albazg_state::screen_update_yumefuda(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	m_bg_tilemap->draw(screen, bitmap, cliprect, 0, 0);
 	return 0;
@@ -138,26 +139,26 @@ static GFXDECODE_START( gfx_yumefuda )
 GFXDECODE_END
 
 
-WRITE8_MEMBER(albazg_state::yumefuda_vram_w)
+void albazg_state::yumefuda_vram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(albazg_state::yumefuda_cram_w)
+void albazg_state::yumefuda_cram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
 /*Custom RAM (Thrash Protection)*/
-READ8_MEMBER(albazg_state::custom_ram_r)
+uint8_t albazg_state::custom_ram_r(offs_t offset)
 {
 //  logerror("Custom RAM read at %02x PC = %x\n", offset + 0xaf80, m_maincpu->space(AS_PROGRAM).pc());
 	return m_cus_ram[offset];// ^ 0x55;
 }
 
-WRITE8_MEMBER(albazg_state::custom_ram_w)
+void albazg_state::custom_ram_w(offs_t offset, uint8_t data)
 {
 //  logerror("Custom RAM write at %02x : %02x PC = %x\n", offset + 0xaf80, data, m_maincpu->space(AS_PROGRAM).pc());
 	if(m_prot_lock)
@@ -165,13 +166,13 @@ WRITE8_MEMBER(albazg_state::custom_ram_w)
 }
 
 /*this might be used as NVRAM commands btw*/
-WRITE8_MEMBER(albazg_state::prot_lock_w)
+void albazg_state::prot_lock_w(uint8_t data)
 {
 //  logerror("PC %04x Prot lock value written %02x\n", m_maincpu->space(AS_PROGRAM).pc(), data);
 	m_prot_lock = data;
 }
 
-READ8_MEMBER(albazg_state::mux_r)
+uint8_t albazg_state::mux_r()
 {
 	switch(m_mux_data)
 	{
@@ -187,7 +188,7 @@ READ8_MEMBER(albazg_state::mux_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(albazg_state::mux_w)
+void albazg_state::mux_w(uint8_t data)
 {
 	int new_bank = (data & 0xc0) >> 6;
 
@@ -204,7 +205,7 @@ WRITE8_MEMBER(albazg_state::mux_w)
 	m_mux_data = data & ~0xc0;
 }
 
-WRITE8_MEMBER(albazg_state::yumefuda_output_w)
+void albazg_state::yumefuda_output_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, ~data & 4);
 	machine().bookkeeping().coin_counter_w(1, ~data & 2);
@@ -359,13 +360,13 @@ void albazg_state::machine_reset()
 	m_prot_lock = 0;
 }
 
-MACHINE_CONFIG_START(albazg_state::yumefuda)
-
+void albazg_state::yumefuda(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80 , MASTER_CLOCK/2) /* xtal is 12 Mhz, unknown divider*/
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_IO_MAP(port_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", albazg_state,  irq0_line_hold)
+	Z80(config, m_maincpu, MASTER_CLOCK/2); /* xtal is 12 Mhz, unknown divider*/
+	m_maincpu->set_addrmap(AS_PROGRAM, &albazg_state::main_map);
+	m_maincpu->set_addrmap(AS_IO, &albazg_state::port_map);
+	m_maincpu->set_vblank_int("screen", FUNC(albazg_state::irq0_line_hold));
 
 	EEPROM_93C46_16BIT(config, "eeprom");
 
@@ -377,20 +378,19 @@ MACHINE_CONFIG_START(albazg_state::yumefuda)
 	ppi.in_pc_callback().set(FUNC(albazg_state::mux_r));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0, 32*8-1, 0, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(albazg_state, screen_update_yumefuda)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea_full();
+	screen.set_screen_update(FUNC(albazg_state::screen_update_yumefuda));
 
-	h46505_device &crtc(H46505(config, "crtc", MASTER_CLOCK/16));   /* hand tuned to get ~60 fps */
+	hd6845s_device &crtc(HD6845S(config, "crtc", MASTER_CLOCK/16));   /* hand tuned to get ~60 fps */
 	crtc.set_screen("screen");
 	crtc.set_show_border_area(false);
 	crtc.set_char_width(8);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_yumefuda)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_yumefuda);
 	PALETTE(config, "palette").set_format(palette_device::xRGB_555, 0x80);
 
 
@@ -402,7 +402,7 @@ MACHINE_CONFIG_START(albazg_state::yumefuda)
 	aysnd.port_b_read_callback().set_ioport("DSW2");
 	aysnd.port_a_write_callback().set(FUNC(albazg_state::yumefuda_output_w));
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 /***************************************************************************************/
 

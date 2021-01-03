@@ -16,6 +16,7 @@ public:
 	static float s_flicker;
 	static float s_beam_width_min;
 	static float s_beam_width_max;
+	static float s_beam_dot_size;
 	static float s_beam_intensity_weight;
 
 protected:
@@ -61,8 +62,5 @@ private:
 
 // device type definition
 DECLARE_DEVICE_TYPE(VECTOR, vector_device)
-
-#define MCFG_VECTOR_ADD(_tag) \
-	MCFG_DEVICE_ADD(_tag, VECTOR, 0)
 
 #endif // MAME_VIDEO_VECTOR_H

@@ -33,10 +33,10 @@ private:
 	required_device<cpu_device> m_maincpu;
 	required_device<i8275_device> m_crtc;
 	required_device<palette_device> m_palette;
-	DECLARE_READ8_MEMBER(ipds_b0_r);
-	DECLARE_READ8_MEMBER(ipds_b1_r);
-	DECLARE_READ8_MEMBER(ipds_c0_r);
-	DECLARE_WRITE8_MEMBER(ipds_b1_w);
+	uint8_t ipds_b0_r();
+	uint8_t ipds_b1_r();
+	uint8_t ipds_c0_r();
+	void ipds_b1_w(uint8_t data);
 	void kbd_put(u8 data);
 	I8275_DRAW_CHARACTER_MEMBER( crtc_display_pixels );
 	uint8_t m_term_data;
@@ -45,7 +45,7 @@ private:
 	void ipds_mem(address_map &map);
 };
 
-READ8_MEMBER( ipds_state::ipds_b0_r )
+uint8_t ipds_state::ipds_b0_r()
 {
 	if (m_term_data)
 		return 0xc0;
@@ -53,16 +53,16 @@ READ8_MEMBER( ipds_state::ipds_b0_r )
 		return 0x80;
 }
 
-READ8_MEMBER( ipds_state::ipds_b1_r )
+uint8_t ipds_state::ipds_b1_r()
 {
 	uint8_t ret = m_term_data;
 	m_term_data = 0;
 	return ret;
 }
 
-READ8_MEMBER( ipds_state::ipds_c0_r ) { return 0x55; }
+uint8_t ipds_state::ipds_c0_r() { return 0x55; }
 
-WRITE8_MEMBER( ipds_state::ipds_b1_w )
+void ipds_state::ipds_b1_w(uint8_t data)
 {
 }
 
@@ -92,8 +92,7 @@ void ipds_state::machine_reset()
 
 I8275_DRAW_CHARACTER_MEMBER( ipds_state::crtc_display_pixels )
 {
-	int i;
-	const rgb_t *palette = m_palette->palette()->entry_list_raw();
+	rgb_t const *const palette = m_palette->palette()->entry_list_raw();
 	uint8_t *charmap = memregion("chargen")->base();
 	uint8_t pixels = charmap[(linecount & 7) + (charcode << 3)] ^ 0xff;
 
@@ -106,8 +105,8 @@ I8275_DRAW_CHARACTER_MEMBER( ipds_state::crtc_display_pixels )
 	if (rvv)
 		pixels ^= 0xff;
 
-	for(i=0;i<6;i++)
-		bitmap.pix32(y, x + i) = palette[(pixels >> (5-i)) & 1 ? (hlgt ? 2 : 1) : 0];
+	for(int i=0;i<6;i++)
+		bitmap.pix(y, x + i) = palette[(pixels >> (5-i)) & 1 ? (hlgt ? 2 : 1) : 0];
 }
 
 /* F4 Character Displayer */
@@ -134,29 +133,30 @@ void ipds_state::kbd_put(u8 data)
 	m_term_data = data;
 }
 
-MACHINE_CONFIG_START(ipds_state::ipds)
+void ipds_state::ipds(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",I8085A, XTAL(19'660'800) / 4)
-	MCFG_DEVICE_PROGRAM_MAP(ipds_mem)
-	MCFG_DEVICE_IO_MAP(ipds_io)
+	I8085A(config, m_maincpu, XTAL(19'660'800) / 4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &ipds_state::ipds_mem);
+	m_maincpu->set_addrmap(AS_IO, &ipds_state::ipds_io);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::green())
-	MCFG_SCREEN_UPDATE_DEVICE("i8275", i8275_device, screen_update)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(640, 480)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 480-1)
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_ipds)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen.set_screen_update("i8275", FUNC(i8275_device::screen_update));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(640, 480);
+	screen.set_visarea(0, 640-1, 0, 480-1);
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_ipds);
 	PALETTE(config, m_palette, palette_device::MONOCHROME);
 
-	MCFG_DEVICE_ADD("i8275", I8275, XTAL(19'660'800) / 4)
-	MCFG_I8275_CHARACTER_WIDTH(6)
-	MCFG_I8275_DRAW_CHARACTER_CALLBACK_OWNER(ipds_state, crtc_display_pixels)
+	I8275(config, m_crtc, XTAL(19'660'800) / 4);
+	m_crtc->set_character_width(6);
+	m_crtc->set_display_callback(FUNC(ipds_state::crtc_display_pixels));
 
 	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
 	keyboard.set_keyboard_callback(FUNC(ipds_state::kbd_put));
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( ipds )

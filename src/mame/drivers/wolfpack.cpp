@@ -22,7 +22,7 @@ void wolfpack_state::device_timer(emu_timer &timer, device_timer_id id, int para
 		periodic_callback(ptr, param);
 		break;
 	default:
-		assert_always(false, "Unknown id in wolfpack_state::device_timer");
+		throw emu_fatalerror("Unknown id in wolfpack_state::device_timer");
 	}
 }
 
@@ -53,14 +53,14 @@ void wolfpack_state::machine_reset()
 }
 
 
-CUSTOM_INPUT_MEMBER(wolfpack_state::dial_r)
+template <int Bit>
+READ_LINE_MEMBER(wolfpack_state::dial_r)
 {
-	int bit = (uintptr_t)param;
-	return ((ioport("DIAL")->read() + bit) / 2) & 0x01;
+	return ((ioport("DIAL")->read() + Bit) / 2) & 0x01;
 }
 
 
-READ8_MEMBER(wolfpack_state::misc_r)
+uint8_t wolfpack_state::misc_r()
 {
 	uint8_t val = 0;
 
@@ -86,43 +86,43 @@ READ8_MEMBER(wolfpack_state::misc_r)
 }
 
 
-WRITE8_MEMBER(wolfpack_state::high_explo_w){ }
-WRITE8_MEMBER(wolfpack_state::sonar_ping_w){}
-WRITE8_MEMBER(wolfpack_state::sirlat_w){}
-WRITE8_MEMBER(wolfpack_state::pt_sound_w){}
-WRITE8_MEMBER(wolfpack_state::launch_torpedo_w){}
-WRITE8_MEMBER(wolfpack_state::low_explo_w){}
-WRITE8_MEMBER(wolfpack_state::screw_cont_w){}
-WRITE8_MEMBER(wolfpack_state::lamp_flash_w){}
-WRITE8_MEMBER(wolfpack_state::warning_light_w){}
-WRITE8_MEMBER(wolfpack_state::audamp_w){}
+void wolfpack_state::high_explo_w(uint8_t data){ }
+void wolfpack_state::sonar_ping_w(uint8_t data){}
+void wolfpack_state::sirlat_w(uint8_t data){}
+void wolfpack_state::pt_sound_w(uint8_t data){}
+void wolfpack_state::launch_torpedo_w(uint8_t data){}
+void wolfpack_state::low_explo_w(uint8_t data){}
+void wolfpack_state::screw_cont_w(uint8_t data){}
+void wolfpack_state::lamp_flash_w(uint8_t data){}
+void wolfpack_state::warning_light_w(uint8_t data){}
+void wolfpack_state::audamp_w(uint8_t data){}
 
-WRITE8_MEMBER(wolfpack_state::word_w)
+void wolfpack_state::word_w(uint8_t data)
 {
 	/* latch word from bus into temp register, and place on s14001a input bus */
 	/* there is no real need for a temp register at all, since the bus 'register' acts as one */
-	m_s14001a->data_w(space, 0, data & 0x1f); /* SA0 (IN5) is pulled low according to the schematic, so its 0x1f and not 0x3f as one would expect */
+	m_s14001a->data_w(data & 0x1f); /* SA0 (IN5) is pulled low according to the schematic, so its 0x1f and not 0x3f as one would expect */
 }
 
-WRITE8_MEMBER(wolfpack_state::start_speech_w)
+void wolfpack_state::start_speech_w(uint8_t data)
 {
 	m_s14001a->start_w(data&1);
 }
 
 
-WRITE8_MEMBER(wolfpack_state::attract_w)
+void wolfpack_state::attract_w(uint8_t data)
 {
 	machine().bookkeeping().coin_lockout_global_w(!(data & 1));
 }
 
 
-WRITE8_MEMBER(wolfpack_state::credit_w)
+void wolfpack_state::credit_w(uint8_t data)
 {
 	m_led = BIT(~data, 0);
 }
 
 
-WRITE8_MEMBER(wolfpack_state::coldetres_w)
+void wolfpack_state::coldetres_w(uint8_t data)
 {
 	m_collision = 0;
 }
@@ -171,8 +171,8 @@ void wolfpack_state::main_map(address_map &map)
 
 static INPUT_PORTS_START( wolfpack )
 	PORT_START("INPUTS")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, wolfpack_state, dial_r, (void *)0)    /* dial connects here */
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, wolfpack_state, dial_r, (void *)1)    /* dial connects here */
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(wolfpack_state, dial_r<0>)    // dial connects here
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(wolfpack_state, dial_r<1>)    // dial connects here
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_TILT )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_SERVICE( 0x10, IP_ACTIVE_HIGH )
@@ -306,31 +306,31 @@ static GFXDECODE_START( gfx_wolfpack )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(wolfpack_state::wolfpack)
-
+void wolfpack_state::wolfpack(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, 12096000 / 16)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M6502(config, m_maincpu, 12096000 / 16);
+	m_maincpu->set_addrmap(AS_PROGRAM, &wolfpack_state::main_map);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_SIZE(512, 262)
-	MCFG_SCREEN_VISIBLE_AREA(0, 511, 16, 239)
-	MCFG_SCREEN_UPDATE_DRIVER(wolfpack_state, screen_update)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, wolfpack_state, screen_vblank))
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_size(512, 262);
+	m_screen->set_visarea(0, 511, 16, 239);
+	m_screen->set_screen_update(FUNC(wolfpack_state::screen_update));
+	m_screen->screen_vblank().set(FUNC(wolfpack_state::screen_vblank));
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_wolfpack)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_wolfpack);
 	PALETTE(config, m_palette, FUNC(wolfpack_state::wolfpack_palette), 12, 8);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speech", S14001A, 20000) /* RC Clock (C=100pf, R=470K-670K ohms, adjustable) ranging from 14925.37313hz to 21276.59574hz, likely factory set to 20000hz since anything below 19500 is too slow */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
+	S14001A(config, m_s14001a, 20000); /* RC Clock (C=100pf, R=470K-670K ohms, adjustable) ranging from 14925.37313hz to 21276.59574hz, likely factory set to 20000hz since anything below 19500 is too slow */
+	m_s14001a->add_route(ALL_OUTPUTS, "mono", 1.00);
+}
 
 
 ROM_START( wolfpack )

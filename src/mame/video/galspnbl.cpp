@@ -22,7 +22,7 @@ void galspnbl_state::draw_background( bitmap_ind16 &bitmap, const rectangle &cli
 		int const y = offs >> 9;
 		int const x = offs & 0x1ff;
 
-		bitmap.pix16(y, x) = 1024 + (m_bgvideoram[offs] >> 1);
+		bitmap.pix(y, x) = 1024 + (m_bgvideoram[offs] >> 1);
 	}
 }
 
@@ -36,8 +36,8 @@ void galspnbl_state::mix_sprite_layer(screen_device &screen, bitmap_ind16 &bitma
 {
 	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
-		uint16_t *dd = &bitmap.pix16(y);
-		uint16_t *sd2 = &m_sprite_bitmap.pix16(y);
+		uint16_t *const dd = &bitmap.pix(y);
+		uint16_t const *const sd2 = &m_sprite_bitmap.pix(y);
 
 		for (int x = cliprect.left(); x <= cliprect.right(); x++)
 		{
@@ -62,7 +62,7 @@ uint32_t galspnbl_state::screen_update_galspnbl(screen_device &screen, bitmap_in
 {
 	int offs;
 	m_sprite_bitmap.fill(0, cliprect);
-	m_sprgen->gaiden_draw_sprites(screen, m_gfxdecode, cliprect, m_spriteram, 0, 0, flip_screen(), m_sprite_bitmap);
+	m_sprgen->gaiden_draw_sprites(screen, m_gfxdecode->gfx(1), cliprect, m_spriteram, 0, 0, flip_screen(), m_sprite_bitmap);
 
 
 	draw_background(bitmap, cliprect);

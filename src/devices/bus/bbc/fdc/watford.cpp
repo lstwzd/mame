@@ -24,14 +24,14 @@ DEFINE_DEVICE_TYPE(BBC_WEDDB3, bbc_weddb3_device, "bbc_weddb3", "Watford Electro
 
 
 //-------------------------------------------------
-//  MACHINE_DRIVER( watford )
+//  FLOPPY_FORMATS( floppy_formats )
 //-------------------------------------------------
 
 FLOPPY_FORMATS_MEMBER( bbc_watfordfdc_device::floppy_formats )
 	FLOPPY_ACORN_SSD_FORMAT,
 	FLOPPY_ACORN_DSD_FORMAT,
 	FLOPPY_FSD_FORMAT
-FLOPPY_FORMATS_END0
+FLOPPY_FORMATS_END
 
 static void bbc_floppies_525(device_slot_interface &device)
 {
@@ -41,6 +41,10 @@ static void bbc_floppies_525(device_slot_interface &device)
 	device.option_add("525dd",   FLOPPY_525_DD);
 	device.option_add("525qd",   FLOPPY_525_QD);
 }
+
+//-------------------------------------------------
+//  ROM( watford )
+//-------------------------------------------------
 
 ROM_START( weddb2 )
 	ROM_REGION(0x4000, "dfs_rom", 0)
@@ -147,7 +151,7 @@ void bbc_weddb3_device::device_start()
 //  IMPLEMENTATION
 //**************************************************************************
 
-READ8_MEMBER(bbc_weddb2_device::read)
+uint8_t bbc_weddb2_device::read(offs_t offset)
 {
 	uint8_t data;
 
@@ -162,7 +166,7 @@ READ8_MEMBER(bbc_weddb2_device::read)
 	return data;
 }
 
-WRITE8_MEMBER(bbc_weddb2_device::write)
+void bbc_weddb2_device::write(offs_t offset, uint8_t data)
 {
 	if (offset & 0x04)
 	{
@@ -188,11 +192,11 @@ WRITE8_MEMBER(bbc_weddb2_device::write)
 			floppy->ss_w(BIT(data, 1));
 
 		// bit 3: reset
-		if (!BIT(data, 3)) m_fdc->soft_reset();
+		m_fdc->mr_w(BIT(data, 3));
 	}
 }
 
-READ8_MEMBER(bbc_weddb3_device::read)
+uint8_t bbc_weddb3_device::read(offs_t offset)
 {
 	uint8_t data;
 
@@ -207,7 +211,7 @@ READ8_MEMBER(bbc_weddb3_device::read)
 	return data;
 }
 
-WRITE8_MEMBER(bbc_weddb3_device::write)
+void bbc_weddb3_device::write(offs_t offset, uint8_t data)
 {
 	if (offset & 0x04)
 	{
@@ -232,6 +236,6 @@ WRITE8_MEMBER(bbc_weddb3_device::write)
 		m_fdc->dden_w(BIT(data, 3));
 
 		// bit 5: reset
-		if (!BIT(data, 5)) m_fdc->soft_reset();
+		m_fdc->mr_w(BIT(data, 5));
 	}
 }

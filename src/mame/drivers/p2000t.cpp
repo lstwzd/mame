@@ -56,8 +56,8 @@ void p2000t_state::p2000t_mem(address_map &map)
 	map(0x0000, 0x0fff).rom();
 	map(0x1000, 0x4fff).rom();
 	map(0x5000, 0x57ff).ram().share("videoram");
-	map(0x5800, 0x9fff).ram();
-	map(0xa000, 0xffff).noprw();
+	map(0x5800, 0xdfff).ram();
+	map(0xe000, 0xffff).bankrw(m_bank);
 }
 
 void p2000m_state::p2000m_mem(address_map &map)
@@ -65,8 +65,8 @@ void p2000m_state::p2000m_mem(address_map &map)
 	map(0x0000, 0x0fff).rom();
 	map(0x1000, 0x4fff).rom();
 	map(0x5000, 0x5fff).ram().share("videoram");
-	map(0x6000, 0x9fff).ram();
-	map(0xa000, 0xffff).noprw();
+	map(0x6000, 0xdfff).ram();
+	map(0xe000, 0xffff).bankrw(m_bank);
 }
 
 /* graphics output */
@@ -139,7 +139,7 @@ static INPUT_PORTS_START (p2000t)
 	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_RIGHT)       PORT_CHAR(UCHAR_MAMEKEY(RIGHT))
 
 	PORT_START("KEY.3")
-	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Shift Lock") PORT_CODE(KEYCODE_CAPSLOCK) PORT_CHAR(UCHAR_MAMEKEY(CAPSLOCK))
+	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Shift Lock")        PORT_CODE(KEYCODE_CAPSLOCK) PORT_CHAR(UCHAR_MAMEKEY(CAPSLOCK))
 	PORT_BIT (0x02, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_N)           PORT_CHAR('n') PORT_CHAR('N')
 	PORT_BIT (0x04, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_TILDE)       PORT_CHAR('<') PORT_CHAR('>')
 	PORT_BIT (0x08, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_X)           PORT_CHAR('x') PORT_CHAR('X')
@@ -159,14 +159,14 @@ static INPUT_PORTS_START (p2000t)
 	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_R)           PORT_CHAR('r') PORT_CHAR('R')
 
 	PORT_START("KEY.5")
-	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Clrln") PORT_CODE(KEYCODE_END) PORT_CHAR(UCHAR_MAMEKEY(F2))
+	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Clrln")             PORT_CODE(KEYCODE_END) PORT_CHAR(UCHAR_MAMEKEY(F2))
 	PORT_BIT (0x02, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_9)           PORT_CHAR('9') PORT_CHAR(')')
 	PORT_BIT (0x04, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_ASTERISK)    PORT_CHAR(UCHAR_MAMEKEY(PLUS_PAD)) PORT_CHAR(UCHAR_MAMEKEY(ASTERISK))
 	PORT_BIT (0x08, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_SLASH_PAD)   PORT_CHAR(UCHAR_MAMEKEY(MINUS_PAD)) PORT_CHAR(UCHAR_MAMEKEY(SLASH_PAD))
 	PORT_BIT (0x10, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_BACKSPACE)   PORT_CHAR(8)
 	PORT_BIT (0x20, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_0)           PORT_CHAR('0') PORT_CHAR('=')
 	PORT_BIT (0x40, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_1)           PORT_CHAR('1') PORT_CHAR('!')
-	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_MINUS)       PORT_CHAR(0xFF0D)
+	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_MINUS)       PORT_CHAR('-') PORT_CHAR(0xFF0D)
 
 	PORT_START("KEY.6")
 	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_9_PAD)       PORT_CHAR(UCHAR_MAMEKEY(9_PAD))
@@ -176,7 +176,7 @@ static INPUT_PORTS_START (p2000t)
 	PORT_BIT (0x10, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_ENTER)       PORT_CHAR(13)
 	PORT_BIT (0x20, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_P)           PORT_CHAR('p') PORT_CHAR('P')
 	PORT_BIT (0x40, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_8)           PORT_CHAR('8') PORT_CHAR('(')
-	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("@  \xE2\x86\x91") PORT_CODE(KEYCODE_OPENBRACE) PORT_CHAR('@')
+	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("@  \xE2\x86\x91")   PORT_CODE(KEYCODE_OPENBRACE) PORT_CHAR('@') PORT_CHAR('^')
 
 	PORT_START("KEY.7")
 	PORT_BIT (0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_3_PAD)       PORT_CHAR(UCHAR_MAMEKEY(3_PAD))
@@ -206,64 +206,72 @@ static INPUT_PORTS_START (p2000t)
 	PORT_BIT (0x10, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("N/C")
 	PORT_BIT (0x20, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("N/C")
 	PORT_BIT (0x40, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("N/C")
-	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Shift (Right)") PORT_CODE(KEYCODE_RSHIFT) PORT_CHAR(UCHAR_SHIFT_1)
+	PORT_BIT (0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Shift (Right)") PORT_CODE(KEYCODE_RSHIFT)
 INPUT_PORTS_END
 
 
 INTERRUPT_GEN_MEMBER(p2000t_state::p2000_interrupt)
 {
-	m_maincpu->set_input_line(0, HOLD_LINE);
+	if (BIT(m_port_101f, 6))
+		m_maincpu->set_input_line(0, HOLD_LINE);
 }
 
-READ8_MEMBER( p2000t_state::videoram_r )
+uint8_t p2000t_state::videoram_r(offs_t offset)
 {
 	return m_videoram[offset];
 }
 
 /* Machine definition */
-MACHINE_CONFIG_START(p2000t_state::p2000t)
+void p2000t_state::p2000t(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 2500000)
-	MCFG_DEVICE_PROGRAM_MAP(p2000t_mem)
-	MCFG_DEVICE_IO_MAP(p2000t_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", p2000t_state,  p2000_interrupt)
+	Z80(config, m_maincpu, 2500000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &p2000t_state::p2000t_mem);
+	m_maincpu->set_addrmap(AS_IO, &p2000t_state::p2000t_io);
+	m_maincpu->set_vblank_int("screen", FUNC(p2000t_state::p2000_interrupt));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_SIZE(40 * 12, 24 * 20)
-	MCFG_SCREEN_VISIBLE_AREA(0, 40 * 12 - 1, 0, 24 * 20 - 1)
-	MCFG_SCREEN_UPDATE_DEVICE("saa5050", saa5050_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_size(40 * 12, 24 * 20);
+	screen.set_visarea(0, 40 * 12 - 1, 0, 24 * 20 - 1);
+	screen.set_screen_update("saa5050", FUNC(saa5050_device::screen_update));
 
-	MCFG_DEVICE_ADD("saa5050", SAA5050, 6000000)
-	MCFG_SAA5050_D_CALLBACK(READ8(*this, p2000t_state, videoram_r))
-	MCFG_SAA5050_SCREEN_SIZE(40, 24, 80)
+	saa5050_device &saa5050(SAA5050(config, "saa5050", 6000000));
+	saa5050.d_cb().set(FUNC(p2000t_state::videoram_r));
+	saa5050.set_screen_size(40, 24, 80);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.25);
+
+	/* the mini cassette driver */
+	MDCR(config, m_mdcr, 0);
+
+	/* internal ram */
+	RAM(config, m_ram).set_default_size("16K").set_extra_options("16K,32K,48K,64K,80K,102K");
+}
 
 
 /* Machine definition */
-MACHINE_CONFIG_START(p2000m_state::p2000m)
+void p2000m_state::p2000m(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 2500000)
-	MCFG_DEVICE_PROGRAM_MAP(p2000m_mem)
-	MCFG_DEVICE_IO_MAP(p2000t_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", p2000m_state,  p2000_interrupt)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	Z80(config, m_maincpu, 2500000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &p2000m_state::p2000m_mem);
+	m_maincpu->set_addrmap(AS_IO, &p2000m_state::p2000t_io);
+	m_maincpu->set_vblank_int("screen", FUNC(p2000m_state::p2000_interrupt));
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(80 * 12, 24 * 20)
-	MCFG_SCREEN_VISIBLE_AREA(0, 80 * 12 - 1, 0, 24 * 20 - 1)
-	MCFG_SCREEN_UPDATE_DRIVER(p2000m_state, screen_update_p2000m)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(80 * 12, 24 * 20);
+	screen.set_visarea(0, 80 * 12 - 1, 0, 24 * 20 - 1);
+	screen.set_screen_update(FUNC(p2000m_state::screen_update_p2000m));
+	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_p2000m);
 	PALETTE(config, m_palette, FUNC(p2000m_state::p2000m_palette), 4);
@@ -271,7 +279,12 @@ MACHINE_CONFIG_START(p2000m_state::p2000m)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.25);
-MACHINE_CONFIG_END
+
+	/* the mini cassette driver */
+	MDCR(config, m_mdcr, 0);
+	/* internal ram */
+	RAM(config, m_ram).set_default_size("16K").set_extra_options("16K,32K,48K,64K,80K,102K");
+}
 
 
 ROM_START(p2000t)

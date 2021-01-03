@@ -58,7 +58,7 @@ void crbaloon_state::pc3092_update()
 }
 
 
-WRITE8_MEMBER(crbaloon_state::pc3092_w)
+void crbaloon_state::pc3092_w(offs_t offset, uint8_t data)
 {
 	m_pc3092_data[offset] = data & 0x0f;
 
@@ -114,7 +114,7 @@ void crbaloon_state::pc3259_update(void)
 }
 
 
-READ8_MEMBER(crbaloon_state::pc3259_r)
+uint8_t crbaloon_state::pc3259_r(offs_t offset)
 {
 	uint8_t ret = 0;
 	uint8_t reg = offset >> 2;
@@ -155,31 +155,31 @@ READ8_MEMBER(crbaloon_state::pc3259_r)
  *
  *************************************/
 
-WRITE8_MEMBER(crbaloon_state::port_sound_w)
+void crbaloon_state::port_sound_w(uint8_t data)
 {
-	/* D0 - interrupt enable - also goes to PC3259 as /HTCTRL */
+	// D0 - interrupt enable - also goes to PC3259 as /HTCTRL
 	m_irq_mask = data & 0x01;
-	crbaloon_set_clear_collision_address((data & 0x01) ? true : false);
+	crbaloon_set_clear_collision_address(BIT(data, 0));
 
-	/* D1 - SOUND STOP */
-	machine().sound().system_enable((data & 0x02) ? true : false);
+	// D1 - SOUND STOP
+	machine().sound().system_mute(!BIT(data, 1));
 
-	/* D2 - unlabeled - music enable */
-	crbaloon_audio_set_music_enable(space, 0, (data & 0x04) ? true : false);
+	// D2 - unlabeled - music enable
+	crbaloon_audio_set_music_enable(BIT(data, 2));
 
-	/* D3 - EXPLOSION */
-	crbaloon_audio_set_explosion_enable((data & 0x08) ? true : false);
+	// D3 - EXPLOSION
+	crbaloon_audio_set_explosion_enable(BIT(data, 3));
 
-	/* D4 - BREATH */
-	crbaloon_audio_set_breath_enable((data & 0x10) ? true : false);
+	// D4 - BREATH
+	crbaloon_audio_set_breath_enable(BIT(data, 4));
 
-	/* D5 - APPEAR */
-	crbaloon_audio_set_appear_enable((data & 0x20) ? true : false);
+	// D5 - APPEAR
+	crbaloon_audio_set_appear_enable(BIT(data, 5));
 
-	/* D6 - unlabeled - laugh enable */
-	crbaloon_audio_set_laugh_enable(space, 0, (data & 0x40) ? true : false);
+	// D6 - unlabeled - laugh enable
+	crbaloon_audio_set_laugh_enable(BIT(data, 6));
 
-	/* D7 - unlabeled - goes to PC3259 pin 16 */
+	// D7 - unlabeled - goes to PC3259 pin 16
 
 	pc3259_update();
 }
@@ -295,7 +295,7 @@ static INPUT_PORTS_START( crbaloon )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Name Reset")
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_TILT )
-	PORT_BIT( 0xf0, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, crbaloon_state,pc3092_r, nullptr)
+	PORT_BIT( 0xf0, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(crbaloon_state, pc3092_r)
 
 	PORT_START("PC3092")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )
@@ -339,11 +339,9 @@ GFXDECODE_END
 
 void crbaloon_state::machine_reset()
 {
-	address_space &space = m_maincpu->space(AS_IO);
-
 	pc3092_reset();
-	port_sound_w(space, 0, 0);
-	crbaloon_audio_set_music_freq(space, 0, 0);
+	port_sound_w(0);
+	crbaloon_audio_set_music_freq(0);
 }
 
 
@@ -361,31 +359,30 @@ INTERRUPT_GEN_MEMBER(crbaloon_state::vblank_irq)
 }
 
 
-MACHINE_CONFIG_START(crbaloon_state::crbaloon)
-
+void crbaloon_state::crbaloon(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, CRBALOON_MASTER_XTAL / 3)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_IO_MAP(main_io_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", crbaloon_state,  vblank_irq)
+	Z80(config, m_maincpu, CRBALOON_MASTER_XTAL / 3);
+	m_maincpu->set_addrmap(AS_PROGRAM, &crbaloon_state::main_map);
+	m_maincpu->set_addrmap(AS_IO, &crbaloon_state::main_io_map);
+	m_maincpu->set_vblank_int("screen", FUNC(crbaloon_state::vblank_irq));
 
 	/* video hardware */
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_crbaloon);
 	PALETTE(config, "palette", FUNC(crbaloon_state::crbaloon_palette), 32);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(crbaloon_state, screen_update_crbaloon)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_video_attributes(VIDEO_ALWAYS_UPDATE);
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 0*8, 28*8-1);
+	screen.set_screen_update(FUNC(crbaloon_state::screen_update_crbaloon));
+	screen.set_palette("palette");
 
 	/* audio hardware */
 	crbaloon_audio(config);
-
-MACHINE_CONFIG_END
+}
 
 
 

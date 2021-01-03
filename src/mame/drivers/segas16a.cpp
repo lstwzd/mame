@@ -7,7 +7,7 @@
 ****************************************************************************
 
     Known bugs:
-        * none at this time
+        * some games are stuck after reset when i8751 is present
 
     DIP locations verified from manual for:
         * aceattaca
@@ -151,10 +151,10 @@ Tetris         -         -         -         -         EPR12169  EPR12170  -    
 #include "includes/segaipt.h"
 
 #include "machine/fd1089.h"
+#include "machine/fd1094.h"
 #include "machine/nvram.h"
 #include "machine/segacrp2_device.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 
@@ -166,7 +166,7 @@ Tetris         -         -         -         -         EPR12169  EPR12170  -    
 //  misc_control_w - miscellaneous video controls
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::misc_control_w )
+void segas16a_state::misc_control_w(uint8_t data)
 {
 	//
 	//  PPI port B
@@ -210,7 +210,7 @@ WRITE8_MEMBER( segas16a_state::misc_control_w )
 //  tilemap_sound_w - tilemap and sound control
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::tilemap_sound_w )
+void segas16a_state::tilemap_sound_w(uint8_t data)
 {
 	//
 	//  PPI port C
@@ -241,7 +241,7 @@ WRITE8_MEMBER( segas16a_state::tilemap_sound_w )
 //  standard_io_r - default I/O handler for reads
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::standard_io_r )
+uint16_t segas16a_state::standard_io_r(offs_t offset)
 {
 	offset &= 0x3fff/2;
 	switch (offset & (0x3000/2))
@@ -267,7 +267,7 @@ READ16_MEMBER( segas16a_state::standard_io_r )
 //  standard_io_r - default I/O handler for writes
 //-------------------------------------------------
 
-WRITE16_MEMBER( segas16a_state::standard_io_w )
+void segas16a_state::standard_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	offset &= 0x3fff/2;
 	switch (offset & (0x3000/2))
@@ -287,10 +287,10 @@ WRITE16_MEMBER( segas16a_state::standard_io_w )
 //  misc_io_r - miscellaneous I/O reads
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::misc_io_r )
+uint16_t segas16a_state::misc_io_r(offs_t offset)
 {
 	// just call custom handler
-	return m_custom_io_r(space, offset, mem_mask);
+	return m_custom_io_r(offset);
 }
 
 
@@ -298,10 +298,10 @@ READ16_MEMBER( segas16a_state::misc_io_r )
 //  misc_io_w - miscellaneous I/O writes
 //-------------------------------------------------
 
-WRITE16_MEMBER( segas16a_state::misc_io_w )
+void segas16a_state::misc_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	// just call custom handler
-	m_custom_io_w(space, offset, data, mem_mask);
+	m_custom_io_w(offset, data, mem_mask);
 }
 
 
@@ -314,11 +314,11 @@ WRITE16_MEMBER( segas16a_state::misc_io_w )
 //  sound_data_r - read data from the sound latch
 //-------------------------------------------------
 
-READ8_MEMBER( segas16a_state::sound_data_r )
+uint8_t segas16a_state::sound_data_r()
 {
 	// assert ACK
 	m_i8255->pc6_w(CLEAR_LINE);
-	return m_soundlatch->read(space, 0);
+	return m_soundlatch->read();
 }
 
 
@@ -326,7 +326,7 @@ READ8_MEMBER( segas16a_state::sound_data_r )
 //  n7751_command_w - control the N7751
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::n7751_command_w )
+void segas16a_state::n7751_command_w(uint8_t data)
 {
 	//
 	//  Z80 7751 control port
@@ -353,7 +353,7 @@ WRITE8_MEMBER( segas16a_state::n7751_command_w )
 //  n7751_control_w - YM2151 output port callback
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::n7751_control_w )
+void segas16a_state::n7751_control_w(uint8_t data)
 {
 	//
 	//  YM2151 output port
@@ -391,7 +391,7 @@ void segas16a_state::n7751_rom_offset_w(uint8_t data)
 //  n7751_rom_r - MCU reads from BUS
 //-------------------------------------------------
 
-READ8_MEMBER( segas16a_state::n7751_rom_r )
+uint8_t segas16a_state::n7751_rom_r()
 {
 	// read from BUS
 	return memregion("n7751data")->base()[m_n7751_rom_address];
@@ -402,7 +402,7 @@ READ8_MEMBER( segas16a_state::n7751_rom_r )
 //  n7751_p2_r - MCU reads from the P2 lines
 //-------------------------------------------------
 
-READ8_MEMBER( segas16a_state::n7751_p2_r )
+uint8_t segas16a_state::n7751_p2_r()
 {
 	// read from P2 - 8255's PC0-2 connects to 7751's S0-2 (P24-P26 on an 8048)
 	// bit 0x80 is an alternate way to control the sample on/off; doesn't appear to be used
@@ -414,7 +414,7 @@ READ8_MEMBER( segas16a_state::n7751_p2_r )
 //  n7751_p2_w - MCU writes to the P2 lines
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::n7751_p2_w )
+void segas16a_state::n7751_p2_w(uint8_t data)
 {
 	// write to P2; low 4 bits go to 8243
 	m_n7751_i8243->p2_w(data & 0x0f);
@@ -433,7 +433,7 @@ WRITE8_MEMBER( segas16a_state::n7751_p2_w )
 //  mcu_control_w - control lines from the MCU
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::mcu_control_w )
+void segas16a_state::mcu_control_w(uint8_t data)
 {
 	// if we have a fake i8751 handler, ignore writes by the actual 8751
 	if (!m_i8751_vblank_hook.isnull())
@@ -464,7 +464,7 @@ WRITE8_MEMBER( segas16a_state::mcu_control_w )
 //  to the 68000's address space
 //-------------------------------------------------
 
-WRITE8_MEMBER( segas16a_state::mcu_io_w )
+void segas16a_state::mcu_io_w(offs_t offset, uint8_t data)
 {
 	//
 	//  1.00 0... = work RAM (accessed @ $4000+x) or I/O (accessed @ $8000+x)
@@ -490,7 +490,9 @@ WRITE8_MEMBER( segas16a_state::mcu_io_w )
 
 		// access text RAM
 		case 1:
-			if (offset >= 0x8000 && offset < 0x9000)
+			if (offset < 0x8000)
+				m_maincpu->space(AS_PROGRAM).write_byte(0x400001 ^ (offset & 0x7fff), data);
+			else if (offset < 0x9000)
 				m_maincpu->space(AS_PROGRAM).write_byte(0x410001 ^ (offset & 0xfff), data);
 			else
 				logerror("%03X: MCU movx write mode %02X offset %04X = %02X\n", m_mcu->pc(), m_mcu_control, offset, data);
@@ -519,14 +521,14 @@ WRITE8_MEMBER( segas16a_state::mcu_io_w )
 //  to the 68000's address space
 //-------------------------------------------------
 
-READ8_MEMBER( segas16a_state::mcu_io_r )
+uint8_t segas16a_state::mcu_io_r(address_space &space, offs_t offset)
 {
 	switch ((m_mcu_control >> 3) & 7)
 	{
 		case 0:
 			// access watchdog? (unsure about this one)
 			if (                         offset < 0x3fff)
-				return m_watchdog->reset_r(space, 0);
+				return m_watchdog->reset_r(space);
 
 			// access main work RAM
 			else if (offset >= 0x4000 && offset < 0x8000)
@@ -540,8 +542,11 @@ READ8_MEMBER( segas16a_state::mcu_io_r )
 
 		// access text RAM
 		case 1:
-			if (offset >= 0x8000 && offset < 0x9000)
+			if (offset < 0x8000)
+				return m_maincpu->space(AS_PROGRAM).read_byte(0x400001 ^ (offset & 0x7fff));
+			else if (offset < 0x9000)
 				return m_maincpu->space(AS_PROGRAM).read_byte(0x410001 ^ (offset & 0xfff));
+
 			logerror("%03X: MCU movx read mode %02X offset %04X\n", m_mcu->pc(), m_mcu_control, offset);
 			return 0xff;
 
@@ -606,7 +611,14 @@ void segas16a_state::machine_reset()
 {
 	// queue up a timer to either boost interleave or disable the MCU
 	synchronize(TID_INIT_I8751);
+	m_video_control = 0;
 	m_mcu_control = 0x00;
+	m_n7751_command = 0;
+	m_n7751_rom_address = 0;
+	m_last_buttons1 = 0;
+	m_last_buttons2 = 0;
+	m_read_port = 0;
+	m_mj_input_num = 0;
 }
 
 
@@ -689,27 +701,6 @@ void segas16a_state::dumpmtmt_i8751_sim()
 }
 
 
-//-------------------------------------------------
-//  quartet_i8751_sim - simulate the I8751
-//  from Quartet
-//-------------------------------------------------
-
-void segas16a_state::quartet_i8751_sim()
-{
-	// signal a VBLANK to the main CPU
-	m_maincpu->set_input_line(4, HOLD_LINE);
-
-	// X scroll values
-	address_space &space = m_maincpu->space(AS_PROGRAM);
-	m_segaic16vid->textram_w(space, 0xff8/2, m_workram[0x0d14/2], 0xffff);
-	m_segaic16vid->textram_w(space, 0xffa/2, m_workram[0x0d18/2], 0xffff);
-
-	// page values
-	m_segaic16vid->textram_w(space, 0xe9e/2, m_workram[0x0d1c/2], 0xffff);
-	m_segaic16vid->textram_w(space, 0xe9c/2, m_workram[0x0d1e/2], 0xffff);
-}
-
-
 
 //**************************************************************************
 //  CUSTOM I/O HANDLERS
@@ -720,7 +711,7 @@ void segas16a_state::quartet_i8751_sim()
 //  for Ace Attacker
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::aceattaca_custom_io_r )
+uint16_t segas16a_state::aceattaca_custom_io_r(offs_t offset)
 {
 	switch (offset & (0x3000/2))
 	{
@@ -760,25 +751,25 @@ READ16_MEMBER( segas16a_state::aceattaca_custom_io_r )
 
 		case 0x3000/2:
 			if (BIT(offset, 4))
-				return m_cxdio->read(space, offset & 0x0f);
+				return m_cxdio->read(offset & 0x0f);
 			break;
 	}
-	return standard_io_r(space, offset, mem_mask);
+	return standard_io_r(offset);
 }
 
-WRITE16_MEMBER( segas16a_state::aceattaca_custom_io_w )
+void segas16a_state::aceattaca_custom_io_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	switch (offset & (0x3000/2))
 	{
 		case 0x3000/2:
 			if (BIT(offset, 4))
 			{
-				m_cxdio->write(space, offset & 0x0f, data);
+				m_cxdio->write(offset & 0x0f, data);
 				return;
 			}
 			break;
 	}
-	standard_io_w(space, offset, data, mem_mask);
+	standard_io_w(offset, data, mem_mask);
 }
 
 
@@ -787,7 +778,7 @@ WRITE16_MEMBER( segas16a_state::aceattaca_custom_io_w )
 //  for Major League
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::mjleague_custom_io_r )
+uint16_t segas16a_state::mjleague_custom_io_r(offs_t offset)
 {
 	switch (offset & (0x3000/2))
 	{
@@ -858,7 +849,7 @@ READ16_MEMBER( segas16a_state::mjleague_custom_io_r )
 			}
 			break;
 	}
-	return standard_io_r(space, offset, mem_mask);
+	return standard_io_r(offset);
 }
 
 
@@ -867,7 +858,7 @@ READ16_MEMBER( segas16a_state::mjleague_custom_io_r )
 //  for Passing Shot
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::passsht16a_custom_io_r )
+uint16_t segas16a_state::passsht16a_custom_io_r(offs_t offset)
 {
 	switch (offset & (0x3000/2))
 	{
@@ -891,7 +882,7 @@ READ16_MEMBER( segas16a_state::passsht16a_custom_io_r )
 			}
 			break;
 	}
-	return standard_io_r(space, offset, mem_mask);
+	return standard_io_r(offset);
 }
 
 
@@ -900,7 +891,7 @@ READ16_MEMBER( segas16a_state::passsht16a_custom_io_r )
 //  for SDI
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::sdi_custom_io_r )
+uint16_t segas16a_state::sdi_custom_io_r(offs_t offset)
 {
 	switch (offset & (0x3000/2))
 	{
@@ -912,7 +903,7 @@ READ16_MEMBER( segas16a_state::sdi_custom_io_r )
 			}
 			break;
 	}
-	return standard_io_r(space, offset, mem_mask);
+	return standard_io_r(offset);
 }
 
 
@@ -921,7 +912,7 @@ READ16_MEMBER( segas16a_state::sdi_custom_io_r )
 //  for Sukeban Jansi Ryuko
 //-------------------------------------------------
 
-READ16_MEMBER( segas16a_state::sjryuko_custom_io_r )
+uint16_t segas16a_state::sjryuko_custom_io_r(offs_t offset)
 {
 	switch (offset & (0x3000/2))
 	{
@@ -938,7 +929,7 @@ READ16_MEMBER( segas16a_state::sjryuko_custom_io_r )
 			}
 			break;
 	}
-	return standard_io_r(space, offset, mem_mask);
+	return standard_io_r(offset);
 }
 
 
@@ -1242,7 +1233,7 @@ static INPUT_PORTS_START( afighter_analog )
 	PORT_INCLUDE( afighter )
 
 	PORT_MODIFY("P1")
-	PORT_BIT( 0x07, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, afighter_16a_analog_state, afighter_accel_r, nullptr)
+	PORT_BIT( 0x07, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(afighter_16a_analog_state, afighter_accel_r)
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) // SHOT
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON2 ) // WEAPON1
@@ -1250,10 +1241,10 @@ static INPUT_PORTS_START( afighter_analog )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON4 ) // WEAPON3
 
 	PORT_MODIFY("P2")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, afighter_16a_analog_state, afighter_handl_left_r, nullptr)
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(afighter_16a_analog_state, afighter_handl_left_r)
 
 	PORT_MODIFY("UNUSED")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, afighter_16a_analog_state, afighter_handl_right_r, nullptr)
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(afighter_16a_analog_state, afighter_handl_right_r)
 
 	PORT_START("STEER")  // steering
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(100) PORT_KEYDELTA(4)
@@ -2009,7 +2000,7 @@ void segas16a_state::system16a(machine_config &config)
 	SEGAIC16VID(config, m_segaic16vid, 0, "gfxdecode");
 
 	GFXDECODE(config, "gfxdecode", m_palette, gfx_segas16a);
-	PALETTE(config, m_palette).set_entries(2048*3);
+	PALETTE(config, m_palette).set_entries(2048*2);
 
 	// sound hardware
 	SPEAKER(config, "speaker").front_center();
@@ -2021,10 +2012,6 @@ void segas16a_state::system16a(machine_config &config)
 	m_ymsnd->add_route(ALL_OUTPUTS, "speaker", 0.43);
 
 	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.4); // unknown DAC
-	voltage_regulator_device &vref(VOLTAGE_REGULATOR(config, "vref", 0));
-	vref.set_output(5.0);
-	vref.add_route(0, "dac", 1.0, DAC_VREF_POS_INPUT);
-	vref.add_route(0, "dac", -1.0, DAC_VREF_NEG_INPUT);
 }
 
 
@@ -2056,13 +2043,13 @@ void segas16a_state::system16a_fd1094(machine_config &config)
 void segas16a_state::aceattaca_fd1094(machine_config &config)
 {
 	system16a_fd1094(config);
-	CXD1095(config, "cxdio", 0);
+	CXD1095(config, "cxdio");
 }
 
 void segas16a_state::system16a_i8751(machine_config &config)
 {
 	system16a(config);
-	m_maincpu->set_vblank_int(device_interrupt_delegate(), nullptr);
+	m_maincpu->remove_vblank_int();
 
 	I8751(config, m_mcu, 8000000);
 	m_mcu->set_addrmap(AS_IO, &segas16a_state::mcu_io_map);
@@ -2079,7 +2066,6 @@ void segas16a_state::system16a_no7751(machine_config &config)
 	config.device_remove("n7751");
 	config.device_remove("n7751_8243");
 	config.device_remove("dac");
-	config.device_remove("vref");
 
 	YM2151(config.replace(), m_ymsnd, 4000000);
 	m_ymsnd->add_route(ALL_OUTPUTS, "speaker", 1.0);
@@ -2096,15 +2082,15 @@ void segas16a_state::system16a_no7751p(machine_config &config)
 }
 
 /*
-static MACHINE_CONFIG_START( system16a_i8751_no7751 )
+void segas16a_state::system16a_i8751_no7751(machine_config &config)
+{
     system16a_i8751(config);
-    MCFG_DEVICE_REMOVE("n7751")
-    MCFG_DEVICE_REMOVE("dac")
-    MCFG_DEVICE_REMOVE("vref")
+    config.device_remove("n7751");
+    config.device_remove("dac");
+    config.device_remove("vref");
 
-    MCFG_DEVICE_REPLACE("ymsnd", YM2151, 4000000)
-    MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
-MACHINE_CONFIG_END
+    YM2151(config.replace(), "ymsnd", 4000000).add_route(ALL_OUTPUTS, "speaker", 1.0);
+}
 */
 
 void segas16a_state::system16a_fd1089a_no7751(machine_config &config)
@@ -2114,7 +2100,6 @@ void segas16a_state::system16a_fd1089a_no7751(machine_config &config)
 
 	config.device_remove("n7751");
 	config.device_remove("dac");
-	config.device_remove("vref");
 
 	YM2151(config.replace(), m_ymsnd, 4000000);
 	m_ymsnd->add_route(ALL_OUTPUTS, "speaker", 1.0);
@@ -2127,7 +2112,6 @@ void segas16a_state::system16a_fd1089b_no7751(machine_config &config)
 
 	config.device_remove("n7751");
 	config.device_remove("dac");
-	config.device_remove("vref");
 
 	YM2151(config.replace(), m_ymsnd, 4000000);
 	m_ymsnd->add_route(ALL_OUTPUTS, "speaker", 1.0);
@@ -2140,7 +2124,6 @@ void segas16a_state::system16a_fd1094_no7751(machine_config &config)
 
 	config.device_remove("n7751");
 	config.device_remove("dac");
-	config.device_remove("vref");
 
 	YM2151(config.replace(), m_ymsnd, 4000000);
 	m_ymsnd->add_route(ALL_OUTPUTS, "speaker", 1.0);
@@ -2605,6 +2588,8 @@ ROM_END
 //  CPU: 68000
 //  i8751 317-0015
 //
+//  GAME NUMBER: 833-6072 BODY SLAM
+//
 ROM_START( bodyslam )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
 	ROM_LOAD16_BYTE( "epr-10066.b9",  0x000000, 0x8000, CRC(6cd53290) SHA1(68ef83ad99a26a507d9bc4cd715462169f4ac41f) )
@@ -2723,10 +2708,9 @@ ROM_START( fantzone )
 	ROM_LOAD( "epr-7535a.12", 0x0000, 0x8000, CRC(bc1374fa) SHA1(ed2c87ae024dc251e175239f1bccc728fc096548) )
 ROM_END
 
-//*************************************************************************************************************************
-//  Fantasy Zone, Sega System 16A
-//  CPU: 68000
-//
+// Sega game ID: 834-5939-01 FANTASY ZONE
+// Top board:    837-5941-01
+// Bottom board: 837-5942-01
 ROM_START( fantzone1 )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
 	ROM_LOAD16_BYTE( "epr-7385.43",  0x000000, 0x8000, CRC(5cb64450) SHA1(5831405359975dd7d8c6614b20fd9b18a5d6410d) )
@@ -2751,6 +2735,39 @@ ROM_START( fantzone1 )
 
 	ROM_REGION( 0x10000, "soundcpu", 0 ) // sound CPU
 	ROM_LOAD( "epr-7535.12",  0x0000, 0x8000, CRC(0cb2126a) SHA1(42b18a81bed58ef59eaad929007eef89ad273dbb) )
+ROM_END
+
+//*************************************************************************************************************************
+//  Fantasy Zone, Sega System 16A
+//  CPU: FD1089B 317-0016
+//
+ROM_START( fantzonee )
+	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
+	ROM_LOAD16_BYTE( "epr-10170.43", 0x000000, 0x8000, CRC(063c6d76) SHA1(02d52d776330c88d949b10fb715b00507dba1227) )
+	ROM_LOAD16_BYTE( "epr-10167.26", 0x000001, 0x8000, CRC(0ee190b0) SHA1(18c27046a523d73bccf733ecd956e454199a1ee8) )
+	ROM_LOAD16_BYTE( "epr-10171.42", 0x010000, 0x8000, CRC(2ca92d64) SHA1(2eea4d1ae38bba28b806824951a0df4c9f74af6f) )
+	ROM_LOAD16_BYTE( "epr-10168.25", 0x010001, 0x8000, CRC(850964ad) SHA1(bdf603b025b981cc5af47446526562c425990b89) )
+	ROM_LOAD16_BYTE( "epr-10172.41", 0x020000, 0x8000, CRC(b5b624f0) SHA1(a728582efdc9c1b0ed1a27975d6b4e1974339ab2) )
+	ROM_LOAD16_BYTE( "epr-10169.24", 0x020001, 0x8000, CRC(9c57d613) SHA1(cdfaf92b5f44a66ccd6267e0221e4d9ada924e2e) )
+
+	ROM_REGION( 0x18000, "gfx1", 0 ) // tiles
+	ROM_LOAD( "epr-7388.95",  0x00000, 0x08000, CRC(8eb02f6b) SHA1(80511b944b57541669010bd5a0ca52bc98eabd62) )
+	ROM_LOAD( "epr-7389.94",  0x08000, 0x08000, CRC(2f4f71b8) SHA1(ceb39e95cd43904b8e4f89c7227491e139fb3ca6) )
+	ROM_LOAD( "epr-7390.93",  0x10000, 0x08000, CRC(d90609c6) SHA1(4232f6ecb21f242c0c8d81e06b88bc742668609f) )
+
+	ROM_REGION16_BE( 0x30000, "sprites", 0 ) // sprites
+	ROM_LOAD16_BYTE( "epr-7392.10",  0x00001, 0x8000, CRC(5bb7c8b6) SHA1(eaa0ed63ac4f66ee285757e842bdd7b005292600) )
+	ROM_LOAD16_BYTE( "epr-7396.11",  0x00000, 0x8000, CRC(74ae4b57) SHA1(1f24b1faea765994b85f0e7ac8e944c8da22103f) )
+	ROM_LOAD16_BYTE( "epr-7393.17",  0x10001, 0x8000, CRC(14fc7e82) SHA1(ca7caca989a3577dd30ad4f66b0fcce712a454ef) )
+	ROM_LOAD16_BYTE( "epr-7397.18",  0x10000, 0x8000, CRC(e05a1e25) SHA1(9691d9f0763b7483ee6912437902f22ab4b78a05) )
+	ROM_LOAD16_BYTE( "epr-7394.23",  0x20001, 0x8000, CRC(531ca13f) SHA1(19e68bc515f6021e1145cff4f3f0e083839ee8f3) )
+	ROM_LOAD16_BYTE( "epr-7398.24",  0x20000, 0x8000, CRC(68807b49) SHA1(0a189da8cdd2090e76d6d06c55b478abce60542d) )
+
+	ROM_REGION( 0x10000, "soundcpu", 0 ) // sound CPU
+	ROM_LOAD( "epr-7535a.12", 0x0000, 0x8000, CRC(bc1374fa) SHA1(ed2c87ae024dc251e175239f1bccc728fc096548) )
+
+	ROM_REGION( 0x2000, "maincpu:key", 0 ) // decryption key
+	ROM_LOAD( "317-0016.key", 0x0000, 0x2000, BAD_DUMP CRC(16869a2c) SHA1(112b044d0b1b76620a7d75d6f4c4a16eca37e343) ) // hand-crafted needs a proper redump
 ROM_END
 
 //*************************************************************************************************************************
@@ -2783,7 +2800,6 @@ ROM_START( fantzonep )
 	ROM_LOAD( "epr-7391.12",  0x0000, 0x8000, CRC(c03e155e) SHA1(6bbdf308c47b96ba622329520b70fa0ea47248a4) ) // Original encrypted sound code
 ROM_END
 
-
 ROM_START( fantzonepr )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
 	ROM_LOAD16_BYTE( "ic43-prg-dd2c.bin",   0x000000, 0x8000, CRC(895436e1) SHA1(5cf294fc4fcbacab5d2696aa4f536a8f48d4c4ce) ) // different
@@ -2808,7 +2824,7 @@ ROM_START( fantzonepr )
 	ROM_LOAD16_BYTE( "ic18-2614.bin",  0x10000, 0x8000, CRC(e05a1e25) SHA1(9691d9f0763b7483ee6912437902f22ab4b78a05) ) // MATCH
 
 	// these were missing, but it seems like they should be different?
-	ROM_LOAD16_BYTE( "ic23",  0x20001, 0x8000, BAD_DUMP CRC(531ca13f) SHA1(19e68bc515f6021e1145cff4f3f0e083839ee8f3) ) // misisng
+	ROM_LOAD16_BYTE( "ic23",  0x20001, 0x8000, BAD_DUMP CRC(531ca13f) SHA1(19e68bc515f6021e1145cff4f3f0e083839ee8f3) ) // missing
 	ROM_LOAD16_BYTE( "ic24",  0x20000, 0x8000, BAD_DUMP CRC(68807b49) SHA1(0a189da8cdd2090e76d6d06c55b478abce60542d) ) // missing
 
 	ROM_REGION( 0x10000, "soundcpu", 0 ) // sound CPU
@@ -2918,6 +2934,11 @@ ROM_END
 //  CPU: 68000
 //  i8751 315-5194
 //
+//  CPU/Video/Sound Board: 171-5335
+//  ROM Board:             171-5336
+//  Sega game ID: 833-5973 QUARTET (with an additional sticker "REV A")
+//     ROM board: 834-5974
+//
 ROM_START( quartet )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
 	ROM_LOAD16_BYTE( "epr-7458a.9b",  0x000000, 0x8000, CRC(42e7b23e) SHA1(9df3b1b915723f9a927ef03d80ae7983a8c91a21) )
@@ -2955,18 +2976,23 @@ ROM_START( quartet )
 	ROM_LOAD( "epr-7476.4c",  0x18000, 0x8000, CRC(5eba655a) SHA1(6713ef12037cba3139d0f469c82bd90b44bae8ce) )
 
 	ROM_REGION( 0x1000, "mcu", 0 )  // Intel i8751 protection MCU
-	ROM_LOAD( "315-5194.mcu", 0x00000, 0x1000, NO_DUMP )
+	ROM_LOAD( "315-5194.mcu", 0x00000, 0x1000, CRC(b7298f66) SHA1(9c579903bcf48a72ad9dfe7bf3962729dabe2d34) )
 
-	ROM_REGION( 0x0500, "plds", 0 )
-	ROM_LOAD( "pal16r6a.22g", 0x0000, 0x0104, NO_DUMP ) // PAL is read protected
-	ROM_LOAD( "pal16r6a.23g", 0x0200, 0x0104, NO_DUMP ) // PAL is read protected
-	ROM_LOAD( "pls153.8j",    0x0400, 0x00eb, CRC(0fe1eefd) SHA1(38ba6f57006af8c0d4d7f74aa4778ac1ee2a21fc) )
+	ROM_REGION( 0x0500, "plds", 0 ) // Unknown & undumped PAL 315-5202 @ 8L, 315-5107 @ 22G & 315-5141 @ 3C
+	ROM_LOAD( "315-5147.pal16r6a.23g", 0x0000, 0x0104, NO_DUMP ) // PAL is read protected
+	ROM_LOAD( "315-5143.pal16r6a.24g", 0x0200, 0x0104, NO_DUMP ) // PAL is read protected
+	ROM_LOAD( "315-5193.pls153.8j",    0x0400, 0x00eb, CRC(0fe1eefd) SHA1(38ba6f57006af8c0d4d7f74aa4778ac1ee2a21fc) )
 ROM_END
 
 //*************************************************************************************************************************
 //  Quartet, pre-System 16
 //  CPU: 68000
 //  i8751 315-5194
+//
+//  CPU/Video/Sound Board: 171-5335
+//  ROM Board:             171-5336
+//  Sega game ID: 833-5973 QUARTET
+//     ROM board: 834-5974
 //
 ROM_START( quarteta )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
@@ -3005,12 +3031,12 @@ ROM_START( quarteta )
 	ROM_LOAD( "epr-7476.4c",  0x18000, 0x8000, CRC(5eba655a) SHA1(6713ef12037cba3139d0f469c82bd90b44bae8ce) )
 
 	ROM_REGION( 0x1000, "mcu", 0 )  // Intel i8751 protection MCU
-	ROM_LOAD( "315-5194.mcu", 0x00000, 0x1000, NO_DUMP )
+	ROM_LOAD( "315-5194.mcu", 0x00000, 0x1000, CRC(b7298f66) SHA1(9c579903bcf48a72ad9dfe7bf3962729dabe2d34) )
 
-	ROM_REGION( 0x0500, "plds", 0 )
-	ROM_LOAD( "pal16r6a.22g", 0x0000, 0x0104, NO_DUMP ) // PAL is read protected
-	ROM_LOAD( "pal16r6a.23g", 0x0200, 0x0104, NO_DUMP ) // PAL is read protected
-	ROM_LOAD( "pls153.8j",    0x0400, 0x00eb, CRC(0fe1eefd) SHA1(38ba6f57006af8c0d4d7f74aa4778ac1ee2a21fc) )
+	ROM_REGION( 0x0500, "plds", 0 ) // Unknown & undumped PAL 315-5202 @ 8L, 315-5107 @ 22G & 315-5141 @ 3C
+	ROM_LOAD( "315-5147.pal16r6a.23g", 0x0000, 0x0104, NO_DUMP ) // PAL is read protected
+	ROM_LOAD( "315-5143.pal16r6a.24g", 0x0200, 0x0104, NO_DUMP ) // PAL is read protected
+	ROM_LOAD( "315-5193.pls153.8j",    0x0400, 0x00eb, CRC(0fe1eefd) SHA1(38ba6f57006af8c0d4d7f74aa4778ac1ee2a21fc) )
 ROM_END
 
 
@@ -3023,6 +3049,8 @@ ROM_END
 //
 //  CPU/Video/Sound Board: 171-5335
 //  ROM Board:             171-5336
+//  Sega game ID: 837-5934
+//     ROM board: 837-5935
 //
 ROM_START( quartet2 )
 	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code
@@ -3611,7 +3639,7 @@ ROM_END
 //  Time Scanner, Sega System 16A
 //  CPU: FD1089B (317-0024)
 //
-//  GAME NUMBER: TOP 837-5941-01, BOTTOM 837-5942-01
+//  GAME NUMBER: 834-6207 TIME SCANNER
 //  CPU: FD1089B 6J2 317-0024
 //
 //  BOARD: SYSTEM 16B
@@ -3860,8 +3888,8 @@ void segas16a_state::init_generic()
 	m_nvram->set_base(m_workram, m_workram.bytes());
 
 	// create default read/write handlers
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::standard_io_r), this);
-	m_custom_io_w = write16_delegate(FUNC(segas16a_state::standard_io_w), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::standard_io_r));
+	m_custom_io_w = write16s_delegate(*this, FUNC(segas16a_state::standard_io_w));
 
 	// save state
 	save_item(NAME(m_video_control));
@@ -3882,8 +3910,8 @@ void segas16a_state::init_generic()
 void segas16a_state::init_aceattaca()
 {
 	init_generic();
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::aceattaca_custom_io_r), this);
-	m_custom_io_w = write16_delegate(FUNC(segas16a_state::aceattaca_custom_io_w), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::aceattaca_custom_io_r));
+	m_custom_io_w = write16s_delegate(*this, FUNC(segas16a_state::aceattaca_custom_io_w));
 }
 
 void segas16a_state::init_dumpmtmt()
@@ -3895,32 +3923,25 @@ void segas16a_state::init_dumpmtmt()
 void segas16a_state::init_mjleague()
 {
 	init_generic();
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::mjleague_custom_io_r), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::mjleague_custom_io_r));
 }
 
 void segas16a_state::init_passsht16a()
 {
 	init_generic();
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::passsht16a_custom_io_r), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::passsht16a_custom_io_r));
 }
-
-void segas16a_state::init_quartet()
-{
-	init_generic();
-	m_i8751_vblank_hook = i8751_sim_delegate(&segas16a_state::quartet_i8751_sim, this);
-}
-
 
 void segas16a_state::init_sdi()
 {
 	init_generic();
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::sdi_custom_io_r), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::sdi_custom_io_r));
 }
 
 void segas16a_state::init_sjryukoa()
 {
 	init_generic();
-	m_custom_io_r = read16_delegate(FUNC(segas16a_state::sjryuko_custom_io_r), this);
+	m_custom_io_r = read16sm_delegate(*this, FUNC(segas16a_state::sjryuko_custom_io_r));
 	m_lamp_changed_w = lamp_changed_delegate(&segas16a_state::sjryuko_lamp_changed_w, this);
 }
 
@@ -3937,9 +3958,8 @@ GAME( 1986, dumpmtmt,   bodyslam, system16a_i8751,          bodyslam,        seg
 
 GAME( 1985, mjleague,   0,        system16a,                mjleague,        segas16a_state,            init_mjleague,    ROT270, "Sega", "Major League", MACHINE_SUPPORTS_SAVE )
 
-GAME( 1986, quartet,    0,        system16a_i8751,          quartet,         segas16a_state,            init_quartet,     ROT0,   "Sega", "Quartet (Rev A, 8751 315-5194)", MACHINE_UNEMULATED_PROTECTION | MACHINE_SUPPORTS_SAVE )
-
-GAME( 1986, quarteta,   quartet,  system16a_i8751,          quartet,         segas16a_state,            init_quartet,     ROT0,   "Sega", "Quartet (8751 315-5194)", MACHINE_UNEMULATED_PROTECTION | MACHINE_SUPPORTS_SAVE )
+GAME( 1986, quartet,    0,        system16a_i8751,          quartet,         segas16a_state,            init_generic,     ROT0,   "Sega", "Quartet (Rev A, 8751 315-5194)", MACHINE_SUPPORTS_SAVE )
+GAME( 1986, quarteta,   quartet,  system16a_i8751,          quartet,         segas16a_state,            init_generic,     ROT0,   "Sega", "Quartet (8751 315-5194)", MACHINE_SUPPORTS_SAVE )
 GAME( 1986, quartet2,   quartet,  system16a_i8751,          quart2,          segas16a_state,            init_generic,     ROT0,   "Sega", "Quartet 2 (8751 317-0010)", MACHINE_SUPPORTS_SAVE )
 GAME( 1986, quartet2a,  quartet,  system16a,                quart2,          segas16a_state,            init_generic,     ROT0,   "Sega", "Quartet 2 (unprotected)", MACHINE_SUPPORTS_SAVE )
 
@@ -3962,6 +3982,7 @@ GAME( 1986, alexkidd1,  alexkidd, system16a_fd1089a,        alexkidd,        seg
 GAME( 1986, fantzone,   0,        system16a_no7751,         fantzone,        segas16a_state,            init_generic,     ROT0,   "Sega", "Fantasy Zone (Rev A, unprotected)", MACHINE_SUPPORTS_SAVE )
 GAME( 1986, fantzone1,  fantzone, system16a_no7751,         fantzone,        segas16a_state,            init_generic,     ROT0,   "Sega", "Fantasy Zone (unprotected)", MACHINE_SUPPORTS_SAVE )
 GAME( 1986, fantzonep,  fantzone, system16a_no7751p,        fantzone,        segas16a_state,            init_generic,     ROT0,   "Sega", "Fantasy Zone (317-5000)", MACHINE_SUPPORTS_SAVE )
+GAME( 1986, fantzonee,  fantzone, system16a_fd1089b_no7751, fantzone,        segas16a_state,            init_generic,     ROT0,   "Sega", "Fantasy Zone (FD1089B 317-0016)", MACHINE_SUPPORTS_SAVE )
 GAME( 1986, fantzonepr, fantzone, system16a_no7751,         fantzone,        segas16a_state,            init_generic,     ROT0,   "Sega", "Fantasy Zone (prototype)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE ) // bad / missing gfx ROMs
 
 GAME( 1988, passsht16a, passsht,  system16a_fd1094,         passsht16a,      segas16a_state,            init_passsht16a,  ROT270, "Sega", "Passing Shot (Japan, 4 Players, System 16A) (FD1094 317-0071)", MACHINE_SUPPORTS_SAVE )

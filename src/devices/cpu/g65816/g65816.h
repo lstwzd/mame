@@ -32,7 +32,7 @@ All rights reserved.
 /* Interrupt lines - used with g65816_set_irq_line() */
 enum
 {
-	G65816_LINE_NONE,
+	G65816_LINE_NONE, // FIXME: there is no such pin
 	G65816_LINE_IRQ,
 	G65816_LINE_NMI,
 	G65816_LINE_ABORT,
@@ -56,7 +56,8 @@ public:
 	// construction/destruction
 	g65816_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-protected:
+	auto wdm_handler() { return m_wdm_w.bind(); }
+
 	/* Registers - used by g65816_set_reg() and g65816_get_reg() */
 	enum
 	{
@@ -66,6 +67,7 @@ protected:
 		_5A22_FASTROM
 	};
 
+protected:
 	g65816_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, int cpu_type, address_map_constructor internal);
 
 	// device-level overrides
@@ -73,9 +75,9 @@ protected:
 	virtual void device_reset() override;
 
 	// device_execute_interface overrides
-	virtual uint32_t execute_min_cycles() const override { return 1; }
-	virtual uint32_t execute_max_cycles() const override { return 20; }
-	virtual uint32_t execute_input_lines() const override { return 5; }
+	virtual uint32_t execute_min_cycles() const noexcept override { return 1; }
+	virtual uint32_t execute_max_cycles() const noexcept override { return 20; }
+	virtual uint32_t execute_input_lines() const noexcept override { return 5; }
 	virtual void execute_run() override;
 	virtual void execute_set_input(int inputnum, int state) override;
 
@@ -96,6 +98,7 @@ protected:
 	address_space_config m_data_config;
 	address_space_config m_opcode_config;
 	address_space_config m_vector_config;
+	devcb_write8 m_wdm_w;     /* WDM callback */
 
 	typedef void (g65816_device::*opcode_func) ();
 	typedef unsigned (g65816_device::*get_reg_func)(int regnum);
@@ -139,8 +142,10 @@ protected:
 	void g65816_set_pc(unsigned val);
 	unsigned g65816_get_sp();
 	void g65816_set_sp(unsigned val);
+public:
 	unsigned g65816_get_reg(int regnum);
 	void g65816_set_reg(int regnum, unsigned value);
+protected:
 	void g65816_restore_state();
 	unsigned g65816i_read_8_normal(unsigned address);
 	unsigned g65816i_read_8_immediate(unsigned address);
@@ -228,9 +233,10 @@ protected:
 	unsigned m_fastROM;       /* SNES specific */
 	unsigned m_ir;            /* Instruction Register */
 	unsigned m_irq_delay;     /* delay 1 instruction before checking irq */
-	address_space *m_data_space;
-	memory_access_cache<0, 0, ENDIANNESS_LITTLE> *m_program_cache;
-	memory_access_cache<0, 0, ENDIANNESS_LITTLE> *m_opcode_cache;
+	memory_access<24, 0, 0, ENDIANNESS_LITTLE>::cache m_program;
+	memory_access<24, 0, 0, ENDIANNESS_LITTLE>::cache m_opcode;
+	memory_access<24, 0, 0, ENDIANNESS_LITTLE>::specific m_data;
+
 	unsigned m_stopped;       /* Sets how the CPU is stopped */
 	const opcode_func* m_opcodes;
 	get_reg_func m_get_reg;
@@ -241,7 +247,7 @@ protected:
 	unsigned m_destination;
 	int m_ICount;
 	int m_cpu_type;
-	uint8_t m_rw8_cycles, m_rw16_cycles, m_rw24_cycles;
+	uint8_t m_divider;
 	uint32_t m_debugger_temp;
 
 	/* 5A22 specific registers */
@@ -1534,21 +1540,28 @@ protected:
 };
 
 
+class g65802_device : public g65816_device
+{
+public:
+	g65802_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+};
+
+
 class _5a22_device : public g65816_device
 {
 public:
 	_5a22_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	DECLARE_WRITE8_MEMBER( wrmpya_w );
-	DECLARE_WRITE8_MEMBER( wrmpyb_w );
-	DECLARE_WRITE8_MEMBER( wrdivl_w );
-	DECLARE_WRITE8_MEMBER( wrdivh_w );
-	DECLARE_WRITE8_MEMBER( wrdvdd_w );
-	DECLARE_WRITE8_MEMBER( memsel_w );
-	DECLARE_READ8_MEMBER( rddivl_r );
-	DECLARE_READ8_MEMBER( rddivh_r );
-	DECLARE_READ8_MEMBER( rdmpyl_r );
-	DECLARE_READ8_MEMBER( rdmpyh_r );
+	void wrmpya_w(uint8_t data);
+	void wrmpyb_w(uint8_t data);
+	void wrdivl_w(uint8_t data);
+	void wrdivh_w(uint8_t data);
+	void wrdvdd_w(uint8_t data);
+	void memsel_w(uint8_t data);
+	uint8_t rddivl_r();
+	uint8_t rddivh_r();
+	uint8_t rdmpyl_r();
+	uint8_t rdmpyh_r();
 
 	void set_5a22_map();
 
@@ -1565,6 +1578,7 @@ protected:
 
 
 DECLARE_DEVICE_TYPE(G65816, g65816_device)
+DECLARE_DEVICE_TYPE(G65802, g65802_device)
 DECLARE_DEVICE_TYPE(_5A22,  _5a22_device)
 
 

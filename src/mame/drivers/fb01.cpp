@@ -30,7 +30,6 @@ public:
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
 		, m_upd71051(*this, "upd71051")
-		, m_midi_thru(*this, "mdthru")
 		, m_ym2164_irq(CLEAR_LINE)
 		, m_upd71051_txrdy(CLEAR_LINE)
 		, m_upd71051_rxrdy(CLEAR_LINE)
@@ -44,8 +43,6 @@ protected:
 	virtual void machine_reset() override;
 
 private:
-	DECLARE_WRITE_LINE_MEMBER(write_usart_clock);
-	DECLARE_WRITE_LINE_MEMBER(midi_in);
 	DECLARE_WRITE_LINE_MEMBER(ym2164_irq_w);
 	DECLARE_WRITE_LINE_MEMBER(upd71051_txrdy_w);
 	DECLARE_WRITE_LINE_MEMBER(upd71051_rxrdy_w);
@@ -60,7 +57,6 @@ private:
 
 	required_device<z80_device> m_maincpu;
 	required_device<i8251_device> m_upd71051;
-	required_device<midi_port_device> m_midi_thru;
 	int m_ym2164_irq;
 	int m_upd71051_txrdy;
 	int m_upd71051_rxrdy;
@@ -70,7 +66,7 @@ private:
 void fb01_state::fb01_mem(address_map &map)
 {
 	map(0x0000, 0x7fff).rom();
-	map(0x8000, 0xbfff).ram().share("nvram");  // 2 * 8KB S-RAM
+	map(0x8000, 0xbfff).mirror(0x4000).ram().share("nvram"); // 2 * 8KB S-RAM
 }
 
 
@@ -89,8 +85,7 @@ void fb01_state::fb01_io(address_map &map)
 	map(0x20, 0x20).portr("PANEL");
 
 	// 30-31  HD44780A
-	map(0x30, 0x30).rw("hd44780", FUNC(hd44780_device::control_read), FUNC(hd44780_device::control_write));
-	map(0x31, 0x31).rw("hd44780", FUNC(hd44780_device::data_read), FUNC(hd44780_device::data_write));
+	map(0x30, 0x31).rw("hd44780", FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 }
 
 
@@ -119,20 +114,6 @@ void fb01_state::machine_reset()
 {
 	m_upd71051->write_cts(0);
 	m_upd71051->write_rxd(ASSERT_LINE);
-}
-
-
-WRITE_LINE_MEMBER(fb01_state::write_usart_clock)
-{
-	m_upd71051->write_txc(state);
-	m_upd71051->write_rxc(state);
-}
-
-
-WRITE_LINE_MEMBER(fb01_state::midi_in)
-{
-	m_midi_thru->write_txd(state);
-	m_upd71051->write_rxd(state);
 }
 
 
@@ -167,7 +148,7 @@ HD44780_PIXEL_UPDATE(fb01_state::fb01_pixel_update)
 {
 	if ( pos < 8 && line < 2 )
 	{
-		bitmap.pix16(y, line*6*8 + pos*6 + x) = state;
+		bitmap.pix(y, line*6*8 + pos*6 + x) = state;
 	}
 }
 
@@ -179,53 +160,56 @@ void fb01_state::fb01_palette(palette_device &palette) const
 }
 
 
-MACHINE_CONFIG_START(fb01_state::fb01)
+void fb01_state::fb01(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(12'000'000)/2)
-	MCFG_DEVICE_PROGRAM_MAP(fb01_mem)
-	MCFG_DEVICE_IO_MAP(fb01_io)
+	Z80(config, m_maincpu, XTAL(12'000'000)/2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &fb01_state::fb01_mem);
+	m_maincpu->set_addrmap(AS_IO, &fb01_state::fb01_io);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(6*16, 9)
-	MCFG_SCREEN_VISIBLE_AREA(0, 6*16-1, 0, 9-1)
-	MCFG_SCREEN_UPDATE_DEVICE("hd44780", hd44780_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(6*16, 9);
+	screen.set_visarea_full();
+	screen.set_screen_update("hd44780", FUNC(hd44780_device::screen_update));
+	screen.set_palette("palette");
 
 	config.set_default_layout(layout_fb01);
 
 	PALETTE(config, "palette", FUNC(fb01_state::fb01_palette), 2);
 
-	MCFG_HD44780_ADD("hd44780")
-	MCFG_HD44780_LCD_SIZE(2, 8)   // 2x8 displayed as 1x16
-	MCFG_HD44780_PIXEL_UPDATE_CB(fb01_state,fb01_pixel_update)
+	hd44780_device &hd44780(HD44780(config, "hd44780", 0));
+	hd44780.set_lcd_size(2, 8);   // 2x8 displayed as 1x16
+	hd44780.set_pixel_update_cb(FUNC(fb01_state::fb01_pixel_update));
 
 	I8251(config, m_upd71051, XTAL(4'000'000));
 	m_upd71051->rxrdy_handler().set(FUNC(fb01_state::upd71051_rxrdy_w));
 	m_upd71051->txrdy_handler().set(FUNC(fb01_state::upd71051_txrdy_w));
 	m_upd71051->txd_handler().set("mdout", FUNC(midi_port_device::write_txd));
 
-	MCFG_DEVICE_ADD("usart_clock", CLOCK, XTAL(4'000'000) / 8) // 500KHz
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, fb01_state, write_usart_clock))
+	clock_device &usart_clock(CLOCK(config, "usart_clock", XTAL(4'000'000) / 8)); // 500KHz
+	usart_clock.signal_handler().set(m_upd71051, FUNC(i8251_device::write_txc));
+	usart_clock.signal_handler().append(m_upd71051, FUNC(i8251_device::write_rxc));
 
-	MCFG_MIDI_PORT_ADD("mdin", midiin_slot, "midiin")
-	MCFG_MIDI_RX_HANDLER(WRITELINE(*this, fb01_state, midi_in))
+	midi_port_device &mdin(MIDI_PORT(config, "mdin", midiin_slot, "midiin"));
+	mdin.rxd_handler().set("mdthru", FUNC(midi_port_device::write_txd));
+	mdin.rxd_handler().append(m_upd71051, FUNC(i8251_device::write_rxd));
 
-	MCFG_MIDI_PORT_ADD("mdout", midiout_slot, "midiout")
+	MIDI_PORT(config, "mdout", midiout_slot, "midiout");
 
-	MCFG_MIDI_PORT_ADD("mdthru", midiout_slot, "midiout")
+	MIDI_PORT(config, "mdthru", midiout_slot, "midiout");
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-	ym2151_device &ym2164(YM2151(config, "ym2164", XTAL(4'000'000)));
+	ym2164_device &ym2164(YM2164(config, "ym2164", XTAL(4'000'000)));
 	ym2164.irq_handler().set(FUNC(fb01_state::ym2164_irq_w));
 	ym2164.add_route(0, "lspeaker", 1.00);
 	ym2164.add_route(1, "rspeaker", 1.00);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
-MACHINE_CONFIG_END
+}
 
 
 /* ROM definition */
@@ -237,5 +221,5 @@ ROM_END
 
 /* Driver */
 
-//    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  STATE       INIT        COMPANY   FULLNAME  FLAGS
-CONS( 1986, fb01, 0,      0,      fb01,    fb01,  fb01_state, empty_init, "Yamaha", "FB-01",  MACHINE_SUPPORTS_SAVE )
+//    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  STATE       INIT        COMPANY   FULLNAME                     FLAGS
+CONS( 1986, fb01, 0,      0,      fb01,    fb01,  fb01_state, empty_init, "Yamaha", "FB-01 FM Sound Generator",  MACHINE_SUPPORTS_SAVE )

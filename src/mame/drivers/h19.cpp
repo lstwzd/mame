@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Robbbert, Mark Garlanger
+// copyright-holders:Mark Garlanger
 /***************************************************************************
 
     Heathkit H19
@@ -102,10 +102,10 @@ public:
 	void h19(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(h19_keyclick_w);
-	DECLARE_WRITE8_MEMBER(h19_bell_w);
-	DECLARE_READ8_MEMBER(kbd_key_r);
-	DECLARE_READ8_MEMBER(kbd_flags_r);
+	void h19_keyclick_w(uint8_t data);
+	void h19_bell_w(uint8_t data);
+	uint8_t kbd_key_r();
+	uint8_t kbd_flags_r();
 	DECLARE_READ_LINE_MEMBER(mm5740_shift_r);
 	DECLARE_READ_LINE_MEMBER(mm5740_control_r);
 	DECLARE_WRITE_LINE_MEMBER(mm5740_data_ready_w);
@@ -116,7 +116,7 @@ private:
 	void mem_map(address_map &map);
 
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override;
 
 	required_device<palette_device> m_palette;
 	required_device<cpu_device>     m_maincpu;
@@ -148,13 +148,11 @@ void h19_state::device_timer(emu_timer &timer, device_timer_id id, int param, vo
 		m_bellactive = false;
 		break;
 	default:
-		assert_always(false, "Unknown id in h19_state::device_timer");
+		throw emu_fatalerror("Unknown id in h19_state::device_timer");
 	}
 
 	if (!m_keyclickactive && !m_bellactive)
-	{
 		m_beep->set_state(0);
-	}
 }
 
 
@@ -194,7 +192,7 @@ static INPUT_PORTS_START( h19 )
 	PORT_BIT(0x010, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("CTRL")       PORT_CODE(KEYCODE_LCONTROL)  PORT_CHAR(UCHAR_MAMEKEY(LCONTROL))
 	PORT_BIT(0x020, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("LeftShift")  PORT_CODE(KEYCODE_LSHIFT)    PORT_CHAR(UCHAR_SHIFT_1)
 	PORT_BIT(0x040, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Repeat")     PORT_CODE(KEYCODE_LALT)
-	PORT_BIT(0x100, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("RightShift") PORT_CODE(KEYCODE_RSHIFT)    PORT_CHAR(UCHAR_SHIFT_1)
+	PORT_BIT(0x100, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("RightShift") PORT_CODE(KEYCODE_RSHIFT)
 	PORT_BIT(0x200, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Reset")      PORT_CODE(KEYCODE_F10)
 
 	PORT_START("X1")
@@ -210,8 +208,8 @@ static INPUT_PORTS_START( h19 )
 	PORT_BIT(0x200, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Unused")
 
 	PORT_START("X2")
-	PORT_BIT(0x001, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME(";")          PORT_CODE(KEYCODE_COLON)      PORT_CHAR(';') PORT_CHAR('.')
-	PORT_BIT(0x002, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("\'")         PORT_CODE(KEYCODE_QUOTE)      PORT_CHAR('\'') PORT_CHAR('\"')
+	PORT_BIT(0x001, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME(";")          PORT_CODE(KEYCODE_COLON)      PORT_CHAR(';') PORT_CHAR(':')
+	PORT_BIT(0x002, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("\'")         PORT_CODE(KEYCODE_QUOTE)      PORT_CHAR('\'') PORT_CHAR('"')
 	PORT_BIT(0x004, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("{")          PORT_CODE(KEYCODE_CLOSEBRACE) PORT_CHAR('{') PORT_CHAR('}')
 	PORT_BIT(0x008, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Return")     PORT_CODE(KEYCODE_ENTER)      PORT_CHAR(13)
 	PORT_BIT(0x010, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Unused")
@@ -371,12 +369,16 @@ INPUT_PORTS_END
 #define KB_STATUS_KEYBOARD_STROBE_MASK 0x80
 
 
-void h19_state::machine_reset()
+void h19_state::machine_start()
 {
+	save_item(NAME(m_transchar));
+	save_item(NAME(m_strobe));
+	save_item(NAME(m_keyclickactive));
+	save_item(NAME(m_bellactive));
 }
 
 
-WRITE8_MEMBER( h19_state::h19_keyclick_w )
+void h19_state::h19_keyclick_w(uint8_t data)
 {
 /* Keyclick - 6 mSec */
 
@@ -385,7 +387,7 @@ WRITE8_MEMBER( h19_state::h19_keyclick_w )
 	timer_set(attotime::from_msec(6), TIMER_KEY_CLICK_OFF);
 }
 
-WRITE8_MEMBER( h19_state::h19_bell_w )
+void h19_state::h19_bell_w(uint8_t data)
 {
 /* Bell (^G) - 200 mSec */
 
@@ -416,7 +418,7 @@ uint16_t h19_state::translate_mm5740_b(uint16_t b)
 	return ((b & 0x100) >> 2) | ((b & 0x0c0) << 1) | (b & 0x03f);
 }
 
-READ8_MEMBER(h19_state::kbd_key_r)
+uint8_t h19_state::kbd_key_r()
 {
 	m_maincpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
 	m_strobe = false;
@@ -425,7 +427,7 @@ READ8_MEMBER(h19_state::kbd_key_r)
 	return m_transchar;
 }
 
-READ8_MEMBER(h19_state::kbd_flags_r)
+uint8_t h19_state::kbd_flags_r()
 {
 	uint16_t modifiers = m_kbspecial->read();
 	uint8_t rv = modifiers & 0x7f;
@@ -471,8 +473,11 @@ WRITE_LINE_MEMBER(h19_state::mm5740_data_ready_w)
 
 MC6845_UPDATE_ROW( h19_state::crtc_update_row )
 {
-	const rgb_t *palette = m_palette->palette()->entry_list_raw();
-	uint32_t *p = &bitmap.pix32(y);
+	if (!de)
+		return;
+
+	rgb_t const *const palette = m_palette->palette()->entry_list_raw();
+	uint32_t *p = &bitmap.pix(y);
 
 	for (uint16_t x = 0; x < x_count; x++)
 	{
@@ -487,7 +492,7 @@ MC6845_UPDATE_ROW( h19_state::crtc_update_row )
 		}
 
 		/* get pattern of pixels for that character scanline */
-		uint8_t gfx = m_p_chargen[(chr<<4) | ra] ^ inv;
+		uint8_t const gfx = m_p_chargen[(chr<<4) | ra] ^ inv;
 
 		/* Display a scanline of a character (8 pixels) */
 		*p++ = palette[BIT(gfx, 7)];
@@ -520,57 +525,57 @@ static GFXDECODE_START( gfx_h19 )
 	GFXDECODE_ENTRY( "chargen", 0x0000, h19_charlayout, 0, 1 )
 GFXDECODE_END
 
-MACHINE_CONFIG_START(h19_state::h19)
+void h19_state::h19(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, H19_CLOCK) // From schematics
-	MCFG_DEVICE_PROGRAM_MAP(mem_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, H19_CLOCK); // From schematics
+	m_maincpu->set_addrmap(AS_PROGRAM, &h19_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &h19_state::io_map);
 
 	/* video hardware */
 	// TODO: make configurable, Heath offered 3 different CRTs - White, Green, Amber.
-	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::green())
-	MCFG_SCREEN_REFRESH_RATE(60)   // TODO- this is adjustable by dipswitch.
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen.set_refresh_hz(60);   // TODO- this is adjustable by dipswitch.
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
+	screen.set_size(640, 250);
+	screen.set_visarea(0, 640 - 1, 0, 250 - 1);
 
-	MCFG_SCREEN_SIZE(640, 250)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640 - 1, 0, 250 - 1)
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_h19)
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_h19);
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	MC6845(config, m_crtc, MC6845_CLOCK);
 	m_crtc->set_screen("screen");
 	m_crtc->set_show_border_area(true);
 	m_crtc->set_char_width(8);
-	m_crtc->set_update_row_callback(FUNC(h19_state::crtc_update_row), this);
+	m_crtc->set_update_row_callback(FUNC(h19_state::crtc_update_row));
 	m_crtc->out_vsync_callback().set_inputline(m_maincpu, INPUT_LINE_NMI); // frame pulse
 
 	ins8250_device &uart(INS8250(config, "ins8250", INS8250_CLOCK));
 	uart.out_int_callback().set_inputline("maincpu", INPUT_LINE_IRQ0);
 
-	MCFG_DEVICE_ADD(KBDC_TAG, MM5740, MM5740_CLOCK)
-	MCFG_MM5740_MATRIX_X1(IOPORT("X1"))
-	MCFG_MM5740_MATRIX_X2(IOPORT("X2"))
-	MCFG_MM5740_MATRIX_X3(IOPORT("X3"))
-	MCFG_MM5740_MATRIX_X4(IOPORT("X4"))
-	MCFG_MM5740_MATRIX_X5(IOPORT("X5"))
-	MCFG_MM5740_MATRIX_X6(IOPORT("X6"))
-	MCFG_MM5740_MATRIX_X7(IOPORT("X7"))
-	MCFG_MM5740_MATRIX_X8(IOPORT("X8"))
-	MCFG_MM5740_MATRIX_X9(IOPORT("X9"))
-	MCFG_MM5740_SHIFT_CB(READLINE(*this, h19_state, mm5740_shift_r))
-	MCFG_MM5740_CONTROL_CB(READLINE(*this, h19_state, mm5740_control_r))
-	MCFG_MM5740_DATA_READY_CB(WRITELINE(*this, h19_state, mm5740_data_ready_w))
+	MM5740(config, m_mm5740, MM5740_CLOCK);
+	m_mm5740->x_cb<1>().set_ioport("X1");
+	m_mm5740->x_cb<2>().set_ioport("X2");
+	m_mm5740->x_cb<3>().set_ioport("X3");
+	m_mm5740->x_cb<4>().set_ioport("X4");
+	m_mm5740->x_cb<5>().set_ioport("X5");
+	m_mm5740->x_cb<6>().set_ioport("X6");
+	m_mm5740->x_cb<7>().set_ioport("X7");
+	m_mm5740->x_cb<8>().set_ioport("X8");
+	m_mm5740->x_cb<9>().set_ioport("X9");
+	m_mm5740->shift_cb().set(FUNC(h19_state::mm5740_shift_r));
+	m_mm5740->control_cb().set(FUNC(h19_state::mm5740_control_r));
+	m_mm5740->data_ready_cb().set(FUNC(h19_state::mm5740_data_ready_w));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("beeper", BEEP, H19_BEEP_FRQ)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
+	BEEP(config, m_beep, H19_BEEP_FRQ).add_route(ALL_OUTPUTS, "mono", 1.00);
+}
 
 /* ROM definition */
 ROM_START( h19 )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x2000, "maincpu", ROMREGION_ERASEFF )
 	// Original
 	ROM_LOAD( "2732_444-46_h19code.bin", 0x0000, 0x1000, CRC(f4447da0) SHA1(fb4093d5b763be21a9580a0defebed664b1f7a7b))
 
@@ -585,7 +590,7 @@ ROM_END
 
 ROM_START( super19 )
 	// Super H19 ROM
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x2000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "2732_super19_h447.bin", 0x0000, 0x1000, CRC(6c51aaa6) SHA1(5e368b39fe2f1af44a905dc474663198ab630117))
 
 	ROM_REGION( 0x0800, "chargen", 0 )
@@ -599,7 +604,7 @@ ROM_END
 
 ROM_START( watz19 )
 	// Watzman ROM
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x2000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "watzman.bin", 0x0000, 0x1000, CRC(8168b6dc) SHA1(bfaebb9d766edbe545d24bc2b6630be4f3aa0ce9))
 
 	ROM_REGION( 0x0800, "chargen", 0 )
@@ -612,7 +617,7 @@ ROM_END
 
 ROM_START( ultra19 )
 	// ULTRA ROM
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x2000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "2532_h19_ultra_firmware.bin", 0x0000, 0x1000, CRC(8ad4cdb4) SHA1(d6e1fc37a1f52abfce5e9adb1819e0030bed1df3))
 
 	ROM_REGION( 0x0800, "chargen", 0 )
@@ -625,11 +630,11 @@ ROM_END
 
 
 //    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT  CLASS      INIT        COMPANY      FULLNAME                         FLAGS
-COMP( 1979, h19,     0,      0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19",                 0 )
+COMP( 1979, h19,     0,      0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19",                 MACHINE_SUPPORTS_SAVE )
 //Super-19 ROM - ATG Systems, Inc - Adv in Sextant Issue 4, Winter 1983. With the magazine lead-time, likely released late 1982.
-COMP( 1982, super19, h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ Super-19 ROM", 0 )
+COMP( 1982, super19, h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ Super-19 ROM", MACHINE_SUPPORTS_SAVE )
 // Watzman ROM - HUG p/n 885-1121, announced in REMark Issue 33, Oct. 1982
-COMP( 1982, watz19,  h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ Watzman ROM",  0 )
+COMP( 1982, watz19,  h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ Watzman ROM",  MACHINE_SUPPORTS_SAVE )
 // ULTRA ROM - Software Wizardry, Inc., (c) 1983 William G. Parrott, III
-COMP( 1983, ultra19, h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ ULTRA ROM",    0 )
+COMP( 1983, ultra19, h19,    0,      h19,     h19,   h19_state, empty_init, "Heath Inc", "Heathkit H-19 w/ ULTRA ROM",    MACHINE_SUPPORTS_SAVE )
 

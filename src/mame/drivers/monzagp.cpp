@@ -68,11 +68,11 @@ protected:
 	virtual void machine_start() override;
 
 private:
-	DECLARE_READ8_MEMBER(port_r);
-	DECLARE_WRITE8_MEMBER(port_w);
-	DECLARE_WRITE8_MEMBER(port1_w);
-	DECLARE_WRITE8_MEMBER(port2_w);
-	DECLARE_READ8_MEMBER(port2_r);
+	uint8_t port_r(offs_t offset);
+	void port_w(offs_t offset, uint8_t data);
+	void port1_w(uint8_t data);
+	void port2_w(uint8_t data);
+	uint8_t port2_r();
 	TIMER_DEVICE_CALLBACK_MEMBER(time_tick_timer);
 	void monzagp_palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -140,15 +140,15 @@ void monzagp_state::monzagp_palette(palette_device &palette) const
 
 		// red component
 		bit0 = BIT(d, 2);
-		int const r = combine_3_weights(rweights, bit0, bit1, bit2);
+		int const r = combine_weights(rweights, bit0, bit1, bit2);
 
 		// green component
 		bit0 = BIT(d, 1);
-		int const g = combine_3_weights(gweights, bit0, bit1, bit2);
+		int const g = combine_weights(gweights, bit0, bit1, bit2);
 
 		// blue component
 		bit0 = BIT(d, 0);
-		int const b = combine_3_weights(bweights, bit0, bit1, bit2);
+		int const b = combine_weights(bweights, bit0, bit1, bit2);
 
 		palette.set_pen_color(i, rgb_t(r, g, b));
 	}
@@ -247,9 +247,9 @@ uint32_t monzagp_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 			}
 
 			if (cliprect.contains(x * 2, y))
-				bitmap.pix16(y, x * 2) = color;
+				bitmap.pix(y, x * 2) = color;
 			if (cliprect.contains(x * 2 + 1, y))
-				bitmap.pix16(y, x * 2 + 1) = color;
+				bitmap.pix(y, x * 2 + 1) = color;
 
 			// collisions
 			uint8_t coll_prom_addr = bitswap<8>(tile_idx, 7, 6, 5, 4, 2, 0, 1, 3);
@@ -283,7 +283,7 @@ void monzagp_state::monzagp_map(address_map &map)
 }
 
 
-READ8_MEMBER(monzagp_state::port_r)
+uint8_t monzagp_state::port_r(offs_t offset)
 {
 	uint8_t data = 0xff;
 	if (!(m_p1 & 0x01))             // 8350 videoram
@@ -330,7 +330,7 @@ READ8_MEMBER(monzagp_state::port_r)
 	return data;
 }
 
-WRITE8_MEMBER(monzagp_state::port_w)
+void monzagp_state::port_w(offs_t offset, uint8_t data)
 {
 	if (!(m_p1 & 0x01))     // 8350 videoram
 	{
@@ -403,18 +403,18 @@ WRITE8_MEMBER(monzagp_state::port_w)
 	}
 }
 
-WRITE8_MEMBER(monzagp_state::port1_w)
+void monzagp_state::port1_w(uint8_t data)
 {
 //  printf("P1 %x = %x\n",m_maincpu->pc(),data);
 	m_p1 = data;
 }
 
-READ8_MEMBER(monzagp_state::port2_r)
+uint8_t monzagp_state::port2_r()
 {
 	return m_p2;
 }
 
-WRITE8_MEMBER(monzagp_state::port2_w)
+void monzagp_state::port2_w(uint8_t data)
 {
 //  printf("P2 %x = %x\n",m_maincpu->pc(),data);
 	m_p2 = data;
@@ -504,7 +504,8 @@ static GFXDECODE_START( gfx_monzagp )
 	GFXDECODE_ENTRY( "gfx3", 0x0000, tile_layout,   0, 8 )
 GFXDECODE_END
 
-MACHINE_CONFIG_START(monzagp_state::monzagp)
+void monzagp_state::monzagp(machine_config &config)
+{
 	I8035(config, m_maincpu, 12000000/4); /* 400KHz ??? - Main board Crystal is 12MHz */
 	m_maincpu->set_addrmap(AS_PROGRAM, &monzagp_state::monzagp_map);
 	m_maincpu->set_addrmap(AS_IO, &monzagp_state::monzagp_io);
@@ -526,10 +527,10 @@ MACHINE_CONFIG_START(monzagp_state::monzagp)
 	PALETTE(config, m_palette, FUNC(monzagp_state::monzagp_palette), 0x200);
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_monzagp);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("time_tick_timer", monzagp_state, time_tick_timer, attotime::from_hz(4))
+	TIMER(config, "time_tick_timer").configure_periodic(FUNC(monzagp_state::time_tick_timer), attotime::from_hz(4));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_NONE);
-MACHINE_CONFIG_END
+}
 
 ROM_START( monzagp )
 	ROM_REGION( 0x1000, "maincpu", 0 )

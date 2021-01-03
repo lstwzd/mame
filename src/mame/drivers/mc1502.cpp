@@ -20,7 +20,6 @@
 #include "bus/rs232/rs232.h"
 #include "cpu/i86/i86.h"
 #include "machine/kb_7007_3.h"
-#include "sound/wave.h"
 
 #include "softlist.h"
 #include "speaker.h"
@@ -78,7 +77,7 @@ TIMER_CALLBACK_MEMBER(mc1502_state::keyb_signal_callback)
 	}
 }
 
-WRITE8_MEMBER(mc1502_state::mc1502_ppi_portb_w)
+void mc1502_state::mc1502_ppi_portb_w(uint8_t data)
 {
 	m_ppi_portb = data;
 	m_pit8253->write_gate2(BIT(data, 0));
@@ -91,7 +90,7 @@ WRITE8_MEMBER(mc1502_state::mc1502_ppi_portb_w)
 // bit 0: parallel port data transfer direction (default = 0 = out)
 // bits 1-2: CGA_FONT (default = 01)
 // bit 3: i8251 SYNDET pin triggers NMI (default = 1 = no)
-WRITE8_MEMBER(mc1502_state::mc1502_ppi_portc_w)
+void mc1502_state::mc1502_ppi_portc_w(uint8_t data)
 {
 	m_ppi_portc = data & 15;
 }
@@ -100,7 +99,7 @@ WRITE8_MEMBER(mc1502_state::mc1502_ppi_portc_w)
 // 0x40 -- CASS IN, also loops back T2OUT (gated by CASWR)
 // 0x20 -- T2OUT
 // 0x10 -- SNDOUT
-READ8_MEMBER(mc1502_state::mc1502_ppi_portc_r)
+uint8_t mc1502_state::mc1502_ppi_portc_r()
 {
 	int data = 0xff;
 	double tap_val = m_cassette->input();
@@ -114,7 +113,7 @@ READ8_MEMBER(mc1502_state::mc1502_ppi_portc_r)
 	return data;
 }
 
-READ8_MEMBER(mc1502_state::mc1502_kppi_porta_r)
+uint8_t mc1502_state::mc1502_kppi_porta_r()
 {
 	uint8_t key = 0;
 
@@ -131,7 +130,7 @@ READ8_MEMBER(mc1502_state::mc1502_kppi_porta_r)
 	return key;
 }
 
-WRITE8_MEMBER(mc1502_state::mc1502_kppi_portb_w)
+void mc1502_state::mc1502_kppi_portb_w(uint8_t data)
 {
 	m_kbd.mask &= ~255;
 	m_kbd.mask |= data ^ 255;
@@ -142,7 +141,7 @@ WRITE8_MEMBER(mc1502_state::mc1502_kppi_portb_w)
 	LOGPPI("mc1502_kppi_portb_w ( %02X -> %04X )\n", data, m_kbd.mask);
 }
 
-WRITE8_MEMBER(mc1502_state::mc1502_kppi_portc_w)
+void mc1502_state::mc1502_kppi_portc_w(uint8_t data)
 {
 	m_kbd.mask &= ~(7 << 8);
 	m_kbd.mask |= ((data ^ 7) & 7) << 8;
@@ -178,11 +177,10 @@ void mc1502_state::init_mc1502()
 {
 	address_space &program = m_maincpu->space(AS_PROGRAM);
 
-	program.install_readwrite_bank(0, m_ram->size() - 1, "bank10");
-	membank("bank10")->set_base(m_ram->pointer());
+	program.install_ram(0, m_ram->size() - 1, m_ram->pointer());
 }
 
-MACHINE_START_MEMBER(mc1502_state, mc1502)
+void mc1502_state::machine_start()
 {
 	/*
 	       Keyboard polling circuit holds IRQ1 high until a key is
@@ -197,7 +195,7 @@ MACHINE_START_MEMBER(mc1502_state, mc1502)
 	m_kbd.keyb_signal_timer->adjust(attotime::from_msec(20), 0, attotime::from_msec(20));
 }
 
-MACHINE_RESET_MEMBER(mc1502_state, mc1502)
+void mc1502_state::machine_reset()
 {
 	m_spkrdata = 0;
 	m_pit_out2 = 1;
@@ -209,6 +207,12 @@ MACHINE_RESET_MEMBER(mc1502_state, mc1502)
 /*
  * macros
  */
+
+void mc1502_state::fdc_config(device_t *device)
+{
+	mc1502_fdc_device &fdc = *downcast<mc1502_fdc_device*>(device);
+	fdc.set_cpu(m_maincpu);
+}
 
 void mc1502_state::mc1502_map(address_map &map)
 {
@@ -229,16 +233,14 @@ static INPUT_PORTS_START( mc1502 )
 	PORT_INCLUDE( mc7007_3_keyboard )
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(mc1502_state::mc1502)
+void mc1502_state::mc1502(machine_config &config)
+{
 	I8088(config, m_maincpu, XTAL(16'000'000)/3);
 	m_maincpu->set_addrmap(AS_PROGRAM, &mc1502_state::mc1502_map);
 	m_maincpu->set_addrmap(AS_IO, &mc1502_state::mc1502_io);
 	m_maincpu->set_irq_acknowledge_callback("pic8259", FUNC(pic8259_device::inta_cb));
 
-	MCFG_MACHINE_START_OVERRIDE( mc1502_state, mc1502 )
-	MCFG_MACHINE_RESET_OVERRIDE( mc1502_state, mc1502 )
-
-	PIT8253(config, m_pit8253, 0);
+	PIT8253(config, m_pit8253);
 	m_pit8253->set_clk<0>(XTAL(16'000'000)/12); /* heartbeat IRQ */
 	m_pit8253->out_handler<0>().set(m_pic8259, FUNC(pic8259_device::ir0_w));
 	m_pit8253->set_clk<1>(XTAL(16'000'000)/12); /* serial port */
@@ -246,11 +248,11 @@ MACHINE_CONFIG_START(mc1502_state::mc1502)
 	m_pit8253->set_clk<2>(XTAL(16'000'000)/12); /* pio port c pin 4, and speaker polling enough */
 	m_pit8253->out_handler<2>().set(FUNC(mc1502_state::mc1502_pit8253_out2_changed));
 
-	PIC8259(config, m_pic8259, 0);
+	PIC8259(config, m_pic8259);
 	m_pic8259->out_int_callback().set_inputline(m_maincpu, 0);
 
 	I8255(config, m_ppi8255n1);
-	m_ppi8255n1->out_pa_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	m_ppi8255n1->out_pa_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	m_ppi8255n1->out_pb_callback().set(FUNC(mc1502_state::mc1502_ppi_portb_w));
 	m_ppi8255n1->in_pc_callback().set(FUNC(mc1502_state::mc1502_ppi_portc_r));
 	m_ppi8255n1->out_pc_callback().set(FUNC(mc1502_state::mc1502_ppi_portc_w));
@@ -258,7 +260,7 @@ MACHINE_CONFIG_START(mc1502_state::mc1502)
 	I8255(config, m_ppi8255n2);
 	m_ppi8255n2->in_pa_callback().set(FUNC(mc1502_state::mc1502_kppi_porta_r));
 	m_ppi8255n2->out_pb_callback().set(FUNC(mc1502_state::mc1502_kppi_portb_w));
-	m_ppi8255n2->in_pc_callback().set("cent_status_in", FUNC(input_buffer_device::bus_r));
+	m_ppi8255n2->in_pc_callback().set("cent_status_in", FUNC(input_buffer_device::read));
 	m_ppi8255n2->out_pc_callback().set(FUNC(mc1502_state::mc1502_kppi_portc_w));
 
 	I8251(config, m_upd8251, 0);
@@ -276,40 +278,43 @@ MACHINE_CONFIG_START(mc1502_state::mc1502)
 	rs232.cts_handler().set(m_upd8251, FUNC(i8251_device::write_cts));
 
 	isa8_device &isa(ISA8(config, "isa", 0));
-	isa.set_cputag("maincpu");
+	isa.set_memspace("maincpu", AS_PROGRAM);
+	isa.set_iospace("maincpu", AS_IO);
 	isa.irq2_callback().set(m_pic8259, FUNC(pic8259_device::ir2_w));
 	isa.irq3_callback().set(m_pic8259, FUNC(pic8259_device::ir3_w));
 	isa.irq4_callback().set(m_pic8259, FUNC(pic8259_device::ir4_w));
 	isa.irq5_callback().set(m_pic8259, FUNC(pic8259_device::ir5_w));
 	isa.irq6_callback().set(m_pic8259, FUNC(pic8259_device::ir6_w));
 	isa.irq7_callback().set(m_pic8259, FUNC(pic8259_device::ir7_w));
+	isa.iochrdy_callback().set_inputline(m_maincpu, INPUT_LINE_HALT);
 
-	MCFG_DEVICE_ADD("board0", ISA8_SLOT, 0, "isa", mc1502_isa8_cards, "cga_mc1502", true) // FIXME: determine ISA bus clock
-	MCFG_DEVICE_ADD("isa1",   ISA8_SLOT, 0, "isa", mc1502_isa8_cards, "fdc", false)
-	MCFG_DEVICE_ADD("isa2",   ISA8_SLOT, 0, "isa", mc1502_isa8_cards, "rom", false)
+	ISA8_SLOT(config, "board0", 0, "isa", mc1502_isa8_cards, "cga_mc1502", true); // FIXME: determine ISA bus clock
+	ISA8_SLOT(config, "isa1", 0, "isa", mc1502_isa8_cards, "fdc", false).set_option_machine_config("fdc", [this](device_t *device) { fdc_config(device); });
+	ISA8_SLOT(config, "isa2", 0, "isa", mc1502_isa8_cards, "rom", false).set_option_machine_config("fdc", [this](device_t* device) { fdc_config(device); });
 
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette"); // FIXME: really no output routes for the cassette sound?
 	SPEAKER_SOUND(config, "speaker").add_route(ALL_OUTPUTS, "mono", 0.80);
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_ACK_HANDLER(WRITELINE("cent_status_in", input_buffer_device, write_bit6))
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE("cent_status_in", input_buffer_device, write_bit7))
-	MCFG_CENTRONICS_FAULT_HANDLER(WRITELINE("cent_status_in", input_buffer_device, write_bit4))
-	MCFG_CENTRONICS_PERROR_HANDLER(WRITELINE("cent_status_in", input_buffer_device, write_bit5))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->ack_handler().set("cent_status_in", FUNC(input_buffer_device::write_bit6));
+	m_centronics->busy_handler().set("cent_status_in", FUNC(input_buffer_device::write_bit7));
+	m_centronics->fault_handler().set("cent_status_in", FUNC(input_buffer_device::write_bit4));
+	m_centronics->perror_handler().set("cent_status_in", FUNC(input_buffer_device::write_bit5));
 
-	MCFG_DEVICE_ADD("cent_status_in", INPUT_BUFFER, 0)
+	INPUT_BUFFER(config, "cent_status_in");
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED)
+	CASSETTE(config, m_cassette);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.05);
 
-	MCFG_SOFTWARE_LIST_ADD("flop_list","mc1502_flop")
-//  MCFG_SOFTWARE_LIST_ADD("cass_list","mc1502_cass")
+	SOFTWARE_LIST(config, "flop_list").set_original("mc1502_flop");
+//  SOFTWARE_LIST(config, "cass_list").set_original("mc1502_cass");
 
 	RAM(config, RAM_TAG).set_default_size("608K").set_extra_options("96K"); /* 96 base + 512 on expansion card */
-MACHINE_CONFIG_END
+}
 
 
 /*
@@ -322,7 +327,7 @@ MACHINE_CONFIG_END
         QWERTY).
 */
 ROM_START( mc1502 )
-	ROM_REGION16_LE(0x10000,"bios", 0)
+	ROM_REGION(0x10000,"bios", 0)
 
 	ROM_DEFAULT_BIOS("v52")
 	ROM_SYSTEM_BIOS(0, "v50", "v5.0 10/05/89")
@@ -372,7 +377,7 @@ ROM_END
         different video subsystem (not emulated).
 */
 ROM_START( pk88 )
-	ROM_REGION16_LE(0x10000,"bios", 0)
+	ROM_REGION(0x10000, "bios", 0)
 
 	// datecode 07.23.87
 	ROM_LOAD( "b0.064", 0x0000, 0x2000, CRC(80d3cf5d) SHA1(64769b7a8b60ffeefa04e4afbec778069a2840c9))

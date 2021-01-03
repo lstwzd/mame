@@ -15,14 +15,6 @@
 
 #include "emupal.h"
 
-#define MCFG_EF9364_PALETTE(_palette_tag) \
-	downcast<ef9364_device &>(*device).set_palette_tag(_palette_tag);
-
-#define MCFG_EF9364_PAGES_CNT(_pages_number) \
-	downcast<ef9364_device &>(*device).set_nb_of_pages(_pages_number);
-
-#define MCFG_EF9364_IRQ_HANDLER(_devcb) \
-	downcast<ef9364_device &>(*device).set_irq_handler(DEVCB_##_devcb);
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -52,6 +44,7 @@ public:
 			nb_of_pages = nb_bitplanes;
 		}
 	}
+	void set_erase(uint8_t data) { erase_char = data; }
 
 	// device interface
 	void update_scanline(uint16_t scanline);
@@ -88,6 +81,7 @@ private:
 	uint8_t x_curs_pos;
 	uint8_t y_curs_pos;
 	uint8_t char_latch;
+	uint8_t erase_char;
 
 	uint8_t m_border[80];                     //border color
 

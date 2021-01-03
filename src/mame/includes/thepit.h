@@ -7,6 +7,7 @@
 
 #include "machine/74259.h"
 #include "emupal.h"
+#include "tilemap.h"
 
 class thepit_state : public driver_device
 {
@@ -25,6 +26,7 @@ public:
 
 	void suprmous(machine_config &config);
 	void desertdn(machine_config &config);
+	void dockmanb(machine_config &config);
 	void intrepid(machine_config &config);
 	void thepit(machine_config &config);
 	void fitter(machine_config &config);
@@ -61,16 +63,16 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(coin_lockout_w);
 	DECLARE_WRITE_LINE_MEMBER(sound_enable_w);
 	DECLARE_WRITE_LINE_MEMBER(nmi_mask_w);
-	DECLARE_WRITE8_MEMBER(videoram_w);
-	DECLARE_WRITE8_MEMBER(colorram_w);
+	void videoram_w(offs_t offset, uint8_t data);
+	void colorram_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(flip_screen_x_w);
 	DECLARE_WRITE_LINE_MEMBER(flip_screen_y_w);
-	DECLARE_READ8_MEMBER(input_port_0_r);
+	uint8_t input_port_0_r();
 
-	DECLARE_READ8_MEMBER(intrepid_colorram_mirror_r);
+	uint8_t intrepid_colorram_mirror_r(offs_t offset);
 	DECLARE_WRITE_LINE_MEMBER(intrepid_graphics_bank_w);
 
-	DECLARE_READ8_MEMBER(rtriv_question_r);
+	uint8_t rtriv_question_r(offs_t offset);
 
 	TILE_GET_INFO_MEMBER(solid_get_tile_info);
 	TILE_GET_INFO_MEMBER(get_tile_info);
@@ -87,6 +89,7 @@ private:
 	void audio_io_map(address_map &map);
 	void audio_map(address_map &map);
 	void desertdan_main_map(address_map &map);
+	void dockmanb_main_map(address_map &map);
 	void intrepid_main_map(address_map &map);
 	void thepit_main_map(address_map &map);
 };

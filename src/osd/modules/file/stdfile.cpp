@@ -7,6 +7,7 @@
 //============================================================
 
 #include "osdcore.h"
+#include "osdfile.h"
 
 #include <cassert>
 #include <cstdint>
@@ -14,7 +15,7 @@
 #include <cstdlib>
 #include <string>
 
-#include <stdio.h>  // for fileno
+#include <cstdio>  // for fileno
 #include <unistd.h> // for ftruncate
 
 

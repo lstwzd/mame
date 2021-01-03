@@ -145,7 +145,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_subcpu(*this, "subcpu"),
 		m_crtc(*this, "crtc"),
-		m_vram(*this, "vram"),
+		m_vram(*this, "vram", 0x10000, ENDIANNESS_LITTLE),
 		m_fontram(*this, "fram"),
 		m_dma1(*this, "dma1"),
 		m_dma2(*this, "dma2"),
@@ -177,34 +177,34 @@ private:
 	virtual void machine_start() override;
 	virtual void video_start() override;
 	SCN2674_DRAW_CHARACTER_MEMBER(display_pixels);
-	DECLARE_READ8_MEMBER(vram_r);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_READ8_MEMBER(get_slave_ack);
+	uint8_t vram_r(offs_t offset);
+	void vram_w(offs_t offset, uint8_t data);
+	uint8_t get_slave_ack(offs_t offset);
 	DECLARE_WRITE_LINE_MEMBER(fdc_drq);
-	DECLARE_READ8_MEMBER(bank_sel_r);
-	DECLARE_WRITE8_MEMBER(bank_sel_w);
-	DECLARE_READ8_MEMBER(dma_read);
-	DECLARE_WRITE8_MEMBER(dma_write);
+	uint8_t bank_sel_r(offs_t offset);
+	void bank_sel_w(offs_t offset, uint8_t data);
+	uint8_t dma_read(offs_t offset);
+	void dma_write(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(dma_hrq_changed);
-	DECLARE_READ8_MEMBER(system_r);
-	DECLARE_WRITE8_MEMBER(system_w);
-	DECLARE_READ8_MEMBER(cntl_r);
-	DECLARE_WRITE8_MEMBER(cntl_w);
-	DECLARE_READ8_MEMBER(gpo_r);
-	DECLARE_WRITE8_MEMBER(gpo_w);
-	DECLARE_READ8_MEMBER(vidcontrol_r);
-	DECLARE_WRITE8_MEMBER(vidcontrol_w);
-	DECLARE_READ8_MEMBER(z80_io_r);
-	DECLARE_WRITE8_MEMBER(z80_io_w);
+	uint8_t system_r(offs_t offset);
+	void system_w(offs_t offset, uint8_t data);
+	uint8_t cntl_r();
+	void cntl_w(uint8_t data);
+	uint8_t gpo_r();
+	void gpo_w(uint8_t data);
+	uint8_t vidcontrol_r();
+	void vidcontrol_w(uint8_t data);
+	uint8_t z80_io_r();
+	void z80_io_w(uint8_t data);
 	IRQ_CALLBACK_MEMBER(x86_irq_cb);
-	DECLARE_READ8_MEMBER(rtc_r);
-	DECLARE_WRITE8_MEMBER(rtc_w);
-	DECLARE_READ8_MEMBER(z80_vector_r);
-	DECLARE_WRITE8_MEMBER(z80_vector_w);
-	DECLARE_READ8_MEMBER(parallel_r);
-	DECLARE_WRITE8_MEMBER(parallel_w);
-	DECLARE_READ8_MEMBER(video_latch_r);
-	DECLARE_WRITE8_MEMBER(video_latch_w);
+	uint8_t rtc_r();
+	void rtc_w(uint8_t data);
+	uint8_t z80_vector_r(offs_t offset);
+	void z80_vector_w(offs_t offset, uint8_t data);
+	uint8_t parallel_r(offs_t offset);
+	void parallel_w(offs_t offset, uint8_t data);
+	uint8_t video_latch_r(offs_t offset);
+	void video_latch_w(offs_t offset, uint8_t data);
 
 	DECLARE_WRITE_LINE_MEMBER(spk_w);
 	DECLARE_WRITE_LINE_MEMBER(spk_freq_w);
@@ -238,7 +238,7 @@ private:
 	required_device<cpu_device> m_maincpu;
 	required_device<cpu_device> m_subcpu;
 	required_device<scn2674_device> m_crtc;
-	required_shared_ptr<uint8_t> m_vram;
+	memory_share_creator<uint8_t> m_vram;
 	required_shared_ptr<uint8_t> m_fontram;
 	required_device<am9517a_device> m_dma1;
 	required_device<am9517a_device> m_dma2;
@@ -288,8 +288,8 @@ private:
 
 void octopus_state::octopus_mem(address_map &map)
 {
-	map(0x00000, 0xcffff).bankrw("main_ram_bank");
-	map(0xd0000, 0xdffff).ram().share("vram");
+	map(0x00000, 0xcffff).rw(m_ram, FUNC(ram_device::read), FUNC(ram_device::write));
+	//map(0xd0000, 0xdffff).ram().share("vram");
 	map(0xe0000, 0xe3fff).noprw();
 	map(0xe4000, 0xe5fff).ram().share("fram");
 	map(0xe6000, 0xe7fff).rom().region("chargen", 0);
@@ -379,13 +379,13 @@ void octopus_state::device_timer(emu_timer &timer, device_timer_id id, int param
 	}
 }
 
-WRITE8_MEMBER(octopus_state::vram_w)
+void octopus_state::vram_w(offs_t offset, uint8_t data)
 {
 	m_vram[offset] = m_char_latch_w;
 	m_vram[offset+0x1000] = m_attr_latch_w;
 }
 
-READ8_MEMBER(octopus_state::vram_r)
+uint8_t octopus_state::vram_r(offs_t offset)
 {
 	m_char_latch_r = m_vram[offset];
 	m_attr_latch_r = m_vram[offset+0x1000];
@@ -397,7 +397,7 @@ WRITE_LINE_MEMBER(octopus_state::fdc_drq)
 	// TODO
 }
 
-READ8_MEMBER(octopus_state::bank_sel_r)
+uint8_t octopus_state::bank_sel_r(offs_t offset)
 {
 	switch(offset)
 	{
@@ -411,7 +411,7 @@ READ8_MEMBER(octopus_state::bank_sel_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(octopus_state::bank_sel_w)
+void octopus_state::bank_sel_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -437,7 +437,7 @@ WRITE8_MEMBER(octopus_state::bank_sel_w)
 //       write: parity fail reset
 // ports 0x20 and 0x21 read out the DIP switch configuration (the firmware function to get system config simply does IN AX,20h)
 // 0x28: write: Z80 enable
-WRITE8_MEMBER(octopus_state::system_w)
+void octopus_state::system_w(offs_t offset, uint8_t data)
 {
 	logerror("SYS: System control offset %i data %02x\n",offset+1,data);
 	switch(offset)
@@ -450,7 +450,7 @@ WRITE8_MEMBER(octopus_state::system_w)
 	}
 }
 
-READ8_MEMBER(octopus_state::system_r)
+uint8_t octopus_state::system_r(offs_t offset)
 {
 	uint8_t val = 0x00;
 	switch(offset)
@@ -466,13 +466,13 @@ READ8_MEMBER(octopus_state::system_r)
 }
 
 // Any I/O cycle relinquishes control of the bus
-READ8_MEMBER(octopus_state::z80_io_r)
+uint8_t octopus_state::z80_io_r()
 {
-	z80_io_w(space,offset,0);
+	z80_io_w(0);
 	return 0x00;
 }
 
-WRITE8_MEMBER(octopus_state::z80_io_w)
+void octopus_state::z80_io_w(uint8_t data)
 {
 	m_subcpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
 	m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
@@ -480,7 +480,7 @@ WRITE8_MEMBER(octopus_state::z80_io_w)
 }
 
 // Z80 vector for RS232 and RS422
-READ8_MEMBER(octopus_state::z80_vector_r)
+uint8_t octopus_state::z80_vector_r(offs_t offset)
 {
 	switch(offset)
 	{
@@ -494,7 +494,7 @@ READ8_MEMBER(octopus_state::z80_vector_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(octopus_state::z80_vector_w)
+void octopus_state::z80_vector_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -519,36 +519,36 @@ WRITE8_MEMBER(octopus_state::z80_vector_w)
 // bit 1 = PPI Port A strobe?
 // bit 2 = Data strobe?
 // bit 3 = Address strobe?
-READ8_MEMBER(octopus_state::rtc_r)
+uint8_t octopus_state::rtc_r()
 {
 	uint8_t ret = 0xff;
 
 	if(m_rtc_data)
-		ret = m_rtc->read(space,1);
+		ret = m_rtc->read(1);
 	else if(m_rtc_address)
-		ret = m_rtc->read(space,0);
+		ret = m_rtc->read(0);
 
 	return ret;
 }
 
-WRITE8_MEMBER(octopus_state::rtc_w)
+void octopus_state::rtc_w(uint8_t data)
 {
 	if(m_rtc_data)
-		m_rtc->write(space,1,data);
+		m_rtc->write(1,data);
 	else if(m_rtc_address)
-		m_rtc->write(space,0,data);
+		m_rtc->write(0,data);
 }
 
 // RTC/FDC control - PPI port B
 // bits0-3: RTC control lines
 // bit4-5: write precomp.
 // bit6-7: drive select
-READ8_MEMBER(octopus_state::cntl_r)
+uint8_t octopus_state::cntl_r()
 {
 	return m_cntl;
 }
 
-WRITE8_MEMBER(octopus_state::cntl_w)
+void octopus_state::cntl_w(uint8_t data)
 {
 	m_cntl = data;
 
@@ -583,12 +583,12 @@ WRITE8_MEMBER(octopus_state::cntl_w)
 // bit 2 - floppy side select
 // bit 1 - parallel data I/O (0 = output)
 // bit 0 - parallel control I/O (0 = output)
-READ8_MEMBER(octopus_state::gpo_r)
+uint8_t octopus_state::gpo_r()
 {
 	return m_gpo;
 }
 
-WRITE8_MEMBER(octopus_state::gpo_w)
+void octopus_state::gpo_w(uint8_t data)
 {
 	m_gpo = data;
 	switch(m_current_drive)
@@ -612,12 +612,12 @@ WRITE8_MEMBER(octopus_state::gpo_w)
 // bit 6 - cursor mode (colour only) - 0=inverse cursor, 1=white cursor (normal)
 // bit 7 - 1=monochrome mode, 0=colour mode
 // Is bit 7 writable, or just mirrors DIP switch setting?  Tech manual is unclear.
-READ8_MEMBER(octopus_state::vidcontrol_r)
+uint8_t octopus_state::vidcontrol_r()
 {
 	return m_vidctrl;
 }
 
-WRITE8_MEMBER(octopus_state::vidcontrol_w)
+void octopus_state::vidcontrol_w(uint8_t data)
 {
 	m_fdc->dden_w(BIT(data, 2));
 	m_fdc->set_unscaled_clock(16_MHz_XTAL / (BIT(data, 3) ? 16 : 8));
@@ -676,7 +676,7 @@ WRITE_LINE_MEMBER(octopus_state::serial_clock_w)
 // 0xf1 : control
 //      bit 2 = INIT?  On boot, bits 0 and 1 are set high, bit 2 is set low then high again, all other bits are set low
 // can generate interrupts - tech manual suggests that Strobe, Init, Ack, and Busy can trigger an interrupt (IRQ14)
-READ8_MEMBER(octopus_state::parallel_r)
+uint8_t octopus_state::parallel_r(offs_t offset)
 {
 	switch(offset)
 	{
@@ -688,7 +688,7 @@ READ8_MEMBER(octopus_state::parallel_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(octopus_state::parallel_w)
+void octopus_state::parallel_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -715,7 +715,7 @@ WRITE8_MEMBER(octopus_state::parallel_w)
 	}
 }
 
-READ8_MEMBER(octopus_state::dma_read)
+uint8_t octopus_state::dma_read(offs_t offset)
 {
 	uint8_t byte;
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
@@ -725,7 +725,7 @@ READ8_MEMBER(octopus_state::dma_read)
 	return byte;
 }
 
-WRITE8_MEMBER(octopus_state::dma_write)
+void octopus_state::dma_write(offs_t offset, uint8_t data)
 {
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM); // get the right address space
 	if(m_current_dma == -1)
@@ -760,7 +760,7 @@ void octopus_state::machine_start()
 	m_vidctrl = 0xff;
 
 	// install RAM
-	m_maincpu->space(AS_PROGRAM).install_readwrite_bank(0x0000,m_ram->size()-1,"main_ram_bank");
+	m_maincpu->space(AS_PROGRAM).install_ram(0x0000,m_ram->size()-1,m_ram->pointer());
 	m_maincpu->space(AS_PROGRAM).nop_readwrite(m_ram->size(),0xcffff);
 }
 
@@ -773,16 +773,14 @@ void octopus_state::machine_reset()
 	m_current_drive = 0;
 	m_rtc_address = true;
 	m_rtc_data = false;
-	membank("main_ram_bank")->set_base(m_ram->pointer());
 	m_kb_uart->write_dsr(1);  // DSR is used to determine if a keyboard is connected?  If DSR is high, then the CHAR_OUT BIOS function will not output to the screen.
 }
 
 void octopus_state::video_start()
 {
-	m_vram.allocate(0x10000);
 }
 
-READ8_MEMBER(octopus_state::video_latch_r)
+uint8_t octopus_state::video_latch_r(offs_t offset)
 {
 	if(offset & 0x01)
 		return m_attr_latch_r;
@@ -790,7 +788,7 @@ READ8_MEMBER(octopus_state::video_latch_r)
 		return m_char_latch_r;
 }
 
-WRITE8_MEMBER(octopus_state::video_latch_w)
+void octopus_state::video_latch_w(offs_t offset, uint8_t data)
 {
 	if(offset & 0x01)
 		m_attr_latch_w = data;
@@ -863,11 +861,11 @@ SCN2674_DRAW_CHARACTER_MEMBER(octopus_state::display_pixels)
 				data = 0xff;
 		}
 		for (int z=0;z<8;z++)
-			bitmap.pix32(y,x + z) = BIT(data,z) ? fg : bg;
+			bitmap.pix(y,x + z) = BIT(data,z) ? fg : bg;
 	}
 }
 
-READ8_MEMBER( octopus_state::get_slave_ack )
+uint8_t octopus_state::get_slave_ack(offs_t offset)
 {
 	if (offset==7)
 		return m_pic2->acknowledge();
@@ -895,16 +893,17 @@ void octopus_centronics_devices(device_slot_interface &device)
 	device.option_add("printer", CENTRONICS_PRINTER);
 }
 
-MACHINE_CONFIG_START(octopus_state::octopus)
+void octopus_state::octopus(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",I8088, 24_MHz_XTAL / 3)  // 8MHz
-	MCFG_DEVICE_PROGRAM_MAP(octopus_mem)
-	MCFG_DEVICE_IO_MAP(octopus_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DRIVER(octopus_state, x86_irq_cb)
+	I8088(config, m_maincpu, 24_MHz_XTAL / 3);  // 8MHz
+	m_maincpu->set_addrmap(AS_PROGRAM, &octopus_state::octopus_mem);
+	m_maincpu->set_addrmap(AS_IO, &octopus_state::octopus_io);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(octopus_state::x86_irq_cb));
 
-	MCFG_DEVICE_ADD("subcpu",Z80, 24_MHz_XTAL / 4) // 6MHz
-	MCFG_DEVICE_PROGRAM_MAP(octopus_sub_mem)
-	MCFG_DEVICE_IO_MAP(octopus_sub_io)
+	Z80(config, m_subcpu, 24_MHz_XTAL / 4); // 6MHz
+	m_subcpu->set_addrmap(AS_PROGRAM, &octopus_state::octopus_sub_mem);
+	m_subcpu->set_addrmap(AS_IO, &octopus_state::octopus_sub_io);
 
 	AM9517A(config, m_dma1, 24_MHz_XTAL / 6);  // 4MHz
 	m_dma1->out_hreq_callback().set(m_dma2, FUNC(am9517a_device::dreq0_w));
@@ -968,17 +967,17 @@ MACHINE_CONFIG_START(octopus_state::octopus)
 	m_kb_uart->rts_handler().set(FUNC(octopus_state::beep_w));
 	rs232_port_device &keyboard_port(RS232_PORT(config, "keyboard_port", keyboard, "octopus"));
 	keyboard_port.rxd_handler().set(m_kb_uart, FUNC(i8251_device::write_rxd));
-	MCFG_DEVICE_ADD("keyboard_clock_rx", CLOCK, 9600 * 64)
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(m_kb_uart,i8251_device,write_rxc))
-	MCFG_DEVICE_ADD("keyboard_clock_tx", CLOCK, 1200 * 64)
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(m_kb_uart,i8251_device,write_txc))
+	clock_device &keyboard_clock_rx(CLOCK(config, "keyboard_clock_rx", 9600 * 64));
+	keyboard_clock_rx.signal_handler().set(m_kb_uart, FUNC(i8251_device::write_rxc));
+	clock_device &keyboard_clock_tx(CLOCK(config, "keyboard_clock_tx", 1200 * 64));
+	keyboard_clock_tx.signal_handler().set(m_kb_uart, FUNC(i8251_device::write_txc));
 
 	FD1793(config, m_fdc, 16_MHz_XTAL / 8);
 	m_fdc->intrq_wr_callback().set(m_pic1, FUNC(pic8259_device::ir5_w));
 	m_fdc->drq_wr_callback().set(m_dma2, FUNC(am9517a_device::dreq1_w));
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", octopus_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", octopus_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_SOFTWARE_LIST_ADD("fd_list","octopus")
+	FLOPPY_CONNECTOR(config, "fdc:0", octopus_floppies, "525dd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:1", octopus_floppies, "525dd", floppy_image_device::default_floppy_formats);
+	SOFTWARE_LIST(config, "fd_list").set_original("octopus");
 
 	PIT8253(config, m_pit, 0);
 	m_pit->set_clk<0>(4.9152_MHz_XTAL / 2);  // DART channel A
@@ -989,8 +988,7 @@ MACHINE_CONFIG_START(octopus_state::octopus)
 	m_pit->out_handler<2>().set(FUNC(octopus_state::spk_freq_w));
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	Z80SIO(config, m_serial, 16_MHz_XTAL / 4); // clock rate not mentioned in tech manual
 	m_serial->out_int_callback().set(m_pic1, FUNC(pic8259_device::ir1_w));
@@ -1008,9 +1006,9 @@ MACHINE_CONFIG_START(octopus_state::octopus)
 	serial_b.cts_handler().set(m_serial, FUNC(z80sio_device::ctsb_w)).invert();
 	//serial_b.ri_handler().set(m_serial, FUNC(z80sio_device::rib_w)).invert();
 
-	MCFG_DEVICE_ADD(m_parallel, CENTRONICS, octopus_centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, octopus_state, parallel_busy_w))
-	MCFG_CENTRONICS_SELECT_HANDLER(WRITELINE(*this, octopus_state, parallel_slctout_w))
+	CENTRONICS(config, m_parallel, octopus_centronics_devices, "printer");
+	m_parallel->busy_handler().set(FUNC(octopus_state::parallel_busy_w));
+	m_parallel->select_handler().set(FUNC(octopus_state::parallel_slctout_w));
 	// TODO: Winchester HD controller (Xebec/SASI compatible? uses TTL logic)
 
 	/* video hardware */
@@ -1026,11 +1024,10 @@ MACHINE_CONFIG_START(octopus_state::octopus)
 	m_crtc->set_addrmap(0, &octopus_state::octopus_vram);
 	m_crtc->set_screen("screen");
 
-	ADDRESS_MAP_BANK(config, "z80_bank").set_map(&octopus_state::octopus_mem).set_options(ENDIANNESS_LITTLE, 8, 32, 0x10000);
+	ADDRESS_MAP_BANK(config, m_z80_bankdev).set_map(&octopus_state::octopus_mem).set_options(ENDIANNESS_LITTLE, 8, 32, 0x10000);
 
 	RAM(config, "ram").set_default_size("256K").set_extra_options("128K,512K,768K");
-
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( octopus )

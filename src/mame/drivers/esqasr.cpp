@@ -75,19 +75,15 @@ private:
 	virtual void machine_reset() override;
 
 	DECLARE_WRITE_LINE_MEMBER(esq5506_otto_irq);
-	DECLARE_READ16_MEMBER(esq5506_read_adc);
+	u16 esq5506_read_adc();
+	void es5506_clock_changed(u32 data);
+
 	void asr_map(address_map &map);
 	void asrx_map(address_map &map);
 };
 
 void esqasr_state::machine_start()
 {
-	if (m_pump.found())
-	{
-		// tell the pump about the ESP chips
-		if (m_esp.found())
-			m_pump->set_esp(m_esp);
-	}
 }
 
 void esqasr_state::machine_reset()
@@ -111,9 +107,14 @@ WRITE_LINE_MEMBER(esqasr_state::esq5506_otto_irq)
 {
 }
 
-READ16_MEMBER(esqasr_state::esq5506_read_adc)
+u16 esqasr_state::esq5506_read_adc()
 {
 	return 0;
+}
+
+void esqasr_state::es5506_clock_changed(u32 data)
+{
+	m_pump->set_unscaled_clock(data);
 }
 
 void esqasr_state::asr(machine_config &config)
@@ -130,10 +131,12 @@ void esqasr_state::asr(machine_config &config)
 	SPEAKER(config, "rspeaker").front_right();
 
 	ESQ_5505_5510_PUMP(config, m_pump, XTAL(16'000'000) / (16 * 32));
+	m_pump->set_esp(m_esp);
 	m_pump->add_route(0, "lspeaker", 1.0);
 	m_pump->add_route(1, "rspeaker", 1.0);
 
 	es5506_device &ensoniq(ES5506(config, "ensoniq", XTAL(16'000'000)));
+	ensoniq.sample_rate_changed().set(FUNC(esqasr_state::es5506_clock_changed));
 	ensoniq.set_region0("waverom");  /* Bank 0 */
 	ensoniq.set_region1("waverom2"); /* Bank 1 */
 	ensoniq.set_region2("waverom3"); /* Bank 0 */
@@ -165,10 +168,12 @@ void esqasr_state::asrx(machine_config &config)
 	SPEAKER(config, "rspeaker").front_right();
 
 	ESQ_5505_5510_PUMP(config, m_pump, XTAL(16'000'000) / (16 * 32)); // Actually ES5511
+	m_pump->set_esp(m_esp);
 	m_pump->add_route(0, "lspeaker", 1.0);
 	m_pump->add_route(1, "rspeaker", 1.0);
 
 	es5506_device &ensoniq(ES5506(config, "ensoniq", XTAL(16'000'000)));
+	ensoniq.sample_rate_changed().set(FUNC(esqasr_state::es5506_clock_changed));
 	ensoniq.set_region0("waverom");  /* Bank 0 */
 	ensoniq.set_region1("waverom2"); /* Bank 1 */
 	ensoniq.set_region2("waverom3"); /* Bank 0 */

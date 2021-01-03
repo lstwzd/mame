@@ -123,7 +123,7 @@
 
 DEFINE_DEVICE_TYPE_NS(TI99_GROMPORT, bus::ti99::gromport, gromport_device, "gromport", "TI-99 Cartridge port")
 
-namespace bus { namespace ti99 { namespace gromport {
+namespace bus::ti99::gromport {
 
 gromport_device::gromport_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	:   device_t(mconfig, TI99_GROMPORT, tag, owner, clock),
@@ -139,11 +139,11 @@ gromport_device::gromport_device(const machine_config &mconfig, const char *tag,
     Reading via the GROM port. Only 13 address lines are passed through
     on the TI-99/4A, and 14 lines on the TI-99/8.
 */
-READ8Z_MEMBER(gromport_device::readz)
+void gromport_device::readz(offs_t offset, uint8_t *value)
 {
 	if (m_connector != nullptr)
 	{
-		m_connector->readz(space, offset & m_mask, value);
+		m_connector->readz(offset & m_mask, value);
 		if (m_romgq) LOGMASKED(LOG_READ, "Read %04x -> %02x\n", offset | 0x6000, *value);
 	}
 }
@@ -152,25 +152,25 @@ READ8Z_MEMBER(gromport_device::readz)
     Writing via the GROM port. Only 13 address lines are passed through
     on the TI-99/4A, and 14 lines on the TI-99/8.
 */
-WRITE8_MEMBER(gromport_device::write)
+void gromport_device::write(offs_t offset, uint8_t data)
 {
 	if (m_connector != nullptr)
 	{
 		if (m_romgq) LOGMASKED(LOG_WRITE, "Write %04x <- %02x\n", offset | 0x6000, data);
-		m_connector->write(space, offset & m_mask, data);
+		m_connector->write(offset & m_mask, data);
 	}
 }
 
-READ8Z_MEMBER(gromport_device::crureadz)
+void gromport_device::crureadz(offs_t offset, uint8_t *value)
 {
 	if (m_connector != nullptr)
-		m_connector->crureadz(space, offset, value);
+		m_connector->crureadz(offset, value);
 }
 
-WRITE8_MEMBER(gromport_device::cruwrite)
+void gromport_device::cruwrite(offs_t offset, uint8_t data)
 {
 	if (m_connector != nullptr)
-		m_connector->cruwrite(space, offset, data);
+		m_connector->cruwrite(offset, data);
 }
 
 WRITE_LINE_MEMBER(gromport_device::ready_line)
@@ -288,7 +288,7 @@ void cartridge_connector_device::device_config_complete()
 	m_gromport = static_cast<gromport_device*>(owner());
 }
 
-} } } // end namespace bus::ti99::gromport
+} // end namespace bus::ti99::gromport
 
 void ti99_gromport_options(device_slot_interface &device)
 {

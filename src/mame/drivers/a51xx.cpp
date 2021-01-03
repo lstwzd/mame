@@ -31,7 +31,7 @@ public:
 
 private:
 	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override;
 	DECLARE_MACHINE_RESET(a5130);
 	DECLARE_VIDEO_START(a5130);
 	uint32_t screen_update_a5120(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -80,7 +80,7 @@ void a51xx_state::machine_reset()
 {
 }
 
-void a51xx_state::video_start()
+void a51xx_state::machine_start()
 {
 }
 
@@ -126,46 +126,46 @@ static GFXDECODE_START( gfx_a51xx )
 	GFXDECODE_ENTRY( "chargen", 0x0000, a51xx_charlayout, 0, 1 )
 GFXDECODE_END
 
-MACHINE_CONFIG_START(a51xx_state::a5120)
+void a51xx_state::a5120(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",Z80, XTAL(4'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(a5120_mem)
-	MCFG_DEVICE_IO_MAP(a5120_io)
+	Z80(config, m_maincpu, XTAL(4'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &a51xx_state::a5120_mem);
+	m_maincpu->set_addrmap(AS_IO, &a51xx_state::a5120_io);
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(640, 480)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 480-1)
-	MCFG_SCREEN_UPDATE_DRIVER(a51xx_state, screen_update_a5120)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(640, 480);
+	screen.set_visarea_full();
+	screen.set_screen_update(FUNC(a51xx_state::screen_update_a5120));
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_a51xx)
+	GFXDECODE(config, "gfxdecode", "palette", gfx_a51xx);
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(a51xx_state::a5130)
+void a51xx_state::a5130(machine_config &config)
+{
 	a5120(config);
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(a5130_mem)
-	MCFG_DEVICE_IO_MAP(a5130_io)
+	m_maincpu->set_addrmap(AS_PROGRAM, &a51xx_state::a5130_mem);
+	m_maincpu->set_addrmap(AS_IO, &a51xx_state::a5130_io);
 
 	MCFG_MACHINE_RESET_OVERRIDE(a51xx_state,a5130)
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(a51xx_state, screen_update_a5130)
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(a51xx_state::screen_update_a5130));
 
 	MCFG_VIDEO_START_OVERRIDE(a51xx_state,a5130)
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( a5120 )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x0400, "maincpu", 0 )
 	ROM_SYSTEM_BIOS( 0, "v1", "v1" )
 	ROMX_LOAD( "a5120_v1.rom", 0x0000, 0x0400, CRC(b2b3fee0) SHA1(6198513b263d8a7a867f1dda368b415bb37fcdae), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS( 1, "v2", "v2" )
@@ -178,7 +178,7 @@ ROM_END
 
 /* ROM definition */
 ROM_START( a5130 )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x1000, "maincpu", 0 )
 	ROM_LOAD( "dzr5130.rom", 0x0000, 0x1000, CRC(4719beb7) SHA1(09295a658b8c5b75b20faea57ad925f69f07a9b5))
 
 	ROM_REGION(0x0800, "chargen",0)
@@ -189,5 +189,5 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY         FULLNAME  FLAGS
-COMP( 1982, a5120, 0,      0,      a5120,   a5120, a51xx_state, empty_init, "VEB Robotron", "A5120",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-COMP( 1983, a5130, a5120,  0,      a5130,   a5130, a51xx_state, empty_init, "VEB Robotron", "A5130",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+COMP( 1982, a5120, 0,      0,      a5120,   a5120, a51xx_state, empty_init, "VEB Robotron", "A5120",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )
+COMP( 1983, a5130, a5120,  0,      a5130,   a5130, a51xx_state, empty_init, "VEB Robotron", "A5130",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )

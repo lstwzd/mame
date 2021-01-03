@@ -29,11 +29,11 @@ private:
 	uint8_t    m_dial_enable_1;
 	uint8_t    m_dial_enable_2;
 	uint8_t    m_input_select;
-	DECLARE_READ8_MEMBER(input_port_bit_r);
-	DECLARE_READ8_MEMBER(dial_r);
-	DECLARE_WRITE8_MEMBER(port_1_w);
-	DECLARE_WRITE8_MEMBER(port_2_w);
-	DECLARE_WRITE8_MEMBER(input_select_w);
+	uint8_t input_port_bit_r();
+	uint8_t dial_r();
+	void port_1_w(uint8_t data);
+	void port_2_w(uint8_t data);
+	void input_select_w(uint8_t data);
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	uint32_t screen_update_embargo(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -52,23 +52,19 @@ private:
 
 uint32_t embargo_state::screen_update_embargo(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	offs_t offs;
-
-	for (offs = 0; offs < m_videoram.bytes(); offs++)
+	for (offs_t offs = 0; offs < m_videoram.bytes(); offs++)
 	{
-		int i;
-
 		uint8_t x = offs << 3;
-		uint8_t y = offs >> 5;
+		uint8_t const y = offs >> 5;
 		uint8_t data = m_videoram[offs];
 
-		for (i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++)
 		{
 			pen_t pen = (data & 0x01) ? rgb_t::white() : rgb_t::black();
-			bitmap.pix32(y, x) = pen;
+			bitmap.pix(y, x) = pen;
 
-			data = data >> 1;
-			x = x + 1;
+			data >>= 1;
+			x++;
 		}
 	}
 
@@ -83,13 +79,13 @@ uint32_t embargo_state::screen_update_embargo(screen_device &screen, bitmap_rgb3
  *
  *************************************/
 
-READ8_MEMBER(embargo_state::input_port_bit_r)
+uint8_t embargo_state::input_port_bit_r()
 {
 	return (ioport("IN1")->read() << (7 - m_input_select)) & 0x80;
 }
 
 
-READ8_MEMBER(embargo_state::dial_r)
+uint8_t embargo_state::dial_r()
 {
 	uint8_t lo = 0;
 	uint8_t hi = 0;
@@ -139,19 +135,19 @@ READ8_MEMBER(embargo_state::dial_r)
 }
 
 
-WRITE8_MEMBER(embargo_state::port_1_w)
+void embargo_state::port_1_w(uint8_t data)
 {
 	m_dial_enable_1 = data & 0x01; /* other bits unknown */
 }
 
 
-WRITE8_MEMBER(embargo_state::port_2_w)
+void embargo_state::port_2_w(uint8_t data)
 {
 	m_dial_enable_2 = data & 0x01; /* other bits unknown */
 }
 
 
-WRITE8_MEMBER(embargo_state::input_select_w)
+void embargo_state::input_select_w(uint8_t data)
 {
 	m_input_select = data & 0x07;
 }
@@ -266,22 +262,21 @@ void embargo_state::machine_reset()
  *
  *************************************/
 
-MACHINE_CONFIG_START(embargo_state::embargo)
-
+void embargo_state::embargo(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", S2650, 625000)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_IO_MAP(main_io_map)
-	MCFG_DEVICE_DATA_MAP(main_data_map)
+	S2650(config, m_maincpu, 625000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &embargo_state::main_map);
+	m_maincpu->set_addrmap(AS_IO, &embargo_state::main_io_map);
+	m_maincpu->set_addrmap(AS_DATA, &embargo_state::main_data_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255, 0, 239)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE_DRIVER(embargo_state, screen_update_embargo)
-
-MACHINE_CONFIG_END
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_size(256, 256);
+	screen.set_visarea(0, 255, 0, 239);
+	screen.set_refresh_hz(60);
+	screen.set_screen_update(FUNC(embargo_state::screen_update_embargo));
+}
 
 
 

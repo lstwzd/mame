@@ -12,6 +12,7 @@
 
 #include "video/ladybug.h"
 #include "emupal.h"
+#include "tilemap.h"
 
 
 // redclash/zerohour
@@ -42,19 +43,19 @@ protected:
 	virtual void video_start() override;
 
 private:
-	DECLARE_WRITE_LINE_MEMBER(screen_vblank_redclash);
-	DECLARE_WRITE8_MEMBER(redclash_videoram_w);
-	DECLARE_WRITE8_MEMBER(redclash_gfxbank_w);
-	DECLARE_WRITE8_MEMBER(redclash_flipscreen_w);
-	DECLARE_WRITE8_MEMBER(irqack_w);
-	DECLARE_WRITE8_MEMBER(redclash_star_reset_w);
-	template <unsigned B> DECLARE_WRITE8_MEMBER(redclash_star_w);
-	void redclash_palette(palette_device &palette) const;
+	DECLARE_WRITE_LINE_MEMBER(screen_vblank);
+	void videoram_w(offs_t offset, uint8_t data);
+	void gfxbank_w(uint8_t data);
+	void flipscreen_w(uint8_t data);
+	void irqack_w(uint8_t data);
+	void star_reset_w(uint8_t data);
+	template <unsigned B> void star_w(uint8_t data);
+	void palette(palette_device &palette) const;
 	TILE_GET_INFO_MEMBER(get_fg_tile_info);
 
-	uint32_t screen_update_redclash(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void redclash_draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void redclash_draw_bullets(bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
+	void draw_bullets(bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	void redclash_map(address_map &map);
 	void zerohour_map(address_map &map);

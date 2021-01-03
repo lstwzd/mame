@@ -38,15 +38,15 @@ public:
 	void overdriv(machine_config &config);
 
 private:
-	DECLARE_WRITE16_MEMBER(eeprom_w);
-	DECLARE_WRITE16_MEMBER(cpuA_ctrl_w);
-	DECLARE_READ16_MEMBER(cpuB_ctrl_r);
-	DECLARE_WRITE16_MEMBER(cpuB_ctrl_w);
-	DECLARE_WRITE16_MEMBER(overdriv_soundirq_w);
-	DECLARE_WRITE8_MEMBER(sound_ack_w);
-	DECLARE_WRITE16_MEMBER(slave_irq4_assert_w);
-	DECLARE_WRITE16_MEMBER(slave_irq5_assert_w);
-	DECLARE_WRITE16_MEMBER(objdma_w);
+	void eeprom_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void cpuA_ctrl_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t cpuB_ctrl_r();
+	void cpuB_ctrl_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void overdriv_soundirq_w(uint16_t data);
+	void sound_ack_w(uint8_t data);
+	void slave_irq4_assert_w(uint16_t data);
+	void slave_irq5_assert_w(uint16_t data);
+	void objdma_w(uint8_t data);
 	TIMER_CALLBACK_MEMBER(objdma_end_cb);
 
 	uint32_t screen_update_overdriv(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -56,7 +56,6 @@ private:
 	K051316_CB_MEMBER(zoom_callback_1);
 	K051316_CB_MEMBER(zoom_callback_2);
 	K053246_CB_MEMBER(sprite_callback);
-	void overdriv_k053260_map(address_map &map);
 	void overdriv_master_map(address_map &map);
 	void overdriv_slave_map(address_map &map);
 	void overdriv_sound_map(address_map &map);

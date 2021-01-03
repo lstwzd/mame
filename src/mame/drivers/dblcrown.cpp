@@ -83,21 +83,21 @@ private:
 	// screen updates
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	DECLARE_WRITE8_MEMBER(bank_w);
-	DECLARE_READ8_MEMBER(irq_source_r);
-	DECLARE_WRITE8_MEMBER(irq_source_w);
-	DECLARE_READ8_MEMBER(palette_r);
-	DECLARE_WRITE8_MEMBER(palette_w);
-	DECLARE_READ8_MEMBER(vram_r);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_READ8_MEMBER(vram_bank_r);
-	DECLARE_WRITE8_MEMBER(vram_bank_w);
-	DECLARE_WRITE8_MEMBER(mux_w);
-	DECLARE_READ8_MEMBER(in_mux_r);
-	DECLARE_READ8_MEMBER(in_mux_type_r);
-	DECLARE_WRITE8_MEMBER(output_w);
-	DECLARE_WRITE8_MEMBER(lamps_w);
-	DECLARE_WRITE8_MEMBER(watchdog_w);
+	void bank_w(uint8_t data);
+	uint8_t irq_source_r();
+	void irq_source_w(uint8_t data);
+	uint8_t palette_r(offs_t offset);
+	void palette_w(offs_t offset, uint8_t data);
+	uint8_t vram_r(offs_t offset);
+	void vram_w(offs_t offset, uint8_t data);
+	uint8_t vram_bank_r(offs_t offset);
+	void vram_bank_w(offs_t offset, uint8_t data);
+	void mux_w(uint8_t data);
+	uint8_t in_mux_r();
+	uint8_t in_mux_type_r();
+	void output_w(uint8_t data);
+	void lamps_w(uint8_t data);
+	void watchdog_w(uint8_t data);
 
 	TIMER_DEVICE_CALLBACK_MEMBER(dblcrown_irq_scanline);
 	void dblcrown_palette(palette_device &palette) const;
@@ -169,23 +169,23 @@ uint32_t dblcrown_state::screen_update( screen_device &screen, bitmap_ind16 &bit
 	return 0;
 }
 
-WRITE8_MEMBER( dblcrown_state::bank_w)
+void dblcrown_state::bank_w(uint8_t data)
 {
 	m_bank = data;
 	membank("rom_bank")->set_entry(m_bank & 0x1f);
 }
 
-READ8_MEMBER( dblcrown_state::irq_source_r)
+uint8_t dblcrown_state::irq_source_r()
 {
 	return m_irq_src;
 }
 
-WRITE8_MEMBER( dblcrown_state::irq_source_w)
+void dblcrown_state::irq_source_w(uint8_t data)
 {
 	m_irq_src = data; // this effectively acks the irq, by writing 0
 }
 
-READ8_MEMBER( dblcrown_state::palette_r)
+uint8_t dblcrown_state::palette_r(offs_t offset)
 {
 	//if(m_bank & 8) /* TODO: verify this */
 	//  offset+=0x200;
@@ -193,7 +193,7 @@ READ8_MEMBER( dblcrown_state::palette_r)
 	return m_pal_ram[offset];
 }
 
-WRITE8_MEMBER( dblcrown_state::palette_w)
+void dblcrown_state::palette_w(offs_t offset, uint8_t data)
 {
 	int r,g,b,datax;
 
@@ -213,7 +213,7 @@ WRITE8_MEMBER( dblcrown_state::palette_w)
 }
 
 
-READ8_MEMBER( dblcrown_state::vram_r)
+uint8_t dblcrown_state::vram_r(offs_t offset)
 {
 	uint32_t hi_offs;
 	hi_offs = m_vram_bank[(offset & 0x1000) >> 12] << 12;
@@ -221,7 +221,7 @@ READ8_MEMBER( dblcrown_state::vram_r)
 	return m_vram[(offset & 0xfff) | hi_offs];
 }
 
-WRITE8_MEMBER( dblcrown_state::vram_w)
+void dblcrown_state::vram_w(offs_t offset, uint8_t data)
 {
 	uint32_t hi_offs;
 	hi_offs = m_vram_bank[(offset & 0x1000) >> 12] << 12;
@@ -238,12 +238,12 @@ WRITE8_MEMBER( dblcrown_state::vram_w)
 	#endif
 }
 
-READ8_MEMBER( dblcrown_state::vram_bank_r)
+uint8_t dblcrown_state::vram_bank_r(offs_t offset)
 {
 	return m_vram_bank[offset];
 }
 
-WRITE8_MEMBER( dblcrown_state::vram_bank_w)
+void dblcrown_state::vram_bank_w(offs_t offset, uint8_t data)
 {
 	m_vram_bank[offset] = data & 0xf;
 
@@ -251,19 +251,16 @@ WRITE8_MEMBER( dblcrown_state::vram_bank_w)
 		printf("vram bank = %02x\n",data);
 }
 
-WRITE8_MEMBER( dblcrown_state::mux_w)
+void dblcrown_state::mux_w(uint8_t data)
 {
 	m_mux_data = data;
 }
 
-READ8_MEMBER( dblcrown_state::in_mux_r )
+uint8_t dblcrown_state::in_mux_r()
 {
-	int i;
-	uint8_t res;
+	uint8_t res = 0;
 
-	res = 0;
-
-	for(i = 0; i < 4; i++)
+	for(int i = 0; i < 4; i++)
 	{
 		if(m_mux_data & 1 << i)
 			res |= m_inputs[i]->read();
@@ -272,14 +269,11 @@ READ8_MEMBER( dblcrown_state::in_mux_r )
 	return res;
 }
 
-READ8_MEMBER( dblcrown_state::in_mux_type_r )
+uint8_t dblcrown_state::in_mux_type_r()
 {
-	int i;
-	uint8_t res;
+	uint8_t res = 0xff;
 
-	res = 0xff;
-
-	for(i = 0; i < 4; i++)
+	for(int i = 0; i < 4; i++)
 	{
 		if (m_inputs[i]->read() != 0xff)
 			res &= ~(1 << i);
@@ -288,7 +282,7 @@ READ8_MEMBER( dblcrown_state::in_mux_type_r )
 	return res;
 }
 
-WRITE8_MEMBER( dblcrown_state::output_w )
+void dblcrown_state::output_w(uint8_t data)
 {
 /*  bits
   7654 3210
@@ -305,7 +299,7 @@ WRITE8_MEMBER( dblcrown_state::output_w )
 }
 
 
-WRITE8_MEMBER( dblcrown_state::lamps_w )
+void dblcrown_state::lamps_w(uint8_t data)
 {
 /*  bits
   7654 3210
@@ -323,7 +317,7 @@ WRITE8_MEMBER( dblcrown_state::lamps_w )
 		m_lamps[n] = BIT(data, n);
 }
 
-WRITE8_MEMBER(dblcrown_state::watchdog_w)
+void dblcrown_state::watchdog_w(uint8_t data)
 /*
   Always 0x01...
 */
@@ -397,7 +391,7 @@ static INPUT_PORTS_START( dblcrown )
 	PORT_START("IN3")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_POKER_CANCEL ) PORT_NAME("Cancel / Repeat Bet")
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_GAMBLE_DEAL ) PORT_NAME("Deal / Draw")
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_POKER_BET )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BET )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_D_UP )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_SERVICE3 ) PORT_NAME("Analyzer")
 	PORT_BIT( 0xe0, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -599,26 +593,26 @@ It needs at least 64 instances because 0xa05b will be eventually nuked by the vb
 }
 
 
-MACHINE_CONFIG_START(dblcrown_state::dblcrown)
-
+void dblcrown_state::dblcrown(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, CPU_CLOCK)
-	MCFG_DEVICE_PROGRAM_MAP(dblcrown_map)
-	MCFG_DEVICE_IO_MAP(dblcrown_io)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", dblcrown_state, dblcrown_irq_scanline, "screen", 0, 1)
+	Z80(config, m_maincpu, CPU_CLOCK);
+	m_maincpu->set_addrmap(AS_PROGRAM, &dblcrown_state::dblcrown_map);
+	m_maincpu->set_addrmap(AS_IO, &dblcrown_state::dblcrown_io);
+	TIMER(config, "scantimer").configure_scanline(FUNC(dblcrown_state::dblcrown_irq_scanline), "screen", 0, 1);
 
 	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_msec(1000));   /* 1000 ms. (minimal of MAX693A watchdog long timeout period with internal oscillator) */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_UPDATE_DRIVER(dblcrown_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_screen_update(FUNC(dblcrown_state::screen_update));
+	screen.set_size(64*8, 64*8);
+	screen.set_visarea(0*8, 40*8-1, 2*8, 30*8-1);
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_dblcrown)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_dblcrown);
 
 	PALETTE(config, m_palette, FUNC(dblcrown_state::dblcrown_palette), 0x100);
 
@@ -632,7 +626,7 @@ MACHINE_CONFIG_START(dblcrown_state::dblcrown)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 	YMZ284(config, "ymz", SND_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.75);
-MACHINE_CONFIG_END
+}
 
 
 /***************************************************************************

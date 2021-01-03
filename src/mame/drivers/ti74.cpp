@@ -108,12 +108,12 @@ private:
 	void update_lcd_indicator(u8 y, u8 x, int state);
 	void update_battery_status(int state);
 
-	DECLARE_READ8_MEMBER(keyboard_r);
-	DECLARE_WRITE8_MEMBER(keyboard_w);
-	DECLARE_WRITE8_MEMBER(bankswitch_w);
+	u8 keyboard_r();
+	void keyboard_w(u8 data);
+	void bankswitch_w(u8 data);
 
 	void ti74_palette(palette_device &palette) const;
-	DECLARE_DEVICE_IMAGE_LOAD_MEMBER(ti74_cartridge);
+	DECLARE_DEVICE_IMAGE_LOAD_MEMBER(cart_load);
 	HD44780_PIXEL_UPDATE(ti74_pixel_update);
 	HD44780_PIXEL_UPDATE(ti95_pixel_update);
 	void main_map(address_map &map);
@@ -137,7 +137,7 @@ private:
 
 ***************************************************************************/
 
-DEVICE_IMAGE_LOAD_MEMBER(ti74_state, ti74_cartridge)
+DEVICE_IMAGE_LOAD_MEMBER(ti74_state::cart_load)
 {
 	u32 size = m_cart->common_get_size("rom");
 
@@ -201,7 +201,7 @@ HD44780_PIXEL_UPDATE(ti74_state::ti74_pixel_update)
 	{
 		// internal: 2*16, external: 1*31
 		if (y == 7) y++; // the cursor is slightly below the character
-		bitmap.pix16(1 + y, 1 + line*16*6 + pos*6 + x) = state ? 1 : 2;
+		bitmap.pix(1 + y, 1 + line*16*6 + pos*6 + x) = state ? 1 : 2;
 	}
 }
 
@@ -220,7 +220,7 @@ HD44780_PIXEL_UPDATE(ti74_state::ti95_pixel_update)
 	{
 		// 1st line is simply 16 chars
 		if (y == 7) y++; // the cursor is slightly below the char
-		bitmap.pix16(10 + y, 1 + pos*6 + x) = state ? 1 : 2;
+		bitmap.pix(10 + y, 1 + pos*6 + x) = state ? 1 : 2;
 	}
 	else if (line == 1 && pos < 15 && y < 7)
 	{
@@ -228,7 +228,7 @@ HD44780_PIXEL_UPDATE(ti74_state::ti95_pixel_update)
 		// note: the chars are smaller than on the 1st line (this is handled in .lay file)
 		const int gap = 9;
 		int group = pos / 3;
-		bitmap.pix16(1 + y, 1 + group*gap + pos*6 + x) = state ? 1 : 2;
+		bitmap.pix(1 + y, 1 + group*gap + pos*6 + x) = state ? 1 : 2;
 	}
 }
 
@@ -240,7 +240,7 @@ HD44780_PIXEL_UPDATE(ti74_state::ti95_pixel_update)
 
 ***************************************************************************/
 
-READ8_MEMBER(ti74_state::keyboard_r)
+u8 ti74_state::keyboard_r()
 {
 	u8 ret = 0;
 
@@ -254,13 +254,13 @@ READ8_MEMBER(ti74_state::keyboard_r)
 	return ret;
 }
 
-WRITE8_MEMBER(ti74_state::keyboard_w)
+void ti74_state::keyboard_w(u8 data)
 {
 	// d(0-7): select keyboard column
 	m_key_select = data;
 }
 
-WRITE8_MEMBER(ti74_state::bankswitch_w)
+void ti74_state::bankswitch_w(u8 data)
 {
 	// d0-d1: system rom bankswitch
 	membank("sysbank")->set_entry(data & 3);
@@ -280,7 +280,7 @@ void ti74_state::main_map(address_map &map)
 	map.unmap_value_high();
 	map(0x1000, 0x1001).rw("hd44780", FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 	map(0x2000, 0x3fff).ram().share("sysram.ic3");
-	//AM_RANGE(0x4000, 0xbfff) // mapped by the cartslot
+	//map(0x4000, 0xbfff) // mapped by the cartslot
 	map(0xc000, 0xdfff).bankr("sysbank");
 }
 
@@ -378,10 +378,10 @@ static INPUT_PORTS_START( ti74 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_START("IN.7")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_PLUS_PAD) PORT_CHAR(UCHAR_MAMEKEY(PLUS_PAD)) PORT_NAME("+     s(y)")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_PLUS_PAD) PORT_CHAR('+') PORT_NAME("+     s(y)")
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_MINUS_PAD) PORT_CODE(KEYCODE_MINUS) PORT_CHAR('-') PORT_NAME("-     s(x)")
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_ASTERISK) PORT_CHAR(UCHAR_MAMEKEY(ASTERISK)) PORT_NAME("*     y" UTF8_NONSPACE_MACRON)
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_SLASH_PAD) PORT_CODE(KEYCODE_SLASH) PORT_CHAR(UCHAR_MAMEKEY(SLASH_PAD)) PORT_NAME("/     x" UTF8_NONSPACE_MACRON)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_ASTERISK) PORT_CHAR('*') PORT_NAME("*     y" UTF8_NONSPACE_MACRON)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_SLASH_PAD) PORT_CODE(KEYCODE_SLASH) PORT_CHAR('/') PORT_NAME("/     x" UTF8_NONSPACE_MACRON)
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_LALT) PORT_CODE(KEYCODE_RALT) PORT_CHAR(UCHAR_MAMEKEY(F1)) PORT_NAME("FN     hyp")
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_CODE(KEYCODE_LCONTROL) PORT_CODE(KEYCODE_RCONTROL) PORT_CHAR(UCHAR_SHIFT_2) PORT_NAME("CTL     STAT")
@@ -504,7 +504,7 @@ void ti74_state::machine_start()
 	m_lamps.resolve();
 
 	if (m_cart->exists())
-		m_maincpu->space(AS_PROGRAM).install_read_handler(0x4000, 0xbfff, read8_delegate(FUNC(generic_slot_device::read_rom),(generic_slot_device*)m_cart));
+		m_maincpu->space(AS_PROGRAM).install_read_handler(0x4000, 0xbfff, read8sm_delegate(*m_cart, FUNC(generic_slot_device::read_rom)));
 
 	membank("sysbank")->configure_entries(0, 4, memregion("system")->base(), 0x2000);
 	membank("sysbank")->set_entry(0);
@@ -518,8 +518,8 @@ void ti74_state::machine_start()
 	save_item(NAME(m_power));
 }
 
-MACHINE_CONFIG_START(ti74_state::ti74)
-
+void ti74_state::ti74(machine_config &config)
+{
 	/* basic machine hardware */
 	TMS70C46(config, m_maincpu, XTAL(4'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &ti74_state::main_map);
@@ -530,31 +530,30 @@ MACHINE_CONFIG_START(ti74_state::ti74)
 	NVRAM(config, "sysram.ic3", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(60) // arbitrary
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_SIZE(6*31+1, 9*1+1+1)
-	MCFG_SCREEN_VISIBLE_AREA(0, 6*31, 0, 9*1+1)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(60); // arbitrary
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_size(6*31+1, 9*1+1+1);
+	screen.set_visarea_full();
+	screen.set_screen_update("hd44780", FUNC(hd44780_device::screen_update));
+	screen.set_palette("palette");
+
 	config.set_default_layout(layout_ti74);
-	MCFG_SCREEN_UPDATE_DEVICE("hd44780", hd44780_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
 
 	PALETTE(config, "palette", FUNC(ti74_state::ti74_palette), 3);
 
-	MCFG_HD44780_ADD("hd44780") // 270kHz
-	MCFG_HD44780_LCD_SIZE(2, 16) // 2*16 internal
-	MCFG_HD44780_PIXEL_UPDATE_CB(ti74_state,ti74_pixel_update)
+	hd44780_device &hd44780(HD44780(config, "hd44780", 0)); // 270kHz
+	hd44780.set_lcd_size(2, 16); // 2*16 internal
+	hd44780.set_pixel_update_cb(FUNC(ti74_state::ti74_pixel_update));
 
 	/* cartridge */
-	MCFG_GENERIC_CARTSLOT_ADD("cartslot", generic_plain_slot, "ti74_cart")
-	MCFG_GENERIC_EXTENSIONS("bin,rom,256")
-	MCFG_GENERIC_LOAD(ti74_state, ti74_cartridge)
+	GENERIC_CARTSLOT(config, "cartslot", generic_plain_slot, "ti74_cart", "bin,rom,256").set_device_load(FUNC(ti74_state::cart_load));
 
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "ti74_cart")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("ti74_cart");
+}
 
-MACHINE_CONFIG_START(ti74_state::ti95)
-
+void ti74_state::ti95(machine_config &config)
+{
 	/* basic machine hardware */
 	TMS70C46(config, m_maincpu, XTAL(4'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &ti74_state::main_map);
@@ -565,28 +564,27 @@ MACHINE_CONFIG_START(ti74_state::ti95)
 	NVRAM(config, "sysram.ic3", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", LCD)
-	MCFG_SCREEN_REFRESH_RATE(60) // arbitrary
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_SIZE(200, 20)
-	MCFG_SCREEN_VISIBLE_AREA(0, 200-1, 0, 20-1)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(60); // arbitrary
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_size(200, 20);
+	screen.set_visarea_full();
+	screen.set_screen_update("hd44780", FUNC(hd44780_device::screen_update));
+	screen.set_palette("palette");
+
 	config.set_default_layout(layout_ti95);
-	MCFG_SCREEN_UPDATE_DEVICE("hd44780", hd44780_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
 
 	PALETTE(config, "palette", FUNC(ti74_state::ti74_palette), 3);
 
-	MCFG_HD44780_ADD("hd44780")
-	MCFG_HD44780_LCD_SIZE(2, 16)
-	MCFG_HD44780_PIXEL_UPDATE_CB(ti74_state,ti95_pixel_update)
+	hd44780_device &hd44780(HD44780(config, "hd44780", 0));
+	hd44780.set_lcd_size(2, 16);
+	hd44780.set_pixel_update_cb(FUNC(ti74_state::ti95_pixel_update));
 
 	/* cartridge */
-	MCFG_GENERIC_CARTSLOT_ADD("cartslot", generic_plain_slot, "ti95_cart")
-	MCFG_GENERIC_EXTENSIONS("bin,rom,256")
-	MCFG_GENERIC_LOAD(ti74_state, ti74_cartridge)
+	GENERIC_CARTSLOT(config, "cartslot", generic_plain_slot, "ti95_cart", "bin,rom,256").set_device_load(FUNC(ti74_state::cart_load));
 
-	MCFG_SOFTWARE_LIST_ADD("cart_list", "ti95_cart")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "cart_list").set_original("ti95_cart");
+}
 
 
 

@@ -14,6 +14,7 @@
 #include "halnote.h"
 #include "hfox.h"
 #include "holy_quran.h"
+#include "ink.h"
 #include "konami.h"
 #include "korean.h"
 #include "majutsushi.h"
@@ -25,6 +26,8 @@
 #include "superloderunner.h"
 #include "super_swangi.h"
 #include "yamaha.h"
+
+#include "bus/msx_slot/cartridge.h"
 
 
 void msx_cart(device_slot_interface &device)
@@ -56,6 +59,7 @@ void msx_cart(device_slot_interface &device)
 	device.option_add_internal("msxaud_nms1205", MSX_CART_MSX_AUDIO_NMS1205);
 	device.option_add_internal("super_swangi", MSX_CART_SUPER_SWANGI);
 	device.option_add_internal("hfox", MSX_CART_HFOX);
+	device.option_add_internal("ink", MSX_CART_INK);
 	device.option_add_internal("keyboard_master", MSX_CART_KEYBOARD_MASTER);
 	device.option_add_internal("holy_quran", MSX_CART_HOLY_QURAN);
 	device.option_add_internal("dooly", MSX_CART_DOOLY);
@@ -71,8 +75,8 @@ void msx_cart(device_slot_interface &device)
 
 
 msx_cart_interface::msx_cart_interface(const machine_config &mconfig, device_t &device)
-	: device_slot_card_interface(mconfig, device)
-	, m_out_irq_cb(*this)
+	: device_interface(device, "msxcart")
+	, m_exp(nullptr)
 {
 }
 
@@ -98,6 +102,21 @@ void msx_cart_interface::sram_alloc(uint32_t size)
 {
 	m_sram.resize(size);
 	std::fill_n(m_sram.begin(), size, 0x00);
+}
+
+WRITE_LINE_MEMBER(msx_cart_interface::irq_out)
+{
+	m_exp->irq_out(state);
+}
+
+address_space &msx_cart_interface::memory_space() const
+{
+	return m_exp->memory_space();
+}
+
+address_space &msx_cart_interface::io_space() const
+{
+	return m_exp->io_space();
 }
 
 

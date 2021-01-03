@@ -174,6 +174,8 @@ Video sync   6 F   Video sync                 Post   6 F   Post
 #include "speaker.h"
 
 
+namespace {
+
 #define HALLEYS_DEBUG 0
 
 
@@ -235,6 +237,7 @@ public:
 	void init_halleysp();
 
 protected:
+	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	virtual void video_start() override;
 
@@ -268,20 +271,20 @@ private:
 	offs_t m_collision_detection;
 	std::vector<uint8_t> m_paletteram;
 
-	DECLARE_WRITE8_MEMBER(bgtile_w);
-	DECLARE_READ8_MEMBER(blitter_status_r);
-	DECLARE_READ8_MEMBER(blitter_r);
-	DECLARE_WRITE8_MEMBER(blitter_w);
-	DECLARE_READ8_MEMBER(collision_id_r);
-	DECLARE_READ8_MEMBER(paletteram_r);
-	DECLARE_WRITE8_MEMBER(paletteram_w);
-	DECLARE_READ8_MEMBER(vector_r);
-	DECLARE_WRITE8_MEMBER(firq_ack_w);
-	DECLARE_WRITE8_MEMBER(soundcommand_w);
-	DECLARE_READ8_MEMBER(coin_lockout_r);
-	DECLARE_READ8_MEMBER(io_mirror_r);
+	void bgtile_w(offs_t offset, uint8_t data);
+	uint8_t blitter_status_r();
+	uint8_t blitter_r(offs_t offset);
+	void blitter_w(offs_t offset, uint8_t data);
+	uint8_t collision_id_r();
+	uint8_t paletteram_r(offs_t offset);
+	void paletteram_w(offs_t offset, uint8_t data);
+	uint8_t vector_r(offs_t offset);
+	void firq_ack_w(uint8_t data);
+	void soundcommand_w(uint8_t data);
+	uint8_t coin_lockout_r();
+	uint8_t io_mirror_r(offs_t offset);
 	void blit(int offset);
-	DECLARE_WRITE8_MEMBER(sndnmi_msk_w);
+	void sndnmi_msk_w(uint8_t data);
 	void halleys_palette(palette_device &palette);
 	uint32_t screen_update_halleys(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	uint32_t screen_update_benberob(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -1021,7 +1024,7 @@ if (0) {
 
 
 // draws Ben Bero Beh's color backdrop(verification required)
-WRITE8_MEMBER(halleys_state::bgtile_w)
+void halleys_state::bgtile_w(offs_t offset, uint8_t data)
 {
 	int yskip, xskip, ecx;
 	uint16_t *edi;
@@ -1046,7 +1049,7 @@ WRITE8_MEMBER(halleys_state::bgtile_w)
 }
 
 
-READ8_MEMBER(halleys_state::blitter_status_r)
+uint8_t halleys_state::blitter_status_r()
 {
 	if (m_game_id==GAME_HALLEYS && m_maincpu->pc()==0x8017) return(0x55); // HACK: trick SRAM test on startup
 
@@ -1054,7 +1057,7 @@ READ8_MEMBER(halleys_state::blitter_status_r)
 }
 
 
-READ8_MEMBER(halleys_state::blitter_r)
+uint8_t halleys_state::blitter_r(offs_t offset)
 {
 	int i = offset & 0xf;
 
@@ -1070,7 +1073,7 @@ TIMER_CALLBACK_MEMBER(halleys_state::blitter_reset)
 }
 
 
-WRITE8_MEMBER(halleys_state::blitter_w)
+void halleys_state::blitter_w(offs_t offset, uint8_t data)
 {
 	int i = offset & 0xf;
 
@@ -1094,7 +1097,7 @@ WRITE8_MEMBER(halleys_state::blitter_w)
 }
 
 
-READ8_MEMBER(halleys_state::collision_id_r)
+uint8_t halleys_state::collision_id_r()
 {
 /*
     Collision detection abstract:
@@ -1226,12 +1229,12 @@ void halleys_state::halleys_decode_rgb(uint32_t *r, uint32_t *g, uint32_t *b, in
 	*b = prom_6330[0x40 + (bit0|bit1|bit2|bit3|bit4)];
 }
 
-READ8_MEMBER(halleys_state::paletteram_r)
+uint8_t halleys_state::paletteram_r(offs_t offset)
 {
 	return m_paletteram[offset];
 }
 
-WRITE8_MEMBER(halleys_state::paletteram_w)
+void halleys_state::paletteram_w(offs_t offset, uint8_t data)
 {
 	uint32_t *const pal_ptr = m_internal_palette.get();
 
@@ -1310,7 +1313,7 @@ void halleys_state::copy_scroll_op(bitmap_ind16 &bitmap, uint16_t *source, int s
 
 	// draw top split
 	for (int y=0; y != bch; y++) {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		memcpy(dest, src+sx, 2*rcw);
 		memcpy(dest + rcw, src, 2*(CLIP_W - rcw));
 		src += SCREEN_WIDTH;
@@ -1320,7 +1323,7 @@ void halleys_state::copy_scroll_op(bitmap_ind16 &bitmap, uint16_t *source, int s
 
 	// draw bottom split
 	for (int y = bch; y != CLIP_H; y++) {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		memcpy(dest, src+sx, 2*rcw);
 		memcpy(dest + rcw, src, 2*(CLIP_W - rcw));
 		src += SCREEN_WIDTH;
@@ -1345,7 +1348,7 @@ void halleys_state::copy_scroll_xp(bitmap_ind16 &bitmap, uint16_t *source, int s
 
 	// draw top split
 	for (int y=0; y != bch; y++)  {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		const uint16_t *src = src_base + sx;
 		for(int x=0; x != rcw; x++) {
 			uint16_t pixel = *src++;
@@ -1370,7 +1373,7 @@ void halleys_state::copy_scroll_xp(bitmap_ind16 &bitmap, uint16_t *source, int s
 
 	// draw bottom split
 	for (int y = bch; y != CLIP_H; y++) {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		const uint16_t *src = src_base + sx;
 		for(int x=0; x != rcw; x++) {
 			uint16_t pixel = *src++;
@@ -1398,7 +1401,7 @@ void halleys_state::copy_fixed_xp(bitmap_ind16 &bitmap, uint16_t *source)
 {
 	uint16_t *src = source + CLIP_SKIP;
 	for(int y=0; y != CLIP_H; y++) {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		for(int x=0; x != CLIP_W; x++) {
 			uint16_t pixel = src[x];
 
@@ -1414,7 +1417,7 @@ void halleys_state::copy_fixed_2b(bitmap_ind16 &bitmap, uint16_t *source)
 {
 	uint16_t *src = source + CLIP_SKIP;
 	for(int y=0; y != CLIP_H; y++) {
-		uint16_t *dest = &bitmap.pix16(VIS_MINY + y, VIS_MINX);
+		uint16_t *dest = &bitmap.pix(VIS_MINY + y, VIS_MINX);
 		for(int x=0; x != CLIP_W; x++) {
 			uint16_t pixel = src[x];
 
@@ -1436,7 +1439,7 @@ void halleys_state::filter_bitmap(bitmap_ind16 &bitmap, int mask)
 
 	pal_ptr = m_internal_palette.get();
 	esi = mask | 0xffffff00;
-	edi = (uint32_t*)&bitmap.pix16(VIS_MINY, VIS_MINX + CLIP_W);
+	edi = (uint32_t*)&bitmap.pix(VIS_MINY, VIS_MINX + CLIP_W);
 	dst_pitch = bitmap.rowpixels() >> 1;
 	ecx = -(CLIP_W>>1);
 	edx = CLIP_H;
@@ -1513,9 +1516,9 @@ uint32_t halleys_state::screen_update_benberob(screen_device &screen, bitmap_ind
 
 #if HALLEYS_DEBUG
 
-READ8_MEMBER(halleys_state::zero_r){ return(0); }
+uint8_t halleys_state::zero_r(){ return(0); }
 
-READ8_MEMBER(halleys_state::debug_r)
+uint8_t halleys_state::debug_r(offs_t offset)
 {
 	return(m_io_ram[offset]);
 }
@@ -1579,13 +1582,13 @@ TIMER_DEVICE_CALLBACK_MEMBER(halleys_state::benberob_scanline)
 }
 
 
-READ8_MEMBER(halleys_state::vector_r)
+uint8_t halleys_state::vector_r(offs_t offset)
 {
 	return(m_cpu1_base[0xffe0 + (offset^(m_mVectorType<<4))]);
 }
 
 
-WRITE8_MEMBER(halleys_state::firq_ack_w)
+void halleys_state::firq_ack_w(uint8_t data)
 {
 	m_io_ram[0x9c] = data;
 
@@ -1594,21 +1597,21 @@ WRITE8_MEMBER(halleys_state::firq_ack_w)
 }
 
 
-WRITE8_MEMBER(halleys_state::sndnmi_msk_w)
+void halleys_state::sndnmi_msk_w(uint8_t data)
 {
 	m_sndnmi_mask = data & 1;
 }
 
 
-WRITE8_MEMBER(halleys_state::soundcommand_w)
+void halleys_state::soundcommand_w(uint8_t data)
 {
 	m_io_ram[0x8a] = data;
-	m_soundlatch->write(space,offset,data);
+	m_soundlatch->write(data);
 	m_audiocpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
 }
 
 
-READ8_MEMBER(halleys_state::coin_lockout_r)
+uint8_t halleys_state::coin_lockout_r()
 {
 	// This is a hack, but it lets you coin up when COIN1 or COIN2 are signaled.
 	// See NMI for the twisted logic that is involved in handling coin input :
@@ -1625,7 +1628,7 @@ READ8_MEMBER(halleys_state::coin_lockout_r)
 }
 
 
-READ8_MEMBER(halleys_state::io_mirror_r)
+uint8_t halleys_state::io_mirror_r(offs_t offset)
 {
 	static const char *const portnames[] = { "IN0", "IN1", "IN2", "IN3" };
 
@@ -1916,9 +1919,13 @@ INPUT_PORTS_END
 //**************************************************************************
 // Machine Definitions and Initializations
 
-void halleys_state::machine_reset()
+void halleys_state::machine_start()
 {
 	m_mVectorType     = 0;
+}
+
+void halleys_state::machine_reset()
+{
 	m_firq_level      = 0;
 	m_blitter_busy    = 0;
 	m_collision_count = 0;
@@ -1930,25 +1937,26 @@ void halleys_state::machine_reset()
 }
 
 
-MACHINE_CONFIG_START(halleys_state::halleys)
-	MCFG_DEVICE_ADD("maincpu", MC6809E, XTAL(19'968'000)/12) /* verified on pcb */
-	MCFG_DEVICE_PROGRAM_MAP(halleys_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", halleys_state, halleys_scanline, "screen", 0, 1)
+void halleys_state::halleys(machine_config &config)
+{
+	MC6809E(config, m_maincpu, XTAL(19'968'000)/12); /* verified on pcb */
+	m_maincpu->set_addrmap(AS_PROGRAM, &halleys_state::halleys_map);
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, XTAL(6'000'000)/2) /* verified on pcb */
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(halleys_state, irq0_line_hold,  (double)6000000/(4*16*16*10*16))
+	TIMER(config, "scantimer").configure_scanline(FUNC(halleys_state::halleys_scanline), "screen", 0, 1);
+
+	Z80(config, m_audiocpu, XTAL(6'000'000)/2); /* verified on pcb */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &halleys_state::sound_map);
+	m_audiocpu->set_periodic_int(FUNC(halleys_state::irq0_line_hold), attotime::from_hz((double)6000000/(4*16*16*10*16)));
 
 
 	// video hardware
-
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.50) /* verified on PCB */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(SCREEN_WIDTH, SCREEN_HEIGHT)
-	MCFG_SCREEN_VISIBLE_AREA(VIS_MINX, VIS_MAXX, VIS_MINY, VIS_MAXY)
-	MCFG_SCREEN_UPDATE_DRIVER(halleys_state, screen_update_halleys)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(59.50); /* verified on PCB */
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(SCREEN_WIDTH, SCREEN_HEIGHT);
+	screen.set_visarea(VIS_MINX, VIS_MAXX, VIS_MINY, VIS_MAXY);
+	screen.set_screen_update(FUNC(halleys_state::screen_update_halleys));
+	screen.set_palette(m_palette);
 
 	PALETTE(config, m_palette, FUNC(halleys_state::halleys_palette), PALETTE_SIZE);
 
@@ -1966,19 +1974,19 @@ MACHINE_CONFIG_START(halleys_state::halleys)
 	ym2149_device &ay4(YM2149(config, "ay4", XTAL(6'000'000)/4)); /* verified on pcb */
 	ay4.port_b_write_callback().set(FUNC(halleys_state::sndnmi_msk_w));
 	ay4.add_route(ALL_OUTPUTS, "mono", 0.15);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(halleys_state::benberob)
+void halleys_state::benberob(machine_config &config)
+{
 	halleys(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_CLOCK(XTAL(19'968'000)/12) /* not verified but pcb identical to halley's comet */
-	MCFG_TIMER_MODIFY("scantimer")
-	MCFG_TIMER_DRIVER_CALLBACK(halleys_state, benberob_scanline)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(halleys_state, screen_update_benberob)
-MACHINE_CONFIG_END
+	m_maincpu->set_clock(XTAL(19'968'000)/12); /* not verified but pcb identical to halley's comet */
+
+	subdevice<timer_device>("scantimer")->set_callback(FUNC(halleys_state::benberob_scanline));
+
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(halleys_state::screen_update_benberob));
+}
 
 
 //**************************************************************************
@@ -2268,6 +2276,8 @@ void halleys_state::init_halley87()
 
 	init_common();
 }
+
+} // Anonymous namespace
 
 
 //**************************************************************************

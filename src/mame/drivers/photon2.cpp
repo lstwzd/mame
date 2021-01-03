@@ -57,10 +57,10 @@ private:
 	uint8_t m_spectrum_port_fe;
 	uint8_t m_nmi_enable;
 
-	DECLARE_WRITE8_MEMBER(membank_w);
-	DECLARE_READ8_MEMBER(fe_r);
-	DECLARE_WRITE8_MEMBER(fe_w);
-	DECLARE_WRITE8_MEMBER(misc_w);
+	void membank_w(uint8_t data);
+	uint8_t fe_r();
+	void fe_w(uint8_t data);
+	void misc_w(uint8_t data);
 
 	void photon2_palette(palette_device &palette) const;
 
@@ -163,48 +163,46 @@ WRITE_LINE_MEMBER(photon2_state::screen_vblank_spectrum)
 
 static inline void spectrum_plot_pixel(bitmap_ind16 &bitmap, int x, int y, uint32_t color)
 {
-	bitmap.pix16(y, x) = (uint16_t)color;
+	bitmap.pix(y, x) = (uint16_t)color;
 }
 
 uint32_t photon2_state::screen_update_spectrum(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	/* for now do a full-refresh */
-	int x, y, b, scrx, scry;
-	unsigned short ink, pap;
-	unsigned char *attr, *scr;
 //  int full_refresh = 1;
 
-	scr=m_spectrum_video_ram;
+	unsigned char const *scr=m_spectrum_video_ram;
 
 	bitmap.fill(m_spectrum_port_fe & 0x07, cliprect);
 
-	for (y=0; y<192; y++)
+	for (int y=0; y<192; y++)
 	{
-		scrx=SPEC_LEFT_BORDER;
-		scry=((y&7) * 8) + ((y&0x38)>>3) + (y&0xC0);
-		attr=m_spectrum_video_ram + ((scry>>3)*32) + 0x1800;
+		int scrx=SPEC_LEFT_BORDER;
+		int scry=((y&7) * 8) + ((y&0x38)>>3) + (y&0xC0);
+		unsigned char const *attr=m_spectrum_video_ram + ((scry>>3)*32) + 0x1800;
 
-		for (x=0;x<32;x++)
+		for (int x=0;x<32;x++)
 		{
-				/* Get ink and paper colour with bright */
-				if (m_spectrum_flash_invert && (*attr & 0x80))
-				{
-						ink=((*attr)>>3) & 0x0f;
-						pap=((*attr) & 0x07) + (((*attr)>>3) & 0x08);
-				}
-				else
-				{
-						ink=((*attr) & 0x07) + (((*attr)>>3) & 0x08);
-						pap=((*attr)>>3) & 0x0f;
-				}
+			/* Get ink and paper colour with bright */
+			unsigned short ink, pap;
+			if (m_spectrum_flash_invert && (*attr & 0x80))
+			{
+				ink=((*attr)>>3) & 0x0f;
+				pap=((*attr) & 0x07) + (((*attr)>>3) & 0x08);
+			}
+			else
+			{
+				ink=((*attr) & 0x07) + (((*attr)>>3) & 0x08);
+				pap=((*attr)>>3) & 0x0f;
+			}
 
-				for (b=0x80;b!=0;b>>=1)
-				{
-						if (*scr&b)
-								spectrum_plot_pixel(bitmap,scrx++,SPEC_TOP_BORDER+scry,ink);
-						else
-								spectrum_plot_pixel(bitmap,scrx++,SPEC_TOP_BORDER+scry,pap);
-				}
+			for (int b=0x80;b!=0;b>>=1)
+			{
+				if (*scr&b)
+					spectrum_plot_pixel(bitmap,scrx++,SPEC_TOP_BORDER+scry,ink);
+				else
+					spectrum_plot_pixel(bitmap,scrx++,SPEC_TOP_BORDER+scry,pap);
+			}
 			scr++;
 			attr++;
 		}
@@ -219,7 +217,7 @@ uint32_t photon2_state::screen_update_spectrum(screen_device &screen, bitmap_ind
  *
  *************************************/
 
-WRITE8_MEMBER(photon2_state::membank_w)
+void photon2_state::membank_w(uint8_t data)
 {
 	int bank = 0;
 	if (data == 0)
@@ -242,18 +240,18 @@ WRITE8_MEMBER(photon2_state::membank_w)
 	membank("mainbank")->set_entry(bank);
 }
 
-READ8_MEMBER(photon2_state::fe_r)
+uint8_t photon2_state::fe_r()
 {
 	return 0xff;
 }
 
-WRITE8_MEMBER(photon2_state::fe_w)
+void photon2_state::fe_w(uint8_t data)
 {
 	m_spectrum_port_fe = data;
 	m_speaker->level_w(BIT(data,4));
 }
 
-WRITE8_MEMBER(photon2_state::misc_w)
+void photon2_state::misc_w(uint8_t data)
 {
 	m_nmi_enable = !BIT(data,5);
 }
@@ -358,29 +356,30 @@ void photon2_state::machine_start()
 	save_item(NAME(m_nmi_enable));
 }
 
-MACHINE_CONFIG_START(photon2_state::photon2)
+void photon2_state::photon2(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 3500000)        /* 3.5 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(spectrum_mem)
-	MCFG_DEVICE_IO_MAP(spectrum_io)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", photon2_state, spec_interrupt_hack, "screen", 0, 1)
+	Z80(config, m_maincpu, 3500000);        /* 3.5 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &photon2_state::spectrum_mem);
+	m_maincpu->set_addrmap(AS_IO, &photon2_state::spectrum_io);
+	TIMER(config, "scantimer").configure_scanline(FUNC(photon2_state::spec_interrupt_hack), "screen", 0, 1);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50.08)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(SPEC_SCREEN_WIDTH, SPEC_SCREEN_HEIGHT)
-	MCFG_SCREEN_VISIBLE_AREA(0, SPEC_SCREEN_WIDTH-1, 0, SPEC_SCREEN_HEIGHT-1)
-	MCFG_SCREEN_UPDATE_DRIVER(photon2_state, screen_update_spectrum)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, photon2_state, screen_vblank_spectrum))
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50.08);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(SPEC_SCREEN_WIDTH, SPEC_SCREEN_HEIGHT);
+	screen.set_visarea(0, SPEC_SCREEN_WIDTH-1, 0, SPEC_SCREEN_HEIGHT-1);
+	screen.set_screen_update(FUNC(photon2_state::screen_update_spectrum));
+	screen.screen_vblank().set(FUNC(photon2_state::screen_vblank_spectrum));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(photon2_state::photon2_palette), 16);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 /*************************************
  *

@@ -15,7 +15,6 @@
 #include "includes/mbc55x.h"
 #include "bus/isa/isa.h"
 #include "bus/isa/isa_cards.h"
-//#include "bus/pc_joy/pc_joy.h"
 #include "bus/rs232/rs232.h"
 #include "machine/clock.h"
 #include "machine/i8087.h"
@@ -67,33 +66,38 @@ void mbc55x_state::mbc55x_iodecode(address_map &map)
 	map(0x1c, 0x1d).mirror(0x02).rw(m_kb_uart, FUNC(i8251_device::read), FUNC(i8251_device::write));
 }
 
-READ8_MEMBER(mbc55x_state::iodecode_r)
+uint8_t mbc55x_state::iodecode_r(offs_t offset)
 {
-	return m_iodecode->read8(space, offset >> 1);
+	return m_iodecode->read8(offset >> 1);
 }
 
-WRITE8_MEMBER(mbc55x_state::iodecode_w)
+void mbc55x_state::iodecode_w(offs_t offset, uint8_t data)
 {
-	m_iodecode->write8(space, offset >> 1, data);
+	m_iodecode->write8(offset >> 1, data);
 }
 
 /* 8255 Configuration */
 
-READ8_MEMBER(mbc55x_state::game_io_r)
+uint8_t mbc55x_state::game_io_r()
 {
-	return 0xff;
+	u8 result = m_gameio->sw3_r();
+	result |= m_gameio->sw2_r() << 1;
+	result |= m_gameio->sw1_r() << 2;
+	result |= m_gameio->sw0_r() << 3;
+
+	for (int i = 0; i < 4; i++)
+		if (machine().time().as_double() < m_ls123_clear_time[i])
+			result |= 1 << (4 + i);
+
+	return result;
 }
 
-WRITE8_MEMBER(mbc55x_state::game_io_w)
-{
-}
-
-READ8_MEMBER( mbc55x_state::printer_status_r)
+uint8_t mbc55x_state::printer_status_r()
 {
 	return m_printer_status;
 }
 
-WRITE8_MEMBER(mbc55x_state::printer_data_w)
+void mbc55x_state::printer_data_w(uint8_t data)
 {
 	m_printer->write_data7(!BIT(data, 7));
 	m_printer->write_data6(!BIT(data, 6));
@@ -103,9 +107,29 @@ WRITE8_MEMBER(mbc55x_state::printer_data_w)
 	m_printer->write_data2(!BIT(data, 2));
 	m_printer->write_data1(!BIT(data, 1));
 	m_printer->write_data0(!BIT(data, 0));
+
+	m_gameio->an0_w(!BIT(data, 0));
+	m_gameio->an1_w(!BIT(data, 1));
+	m_gameio->an2_w(!BIT(data, 2));
+	m_gameio->an3_w(!BIT(data, 3));
+	m_gameio->an4_w(!BIT(data, 4));
+	m_gameio->strobe_w(!BIT(data, 5));
+
+	if (m_ls123_strobe != BIT(data, 7))
+	{
+		if (BIT(data, 7))
+		{
+			m_ls123_clear_time[0] = machine().time().as_double() + m_x_calibration * m_gameio->pdl0_r();
+			m_ls123_clear_time[1] = machine().time().as_double() + m_y_calibration * m_gameio->pdl1_r();
+			m_ls123_clear_time[2] = machine().time().as_double() + m_x_calibration * m_gameio->pdl2_r();
+			m_ls123_clear_time[3] = machine().time().as_double() + m_y_calibration * m_gameio->pdl3_r();
+		}
+
+		m_ls123_strobe = BIT(data, 7);
+	}
 }
 
-WRITE8_MEMBER(mbc55x_state::disk_select_w)
+void mbc55x_state::disk_select_w(uint8_t data)
 {
 	floppy_image_device *floppy = nullptr;
 
@@ -170,7 +194,7 @@ void mbc55x_state::set_ram_size()
 		if(bankno<nobanks)
 		{
 			membank(bank)->set_base(map_base);
-			space.install_readwrite_bank(bank_base, bank_base+(RAM_BANK_SIZE-1), bank);
+			space.install_readwrite_bank(bank_base, bank_base+(RAM_BANK_SIZE-1), membank(bank));
 			logerror("Mapping bank %d at %05X to RAM\n",bankno,bank_base);
 		}
 		else
@@ -182,9 +206,9 @@ void mbc55x_state::set_ram_size()
 
 	// Graphics red and blue plane memory mapping, green is in main memory
 	membank(RED_PLANE_TAG)->set_base(&m_video_mem[RED_PLANE_OFFSET]);
-	space.install_readwrite_bank(RED_PLANE_MEMBASE, RED_PLANE_MEMBASE+(COLOUR_PLANE_SIZE-1), RED_PLANE_TAG);
+	space.install_readwrite_bank(RED_PLANE_MEMBASE, RED_PLANE_MEMBASE+(COLOUR_PLANE_SIZE-1), membank(RED_PLANE_TAG));
 	membank(BLUE_PLANE_TAG)->set_base(&m_video_mem[BLUE_PLANE_OFFSET]);
-	space.install_readwrite_bank(BLUE_PLANE_MEMBASE, BLUE_PLANE_MEMBASE+(COLOUR_PLANE_SIZE-1), BLUE_PLANE_TAG);
+	space.install_readwrite_bank(BLUE_PLANE_MEMBASE, BLUE_PLANE_MEMBASE+(COLOUR_PLANE_SIZE-1), membank(BLUE_PLANE_TAG));
 }
 
 void mbc55x_state::machine_reset()
@@ -194,7 +218,14 @@ void mbc55x_state::machine_reset()
 
 void mbc55x_state::machine_start()
 {
+	// FIXME: values copied from apple2.cpp
+	m_x_calibration = attotime::from_nsec(10800).as_double();
+	m_y_calibration = attotime::from_nsec(10800).as_double();
+
 	m_printer_status = 0xff;
+
+	m_ls123_strobe = true;
+	std::fill(std::begin(m_ls123_clear_time), std::end(m_ls123_clear_time), 0.0);
 
 	m_kb_uart->write_cts(0);
 }
@@ -222,7 +253,8 @@ static void mbc55x_floppies(device_slot_interface &device)
 }
 
 
-MACHINE_CONFIG_START(mbc55x_state::mbc55x)
+void mbc55x_state::mbc55x(machine_config &config)
+{
 	/* basic machine hardware */
 	I8088(config, m_maincpu, 14.318181_MHz_XTAL / 4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &mbc55x_state::mbc55x_mem);
@@ -232,8 +264,7 @@ MACHINE_CONFIG_START(mbc55x_state::mbc55x)
 	m_maincpu->esc_data_handler().set("coproc", FUNC(i8087_device::addr_w));
 
 	i8087_device &i8087(I8087(config, "coproc", 14.318181_MHz_XTAL / 4));
-	i8087.set_addrmap(AS_PROGRAM, &mbc55x_state::mbc55x_mem);
-	i8087.set_data_width(8);
+	i8087.set_space_88(m_maincpu, AS_PROGRAM);
 	i8087.irq().set(m_pic, FUNC(pic8259_device::ir6_w));
 	i8087.busy().set_inputline("maincpu", INPUT_LINE_TEST);
 
@@ -265,7 +296,7 @@ MACHINE_CONFIG_START(mbc55x_state::mbc55x)
 	m_kb_uart->rts_handler().set(m_printer, FUNC(centronics_device::write_init)).invert();
 	m_kb_uart->rxrdy_handler().set(m_pic, FUNC(pic8259_device::ir3_w));
 
-	PIT8253(config, m_pit, 0);
+	PIT8253(config, m_pit);
 	m_pit->out_handler<0>().set(m_pic, FUNC(pic8259_device::ir0_w));
 	m_pit->out_handler<0>().append(m_pit, FUNC(pit8253_device::write_clk1));
 	m_pit->out_handler<1>().set(m_pic, FUNC(pic8259_device::ir1_w));
@@ -279,21 +310,20 @@ MACHINE_CONFIG_START(mbc55x_state::mbc55x)
 	clk_78_6khz.signal_handler().append(m_kb_uart, FUNC(i8251_device::write_txc));
 	clk_78_6khz.signal_handler().append(m_kb_uart, FUNC(i8251_device::write_rxc));
 
-	PIC8259(config, m_pic, 0);
+	PIC8259(config, m_pic);
 	m_pic->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
 	I8255(config, m_ppi);
 	m_ppi->in_pa_callback().set(FUNC(mbc55x_state::game_io_r));
-	m_ppi->out_pa_callback().set(FUNC(mbc55x_state::game_io_w));
 	m_ppi->out_pb_callback().set(FUNC(mbc55x_state::printer_data_w));
 	m_ppi->in_pc_callback().set(FUNC(mbc55x_state::printer_status_r));
 	m_ppi->out_pc_callback().set(FUNC(mbc55x_state::disk_select_w));
 
-	HD6845(config, m_crtc, 14.318181_MHz_XTAL / 8); // HD46505SP-1
+	HD6845S(config, m_crtc, 14.318181_MHz_XTAL / 8); // HD46505SP-1
 	m_crtc->set_screen(SCREEN_TAG);
 	m_crtc->set_show_border_area(false);
 	m_crtc->set_char_width(8);
-	m_crtc->set_update_row_callback(FUNC(mbc55x_state::crtc_update_row), this);
+	m_crtc->set_update_row_callback(FUNC(mbc55x_state::crtc_update_row));
 	m_crtc->out_vsync_callback().set(FUNC(mbc55x_state::vid_vsync_changed));
 	m_crtc->out_hsync_callback().set(FUNC(mbc55x_state::vid_hsync_changed));
 
@@ -301,18 +331,19 @@ MACHINE_CONFIG_START(mbc55x_state::mbc55x)
 	FD1793(config, m_fdc, 14.318181_MHz_XTAL / 14); // M5W1793-02P (clock is nominally 1 MHz)
 	m_fdc->intrq_wr_callback().set(m_pic, FUNC(pic8259_device::ir5_w));
 
-	MCFG_FLOPPY_DRIVE_ADD(m_floppy[0], mbc55x_floppies, "qd", mbc55x_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(m_floppy[1], mbc55x_floppies, "qd", mbc55x_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(m_floppy[2], mbc55x_floppies, "", mbc55x_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(m_floppy[3], mbc55x_floppies, "", mbc55x_state::floppy_formats)
+	FLOPPY_CONNECTOR(config, m_floppy[0], mbc55x_floppies, "qd", mbc55x_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, m_floppy[1], mbc55x_floppies, "qd", mbc55x_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, m_floppy[2], mbc55x_floppies, nullptr, mbc55x_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, m_floppy[3], mbc55x_floppies, nullptr, mbc55x_state::floppy_formats);
 
 	/* Software list */
-	MCFG_SOFTWARE_LIST_ADD("disk_list","mbc55x")
+	SOFTWARE_LIST(config, "disk_list").set_original("mbc55x");
 
 	isa8_device &isa(ISA8(config, "isa", 14.318181_MHz_XTAL / 4));
-	isa.set_cputag(m_maincpu);
+	isa.set_memspace(m_maincpu, AS_PROGRAM);
+	isa.set_iospace(m_maincpu, AS_IO);
 	isa.irq7_callback().set(m_pic, FUNC(pic8259_device::ir7_w)); // all other IRQ and DRQ lines are NC
-	//isa.iochck_callback().set_inputline(m_maincpu, INPUT_LINE_NMI));
+	isa.iochck_callback().set_inputline(m_maincpu, INPUT_LINE_NMI).invert();
 
 	ISA8_SLOT(config, "external", 0, "isa", pc_isa8_cards, nullptr, false);
 
@@ -330,12 +361,15 @@ MACHINE_CONFIG_START(mbc55x_state::mbc55x)
 
 	INPUT_MERGER_ANY_HIGH(config, "sioint").output_handler().set(m_pic, FUNC(pic8259_device::ir2_w));
 
+	APPLE2_GAMEIO(config, m_gameio, apple2_gameio_device::default_options, nullptr);
+	m_gameio->set_sw_pullups(true); // 3300 ohm pullups to 5.0V on pins 2-4 and 16
+
 	CENTRONICS(config, m_printer, centronics_devices, nullptr);
 	m_printer->busy_handler().set(FUNC(mbc55x_state::printer_busy_w)).invert(); // LS14 Schmitt trigger
 	m_printer->busy_handler().append(m_pic, FUNC(pic8259_device::ir4_w)).invert();
 	m_printer->perror_handler().set(FUNC(mbc55x_state::printer_paper_end_w));
 	m_printer->select_handler().set(FUNC(mbc55x_state::printer_select_w));
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( mbc55x )

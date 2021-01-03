@@ -25,18 +25,6 @@
 #pragma once
 
 
-
-
-///*************************************************************************
-//  INTERFACE CONFIGURATION MACROS
-///*************************************************************************
-
-#define MCFG_DS75160A_ADD(_tag, _read, _write) \
-	MCFG_DEVICE_ADD(_tag, DS75160A, 0)  \
-	downcast<ds75160a_device *>(device)->set_callbacks(DEVCB_##_read, DEVCB_##_write);
-
-
-
 ///*************************************************************************
 //  TYPE DEFINITIONS
 ///*************************************************************************
@@ -52,8 +40,8 @@ public:
 	auto read_callback() { return m_read.bind(); }
 	auto write_callback() { return m_write.bind(); }
 
-	DECLARE_READ8_MEMBER( read );
-	DECLARE_WRITE8_MEMBER( write );
+	uint8_t read();
+	void write(uint8_t data);
 
 	DECLARE_WRITE_LINE_MEMBER( te_w );
 	DECLARE_WRITE_LINE_MEMBER( pe_w );

@@ -37,12 +37,12 @@ public:
 
 private:
 	TIMER_DEVICE_CALLBACK_MEMBER(irq);
-	DECLARE_WRITE8_MEMBER(porta_w);
-	DECLARE_WRITE8_MEMBER(portb_w);
-	DECLARE_READ8_MEMBER(porta_r);
-	DECLARE_READ8_MEMBER(portb_r);
-	DECLARE_WRITE8_MEMBER(unk_w);
-	DECLARE_READ8_MEMBER(unk_r);
+	void porta_w(u8 data);
+	void portb_w(u8 data);
+	u8 porta_r();
+	u8 portb_r();
+	void unk_w(u8 data);
+	u8 unk_r();
 	void maincpu_map(address_map &map);
 
 	u8 m_t_c;
@@ -53,7 +53,7 @@ private:
 void spirit76_state::maincpu_map(address_map &map)
 {
 	map.unmap_value_high();
-//  ADDRESS_MAP_GLOBAL_MASK(0xfff) // this could most likely go in once the memory map is sorted
+//  map.global_mask(0xfff); // this could most likely go in once the memory map is sorted
 	map(0x0000, 0x00ff).ram(); // 2x 2112
 	map(0x2200, 0x2203).rw("pia", FUNC(pia6821_device::read), FUNC(pia6821_device::write)); // 6820
 	map(0x2400, 0x2400).r(FUNC(spirit76_state::unk_r));
@@ -79,39 +79,39 @@ TIMER_DEVICE_CALLBACK_MEMBER( spirit76_state::irq )
 }
 
 // continual write in irq routine
-WRITE8_MEMBER( spirit76_state::porta_w )
+void spirit76_state::porta_w(u8 data)
 {
 	printf("PORT A=%X\n",data);
 }
 
 // continual write in irq routine
-WRITE8_MEMBER( spirit76_state::portb_w )
+void spirit76_state::portb_w(u8 data)
 {
 	printf("PORT B=%X\n",data);
 }
 
 // continual read in irq routine
-READ8_MEMBER( spirit76_state::porta_r )
+u8 spirit76_state::porta_r()
 {
 	printf("Read PORT A\n");
 	return 0xff;
 }
 
 // might not be used?
-READ8_MEMBER( spirit76_state::portb_r )
+u8 spirit76_state::portb_r()
 {
 	printf("Read PORT B\n");
 	return 0xff;
 }
 
 // writes here once at start
-WRITE8_MEMBER( spirit76_state::unk_w )
+void spirit76_state::unk_w(u8 data)
 {
 	printf("UNK PORT=%X\n",data);
 }
 
 // continual read in irq routine
-READ8_MEMBER( spirit76_state::unk_r )
+u8 spirit76_state::unk_r()
 {
 	return 0;
 }
@@ -121,14 +121,16 @@ void spirit76_state::machine_reset()
 	m_t_c = 0;
 }
 
-MACHINE_CONFIG_START(spirit76_state::spirit76)
+void spirit76_state::spirit76(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6800, 500000)
-	MCFG_DEVICE_PROGRAM_MAP(maincpu_map)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("irq", spirit76_state, irq, attotime::from_hz(120))
+	M6800(config, m_maincpu, 500000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &spirit76_state::maincpu_map);
+
+	TIMER(config, "irq").configure_periodic(FUNC(spirit76_state::irq), attotime::from_hz(120));
 
 	/* video hardware */
-	//MCFG_DEFAULT_LAYOUT()
+	//config.set_default_layout();
 
 	//6821pia
 	pia6821_device &pia(PIA6821(config, "pia", 0));
@@ -143,7 +145,7 @@ MACHINE_CONFIG_START(spirit76_state::spirit76)
 
 	/* sound hardware */
 	genpin_audio(config);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START(spirit76)

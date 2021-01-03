@@ -84,7 +84,6 @@
 
 #include "cpu/z80/z80.h"
 #include "sound/sn76496.h"
-#include "sound/wave.h"
 
 #include "softlist.h"
 #include "speaker.h"
@@ -189,7 +188,7 @@ void mz_state::mz800_io(address_map &map)
 	map(0xeb, 0xeb).w(FUNC(mz_state::mz800_ramaddr_w));
 	map(0xf0, 0xf0).portr("atari_joy1").w(FUNC(mz_state::mz800_palette_w));
 	map(0xf1, 0xf1).portr("atari_joy2");
-	map(0xf2, 0xf2).w("sn76489n", FUNC(sn76489_device::command_w));
+	map(0xf2, 0xf2).w("sn76489n", FUNC(sn76489_device::write));
 	map(0xfc, 0xff).rw("z80pio", FUNC(z80pio_device::read), FUNC(z80pio_device::write));
 }
 
@@ -221,38 +220,38 @@ static INPUT_PORTS_START( mz700 )
 	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_BACKSLASH)     PORT_CHAR(']') PORT_CHAR('}')
 	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_CLOSEBRACE)    PORT_CHAR('[') PORT_CHAR('{')
 	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_OPENBRACE)     PORT_CHAR('@') PORT_CHAR('`')
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_Z)             PORT_CHAR('z') PORT_CHAR('Z')
-	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_Y)             PORT_CHAR('y') PORT_CHAR('Y')
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_Z)             PORT_CHAR('Z') PORT_CHAR('z')
+	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_Y)             PORT_CHAR('Y') PORT_CHAR('y')
 
 	PORT_START("ROW2")
-	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_X)             PORT_CHAR('x') PORT_CHAR('X')
-	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_W)             PORT_CHAR('w') PORT_CHAR('W')
-	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_V)             PORT_CHAR('v') PORT_CHAR('V')
-	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_U)             PORT_CHAR('u') PORT_CHAR('U')
-	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_T)             PORT_CHAR('t') PORT_CHAR('T')
-	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_S)             PORT_CHAR('s') PORT_CHAR('S')
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_R)             PORT_CHAR('r') PORT_CHAR('R')
-	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_Q)             PORT_CHAR('q') PORT_CHAR('Q')
+	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_X)             PORT_CHAR('X') PORT_CHAR('x')
+	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_W)             PORT_CHAR('W') PORT_CHAR('w')
+	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_V)             PORT_CHAR('V') PORT_CHAR('v')
+	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_U)             PORT_CHAR('U') PORT_CHAR('u')
+	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_T)             PORT_CHAR('T') PORT_CHAR('t')
+	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_S)             PORT_CHAR('S') PORT_CHAR('s')
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_R)             PORT_CHAR('R') PORT_CHAR('r')
+	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_Q)             PORT_CHAR('Q') PORT_CHAR('q')
 
 	PORT_START("ROW3")
-	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_P)             PORT_CHAR('p') PORT_CHAR('P')
-	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_O)             PORT_CHAR('o') PORT_CHAR('O')
-	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_N)             PORT_CHAR('n') PORT_CHAR('N')
-	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_M)             PORT_CHAR('m') PORT_CHAR('M')
-	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_L)             PORT_CHAR('l') PORT_CHAR('L')
-	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_K)             PORT_CHAR('k') PORT_CHAR('K')
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_J)             PORT_CHAR('j') PORT_CHAR('J')
-	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_I)             PORT_CHAR('i') PORT_CHAR('I')
+	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_P)             PORT_CHAR('P') PORT_CHAR('p')
+	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_O)             PORT_CHAR('O') PORT_CHAR('o')
+	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_N)             PORT_CHAR('N') PORT_CHAR('n')
+	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_M)             PORT_CHAR('M') PORT_CHAR('m')
+	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_L)             PORT_CHAR('L') PORT_CHAR('l')
+	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_K)             PORT_CHAR('K') PORT_CHAR('k')
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_J)             PORT_CHAR('J') PORT_CHAR('j')
+	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_I)             PORT_CHAR('I') PORT_CHAR('i')
 
 	PORT_START("ROW4")
-	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_H)             PORT_CHAR('h') PORT_CHAR('H')
-	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_G)             PORT_CHAR('g') PORT_CHAR('G')
-	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_F)             PORT_CHAR('f') PORT_CHAR('F')
-	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_E)             PORT_CHAR('e') PORT_CHAR('E')
-	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_D)             PORT_CHAR('d') PORT_CHAR('D')
-	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_C)             PORT_CHAR('c') PORT_CHAR('C')
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_B)             PORT_CHAR('b') PORT_CHAR('B')
-	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_A)             PORT_CHAR('a') PORT_CHAR('A')
+	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_H)             PORT_CHAR('H') PORT_CHAR('h')
+	PORT_BIT(0x02, 0x02, IPT_KEYBOARD) PORT_CODE(KEYCODE_G)             PORT_CHAR('G') PORT_CHAR('g')
+	PORT_BIT(0x04, 0x04, IPT_KEYBOARD) PORT_CODE(KEYCODE_F)             PORT_CHAR('F') PORT_CHAR('f')
+	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_E)             PORT_CHAR('E') PORT_CHAR('e')
+	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_D)             PORT_CHAR('D') PORT_CHAR('d')
+	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_C)             PORT_CHAR('C') PORT_CHAR('c')
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_CODE(KEYCODE_B)             PORT_CHAR('B') PORT_CHAR('b')
+	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_A)             PORT_CHAR('A') PORT_CHAR('a')
 
 	PORT_START("ROW5")
 	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_CODE(KEYCODE_8)             PORT_CHAR('8') PORT_CHAR('(')
@@ -271,7 +270,7 @@ static INPUT_PORTS_START( mz700 )
 	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_NAME("0  Pi")               PORT_CODE(KEYCODE_0) PORT_CHAR('0')
 	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_SPACE)         PORT_CHAR(' ')
 	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_MINUS)         PORT_CHAR('-') PORT_CHAR('=')
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_NAME("\xE2\x86\x91  ~") PORT_CODE(KEYCODE_EQUALS) PORT_CHAR('~')
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_NAME("\xE2\x86\x91  ~")     PORT_CODE(KEYCODE_EQUALS) PORT_CHAR('^') PORT_CHAR('~')
 	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_CODE(KEYCODE_PGDN)          PORT_CHAR('\\') PORT_CHAR('|')  // this one would be 1st row, 3rd key after '0'
 
 	PORT_START("ROW7")
@@ -281,8 +280,8 @@ static INPUT_PORTS_START( mz700 )
 	PORT_BIT(0x08, 0x08, IPT_KEYBOARD) PORT_CODE(KEYCODE_RIGHT)                                 PORT_CHAR(UCHAR_MAMEKEY(RIGHT))
 	PORT_BIT(0x10, 0x10, IPT_KEYBOARD) PORT_CODE(KEYCODE_DOWN)                                  PORT_CHAR(UCHAR_MAMEKEY(DOWN))
 	PORT_BIT(0x20, 0x20, IPT_KEYBOARD) PORT_CODE(KEYCODE_UP)                                    PORT_CHAR(UCHAR_MAMEKEY(UP))
-	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_NAME("DEL") PORT_CODE(KEYCODE_DEL)                  PORT_CHAR(UCHAR_MAMEKEY(DEL))
-	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_NAME("INST") PORT_CODE(KEYCODE_INSERT)              PORT_CHAR(UCHAR_MAMEKEY(INSERT))
+	PORT_BIT(0x40, 0x40, IPT_KEYBOARD) PORT_NAME("DEL  HOME") PORT_CODE(KEYCODE_DEL)            PORT_CHAR(UCHAR_MAMEKEY(DEL))
+	PORT_BIT(0x80, 0x80, IPT_KEYBOARD) PORT_NAME("INST  CLR") PORT_CODE(KEYCODE_INSERT)         PORT_CHAR(UCHAR_MAMEKEY(INSERT))
 
 	PORT_START("ROW8")
 	PORT_BIT(0x01, 0x01, IPT_KEYBOARD) PORT_NAME("Shift") PORT_CODE(KEYCODE_LSHIFT) PORT_CODE(KEYCODE_RSHIFT) PORT_CHAR(UCHAR_SHIFT_1)
@@ -372,33 +371,33 @@ GFXDECODE_END
     MACHINE DRIVERS
 ***************************************************************************/
 
-MACHINE_CONFIG_START(mz_state::mz700)
+void mz_state::mz700(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(17'734'470)/5)
-	MCFG_DEVICE_PROGRAM_MAP(mz700_mem)
-	MCFG_DEVICE_IO_MAP(mz700_io)
+	Z80(config, m_maincpu, XTAL(17'734'470)/5);
+	m_maincpu->set_addrmap(AS_PROGRAM, &mz_state::mz700_mem);
+	m_maincpu->set_addrmap(AS_IO, &mz_state::mz700_io);
 
 	ADDRESS_MAP_BANK(config, "banke").set_map(&mz_state::mz700_banke).set_options(ENDIANNESS_LITTLE, 8, 16, 0x2000);
 
 	MCFG_MACHINE_RESET_OVERRIDE(mz_state, mz700)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(XTAL(17'734'470)/2, 568, 0, 40*8, 312, 0, 25*8)
-	MCFG_SCREEN_UPDATE_DRIVER(mz_state, screen_update_mz700)
-	MCFG_SCREEN_PALETTE(m_palette)
-	PALETTE(config, m_palette, palette_device::RGB_3BIT);
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(XTAL(17'734'470)/2, 568, 0, 40*8, 312, 0, 25*8);
+	m_screen->set_screen_update(FUNC(mz_state::screen_update_mz700));
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_mz700)
+	PALETTE(config, m_palette, palette_device::RGB_3BIT);
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_mz700);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "mono", 0.05);
 	SPEAKER_SOUND(config, "speaker").add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	/* ne556 timers */
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("cursor", mz_state, ne556_cursor_callback, attotime::from_hz(1.5))
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("other", mz_state, ne556_other_callback, attotime::from_hz(34.5))
+	TIMER(config, "cursor").configure_periodic(FUNC(mz_state::ne556_cursor_callback), attotime::from_hz(1.5));
+	TIMER(config, "other").configure_periodic(FUNC(mz_state::ne556_other_callback), attotime::from_hz(34.5));
 
 	/* devices */
 	PIT8253(config, m_pit, 0);
@@ -417,40 +416,39 @@ MACHINE_CONFIG_START(mz_state::mz700)
 
 	TTL74145(config, m_ls145);
 
-	MCFG_CASSETTE_ADD( "cassette" )
-	MCFG_CASSETTE_FORMATS(mz700_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED)
-	MCFG_CASSETTE_INTERFACE("mz_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_formats(mz700_cassette_formats);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.05);
+	m_cassette->set_interface("mz_cass");
 
-	MCFG_SOFTWARE_LIST_ADD("cass_list","mz700_cass")
+	SOFTWARE_LIST(config, "cass_list").set_original("mz700_cass");
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("64K");
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(mz_state::mz800)
+void mz_state::mz800(machine_config &config)
+{
 	mz700(config);
-	MCFG_DEVICE_REMOVE("banke")
+	config.device_remove("banke");
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(mz800_mem)
-	MCFG_DEVICE_IO_MAP(mz800_io)
+	m_maincpu->set_addrmap(AS_PROGRAM, &mz_state::mz800_mem);
+	m_maincpu->set_addrmap(AS_IO, &mz_state::mz800_io);
 
 	ADDRESS_MAP_BANK(config, "bankf").set_map(&mz_state::mz800_bankf).set_options(ENDIANNESS_LITTLE, 8, 16, 0x2000);
 
 	MCFG_MACHINE_RESET_OVERRIDE(mz_state, mz800)
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_mz800)
+	subdevice<gfxdecode_device>("gfxdecode")->set_info(gfx_mz800);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(mz_state, screen_update_mz800)
+	m_screen->set_screen_update(FUNC(mz_state::screen_update_mz800));
 
-	MCFG_DEVICE_ADD("sn76489n", SN76489, XTAL(17'734'470)/5)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	SN76489(config, "sn76489n", XTAL(17'734'470)/5).add_route(ALL_OUTPUTS, "mono", 1.0);
 
-	MCFG_DEVICE_REMOVE("cass_list")
-	MCFG_SOFTWARE_LIST_ADD("cass_list","mz800_cass")
+	config.device_remove("cass_list");
+	SOFTWARE_LIST(config, "cass_list").set_original("mz800_cass");
 
 	/* devices */
 	m_pit->set_clk<0>(XTAL(17'734'470)/16);
@@ -459,12 +457,13 @@ MACHINE_CONFIG_START(mz_state::mz800)
 	pio.out_int_callback().set(FUNC(mz_state::mz800_z80pio_irq));
 	pio.in_pa_callback().set(FUNC(mz_state::mz800_z80pio_port_a_r));
 	pio.out_pa_callback().set(FUNC(mz_state::mz800_z80pio_port_a_w));
-	pio.out_pb_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	pio.out_pb_callback().set("cent_data_out", FUNC(output_latch_device::write));
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "centronics")
-MACHINE_CONFIG_END
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
+}
 
 
 /***************************************************************************

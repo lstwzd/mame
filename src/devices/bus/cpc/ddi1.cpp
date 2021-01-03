@@ -75,9 +75,9 @@ void cpc_ddi1_device::device_start()
 	m_slot = dynamic_cast<cpc_expansion_slot_device *>(owner());
 	address_space &space = m_slot->cpu().space(AS_IO);
 
-	space.install_write_handler(0xfa7e,0xfa7f,write8_delegate(FUNC(cpc_ddi1_device::motor_w),this));
-	space.install_readwrite_handler(0xfb7e,0xfb7f,read8_delegate(FUNC(cpc_ddi1_device::fdc_r),this),write8_delegate(FUNC(cpc_ddi1_device::fdc_w),this));
-	space.install_write_handler(0xdf00,0xdfff,write8_delegate(FUNC(cpc_ddi1_device::rombank_w),this));
+	space.install_write_handler(0xfa7e,0xfa7f, write8sm_delegate(*this, FUNC(cpc_ddi1_device::motor_w)));
+	space.install_readwrite_handler(0xfb7e,0xfb7f, read8sm_delegate(*this, FUNC(cpc_ddi1_device::fdc_r)), write8sm_delegate(*this, FUNC(cpc_ddi1_device::fdc_w)));
+	space.install_write_handler(0xdf00,0xdfff, write8smo_delegate(*this, FUNC(cpc_ddi1_device::rombank_w)));
 }
 
 //-------------------------------------------------
@@ -89,7 +89,7 @@ void cpc_ddi1_device::device_reset()
 	m_rom_active = false;
 }
 
-WRITE8_MEMBER(cpc_ddi1_device::motor_w)
+void cpc_ddi1_device::motor_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -111,39 +111,39 @@ WRITE8_MEMBER(cpc_ddi1_device::motor_w)
 	}
 }
 
-WRITE8_MEMBER(cpc_ddi1_device::fdc_w)
+void cpc_ddi1_device::fdc_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
 	case 0x01:
-		m_fdc->fifo_w(space, 0,data);
+		m_fdc->fifo_w(data);
 		break;
 	}
 }
 
-READ8_MEMBER(cpc_ddi1_device::fdc_r)
+uint8_t cpc_ddi1_device::fdc_r(offs_t offset)
 {
 	uint8_t data = 0xff;
 
 	switch(offset)
 	{
 	case 0x00:
-		data = m_fdc->msr_r(space, 0);
+		data = m_fdc->msr_r();
 		break;
 	case 0x01:
-		data = m_fdc->fifo_r(space, 0);
+		data = m_fdc->fifo_r();
 		break;
 	}
 	return data;
 }
 
-WRITE8_MEMBER(cpc_ddi1_device::rombank_w)
+void cpc_ddi1_device::rombank_w(uint8_t data)
 {
 	if(data == 0x07)
 		m_rom_active = true;
 	else
 		m_rom_active = false;
-	m_slot->rom_select(space,0,data);
+	m_slot->rom_select(data);
 }
 
 void cpc_ddi1_device::set_mapping(uint8_t type)

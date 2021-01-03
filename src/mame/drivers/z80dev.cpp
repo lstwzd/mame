@@ -37,8 +37,8 @@ public:
 	void z80dev(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER( display_w );
-	DECLARE_READ8_MEMBER( test_r );
+	void display_w(offs_t offset, uint8_t data);
+	uint8_t test_r();
 
 	virtual void machine_start() override;
 
@@ -49,7 +49,7 @@ private:
 	output_finder<6> m_digits;
 };
 
-WRITE8_MEMBER( z80dev_state::display_w )
+void z80dev_state::display_w(offs_t offset, uint8_t data)
 {
 	// ---- xxxx digit
 	// xxxx ---- ???
@@ -58,7 +58,7 @@ WRITE8_MEMBER( z80dev_state::display_w )
 	m_digits[offset] = hex_7seg[data & 0x0f];
 }
 
-READ8_MEMBER( z80dev_state::test_r )
+uint8_t z80dev_state::test_r()
 {
 	return machine().rand();
 }
@@ -123,23 +123,24 @@ INPUT_PORTS_START( z80dev )
 		PORT_BIT(0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("LD") PORT_CODE(KEYCODE_L)
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(z80dev_state::z80dev)
+void z80dev_state::z80dev(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 4_MHz_XTAL)
-	MCFG_DEVICE_PROGRAM_MAP(mem_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, 4_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &z80dev_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &z80dev_state::io_map);
 
 	/* video hardware */
 	config.set_default_layout(layout_z80dev);
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( z80dev )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x0800, "maincpu", 0 )
 	ROM_LOAD( "z80dev.bin", 0x0000, 0x0800, CRC(dd5b9cd9) SHA1(97c176fcb63674f0592851b7858cb706886b5857))
 ROM_END
 
 /* Driver */
 
 /*    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY      FULLNAME         FLAGS */
-COMP( 198?, z80dev, 0,      0,      z80dev,  z80dev, z80dev_state, empty_init, "<unknown>", "Z80 dev board", MACHINE_NO_SOUND_HW)
+COMP( 198?, z80dev, 0,      0,      z80dev,  z80dev, z80dev_state, empty_init, "<unknown>", "Z80 dev board", MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE )

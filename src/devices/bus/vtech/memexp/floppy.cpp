@@ -107,9 +107,6 @@ void vtech_floppy_controller_device::device_start()
 
 void vtech_floppy_controller_device::device_reset()
 {
-	m_memexp->set_io_space(&io_space());
-	m_memexp->set_program_space(&program_space());
-
 	program_space().install_rom(0x4000, 0x5fff, memregion("software")->base());
 
 	io_space().install_device(0x10, 0x1f, *this, &vtech_floppy_controller_device::map);
@@ -136,7 +133,7 @@ void vtech_floppy_controller_device::device_reset()
 //  bit  6:   !write request
 //  bits 4,7: floppy select
 
-WRITE8_MEMBER(vtech_floppy_controller_device::latch_w)
+void vtech_floppy_controller_device::latch_w(uint8_t data)
 {
 	uint8_t diff = m_latch ^ data;
 	m_latch = data;
@@ -212,17 +209,20 @@ WRITE8_MEMBER(vtech_floppy_controller_device::latch_w)
 // - the inverted inverter output is shifted through the lsb of the shift register
 // - the inverter is cleared
 
-READ8_MEMBER(vtech_floppy_controller_device::shifter_r)
+uint8_t vtech_floppy_controller_device::shifter_r()
 {
-	update_latching_inverter();
-	m_shifter = (m_shifter << 1) | !m_latching_inverter;
-	m_latching_inverter = false;
+	if (!machine().side_effects_disabled())
+	{
+		update_latching_inverter();
+		m_shifter = (m_shifter << 1) | !m_latching_inverter;
+		m_latching_inverter = false;
+	}
 	return m_shifter;
 }
 
 
 // Linked to the latching inverter on bit 7, rest is floating
-READ8_MEMBER(vtech_floppy_controller_device::rd_r)
+uint8_t vtech_floppy_controller_device::rd_r()
 {
 	update_latching_inverter();
 	return m_latching_inverter ? 0x80 : 0x00;
@@ -230,7 +230,7 @@ READ8_MEMBER(vtech_floppy_controller_device::rd_r)
 
 
 // Linked to wp signal on bit 7, rest is floating
-READ8_MEMBER(vtech_floppy_controller_device::wpt_r)
+uint8_t vtech_floppy_controller_device::wpt_r()
 {
 	return m_floppy && m_floppy->wpt_r() ? 0x80 : 0x00;
 }

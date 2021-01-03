@@ -26,6 +26,7 @@
 #include "video/resnet.h"
 #include "emupal.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 #define MASTER_CLOCK    20000000
@@ -63,10 +64,10 @@ private:
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<palette_device> m_palette;
 
-	DECLARE_WRITE8_MEMBER(superdq_videoram_w);
-	DECLARE_WRITE8_MEMBER(superdq_io_w);
-	DECLARE_READ8_MEMBER(superdq_ld_r);
-	DECLARE_WRITE8_MEMBER(superdq_ld_w);
+	void superdq_videoram_w(offs_t offset, uint8_t data);
+	void superdq_io_w(uint8_t data);
+	uint8_t superdq_ld_r();
+	void superdq_ld_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_tile_info);
 	void superdq_palette(palette_device &palette) const;
 	uint32_t screen_update_superdq(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -79,12 +80,12 @@ TILE_GET_INFO_MEMBER(superdq_state::get_tile_info)
 {
 	int tile = m_videoram[tile_index];
 
-	SET_TILE_INFO_MEMBER(0, tile, m_color_bank, 0);
+	tileinfo.set(0, tile, m_color_bank, 0);
 }
 
 void superdq_state::video_start()
 {
-	m_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(superdq_state::get_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(superdq_state::get_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 }
 
 uint32_t superdq_state::screen_update_superdq(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
@@ -123,18 +124,18 @@ void superdq_state::superdq_palette(palette_device &palette) const
 		bit0 = BIT(color_prom[i], 7);
 		bit1 = BIT(color_prom[i], 6);
 		bit2 = BIT(color_prom[i], 5);
-		int const r = combine_3_weights(rweights, bit2, bit1, bit0);
+		int const r = combine_weights(rweights, bit2, bit1, bit0);
 
 		// green component
 		bit0 = BIT(color_prom[i], 4);
 		bit1 = BIT(color_prom[i], 3);
 		bit2 = BIT(color_prom[i], 2);
-		int const g = combine_3_weights(gweights, bit2, bit1, bit0);
+		int const g = combine_weights(gweights, bit2, bit1, bit0);
 
 		// blue component
 		bit0 = BIT(color_prom[i], 1);
 		bit1 = BIT(color_prom[i], 0);
-		int const b = combine_2_weights(bweights, bit1, bit0);
+		int const b = combine_weights(bweights, bit1, bit0);
 
 		palette.set_pen_color(i, rgb_t(r, g, b));
 	}
@@ -161,13 +162,13 @@ INTERRUPT_GEN_MEMBER(superdq_state::superdq_vblank)
 	device.execute().set_input_line(0, ASSERT_LINE);
 }
 
-WRITE8_MEMBER(superdq_state::superdq_videoram_w)
+void superdq_state::superdq_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(superdq_state::superdq_io_w)
+void superdq_state::superdq_io_w(uint8_t data)
 {
 	int             i;
 	static const uint8_t black_color_entries[] = {7,15,16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
@@ -196,12 +197,12 @@ WRITE8_MEMBER(superdq_state::superdq_io_w)
 	*/
 }
 
-READ8_MEMBER(superdq_state::superdq_ld_r)
+uint8_t superdq_state::superdq_ld_r()
 {
 	return m_ld_in_latch;
 }
 
-WRITE8_MEMBER(superdq_state::superdq_ld_w)
+void superdq_state::superdq_ld_w(uint8_t data)
 {
 	m_ld_out_latch = data;
 }
@@ -228,7 +229,7 @@ void superdq_state::superdq_io(address_map &map)
 	map(0x01, 0x01).portr("IN1");
 	map(0x02, 0x02).portr("DSW1");
 	map(0x03, 0x03).portr("DSW2");
-	map(0x04, 0x04).r(FUNC(superdq_state::superdq_ld_r)).w("snsnd", FUNC(sn76496_device::command_w));
+	map(0x04, 0x04).r(FUNC(superdq_state::superdq_ld_r)).w("snsnd", FUNC(sn76496_device::write));
 	map(0x08, 0x08).w(FUNC(superdq_state::superdq_io_w));
 	map(0x0c, 0x0d).noprw(); /* HD46505S */
 }
@@ -336,21 +337,21 @@ void superdq_state::machine_start()
 }
 
 
-MACHINE_CONFIG_START(superdq_state::superdq)
-
+void superdq_state::superdq(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, MASTER_CLOCK/8)
-	MCFG_DEVICE_PROGRAM_MAP(superdq_map)
-	MCFG_DEVICE_IO_MAP(superdq_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", superdq_state,  superdq_vblank)
+	Z80(config, m_maincpu, MASTER_CLOCK/8);
+	m_maincpu->set_addrmap(AS_PROGRAM, &superdq_state::superdq_map);
+	m_maincpu->set_addrmap(AS_IO, &superdq_state::superdq_io);
+	m_maincpu->set_vblank_int("screen", FUNC(superdq_state::superdq_vblank));
 
-
-	MCFG_LASERDISC_LDV1000_ADD("laserdisc")
-	MCFG_LASERDISC_OVERLAY_DRIVER(256, 256, superdq_state, screen_update_superdq)
-	MCFG_LASERDISC_OVERLAY_PALETTE(m_palette);
+	PIONEER_LDV1000(config, m_laserdisc, 0);
+	m_laserdisc->set_overlay(256, 256, FUNC(superdq_state::screen_update_superdq));
+	m_laserdisc->add_route(0, "lspeaker", 1.0);
+	m_laserdisc->add_route(1, "rspeaker", 1.0);
 
 	/* video hardware */
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", "laserdisc")
+	m_laserdisc->add_ntsc_screen(config, "screen");
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_superdq);
 	PALETTE(config, m_palette, FUNC(superdq_state::superdq_palette), 32);
@@ -360,11 +361,7 @@ MACHINE_CONFIG_START(superdq_state::superdq)
 	SPEAKER(config, "rspeaker").front_right();
 
 	SN76496(config, "snsnd", MASTER_CLOCK/8).add_route(ALL_OUTPUTS, "lspeaker", 0.8);
-
-	MCFG_DEVICE_MODIFY("laserdisc")
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+}
 
 
 

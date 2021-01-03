@@ -11,7 +11,7 @@
 
 /*
   The 054321 is a sound communication latch/volume manager chip, that
-  is integrated into the 054544 and 05489A hybrid chips.  The hybrid
+  is integrated into the 054544 and 054986A hybrid chips.  The hybrid
   chips also include the DACs, capacitors, etc needed for the audio
   output.
 
@@ -33,33 +33,35 @@
 #include "emu.h"
 #include "k054321.h"
 
-#include <math.h>
+#include <cmath>
 
 DEFINE_DEVICE_TYPE(K054321, k054321_device, "k054321", "K054321 Maincpu-Soundcpu interface")
 
 void k054321_device::main_map(address_map &map)
 {
 	map(0x0, 0x0).w(FUNC(k054321_device::active_w));
+	//map(0x1, 0x1) Used but unknown, xexex(0xd6002) writes 0x0000
 	map(0x2, 0x2).w(FUNC(k054321_device::volume_reset_w));
 	map(0x3, 0x3).w(FUNC(k054321_device::volume_up_w));
 	map(0x4, 0x4).w(FUNC(k054321_device::dummy_w));
-	map(0x6, 0x6).w(FUNC(k054321_device::main1_w));
-	map(0x7, 0x7).w(FUNC(k054321_device::main2_w));
+	map(0x6, 0x6).w(m_soundlatch[0], FUNC(generic_latch_8_device::write));
+	map(0x7, 0x7).w(m_soundlatch[1], FUNC(generic_latch_8_device::write));
 	map(0x8, 0x8).r(FUNC(k054321_device::busy_r));
-	map(0xa, 0xa).r(FUNC(k054321_device::sound1_r));
+	map(0xa, 0xa).r(m_soundlatch[2], FUNC(generic_latch_8_device::read));
 }
 
 void k054321_device::sound_map(address_map &map)
 {
-	map(0x0, 0x0).w(FUNC(k054321_device::sound1_w));
-	map(0x2, 0x2).r(FUNC(k054321_device::main1_r));
-	map(0x3, 0x3).r(FUNC(k054321_device::main2_r));
+	map(0x0, 0x0).w(m_soundlatch[2], FUNC(generic_latch_8_device::write));
+	map(0x2, 0x2).r(m_soundlatch[0], FUNC(generic_latch_8_device::read));
+	map(0x3, 0x3).r(m_soundlatch[1], FUNC(generic_latch_8_device::read));
 }
 
 k054321_device::k054321_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, K054321, tag, owner, clock),
 	m_left(*this, finder_base::DUMMY_TAG),
-	m_right(*this, finder_base::DUMMY_TAG)
+	m_right(*this, finder_base::DUMMY_TAG),
+	m_soundlatch(*this, "soundlatch%u", 0)
 {
 }
 
@@ -79,50 +81,28 @@ void k054321_device::device_start()
 		m_right_gains[i] = m_right->input_gain(i);
 
 	// register for savestates
-	save_item(NAME(m_main1));
-	save_item(NAME(m_main2));
-	save_item(NAME(m_sound1));
 	save_item(NAME(m_volume));
 	save_item(NAME(m_active));
 }
 
-READ8_MEMBER( k054321_device::main1_r)
+void k054321_device::device_reset()
 {
-	return m_main1;
+	m_volume = 0;
 }
 
-WRITE8_MEMBER(k054321_device::main1_w)
+void k054321_device::device_add_mconfig(machine_config &config)
 {
-	m_main1 = data;
+	for (int i = 0; i < 3; i++)
+		GENERIC_LATCH_8(config, m_soundlatch[i]);
 }
 
-READ8_MEMBER( k054321_device::main2_r)
-{
-	return m_main2;
-}
-
-WRITE8_MEMBER(k054321_device::main2_w)
-{
-	m_main2 = data;
-}
-
-READ8_MEMBER( k054321_device::sound1_r)
-{
-	return m_sound1;
-}
-
-WRITE8_MEMBER(k054321_device::sound1_w)
-{
-	m_sound1 = data;
-}
-
-WRITE8_MEMBER(k054321_device::volume_reset_w)
+void k054321_device::volume_reset_w(u8 data)
 {
 	m_volume = 0;
 	propagate_volume();
 }
 
-WRITE8_MEMBER(k054321_device::volume_up_w)
+void k054321_device::volume_up_w(u8 data)
 {
 	// assume that max volume is 64
 	if (data && m_volume < 64)
@@ -132,18 +112,18 @@ WRITE8_MEMBER(k054321_device::volume_up_w)
 	}
 }
 
-READ8_MEMBER(k054321_device::busy_r)
+u8 k054321_device::busy_r()
 {
 	return 0; // bit0 = 1 means busy
 }
 
-WRITE8_MEMBER(k054321_device::active_w)
+void k054321_device::active_w(u8 data)
 {
 	m_active = data;
 	propagate_volume();
 }
 
-WRITE8_MEMBER(k054321_device::dummy_w)
+void k054321_device::dummy_w(u8 data)
 {
 	if(data != 0x4a)
 		logerror("unexpected dummy_w %02x\n", data);

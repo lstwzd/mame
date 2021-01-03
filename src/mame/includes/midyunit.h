@@ -6,6 +6,10 @@
     Williams/Midway Y/Z-unit system
 
 **************************************************************************/
+#ifndef MAME_INCLUDES_MIDYUNIT_H
+#define MAME_INCLUDES_MIDYUNIT_H
+
+#pragma once
 
 #include "audio/williams.h"
 
@@ -15,25 +19,6 @@
 #include "machine/nvram.h"
 #include "sound/okim6295.h"
 #include "emupal.h"
-
-/* protection data types */
-struct protection_data
-{
-	uint16_t  reset_sequence[3];
-	uint16_t  data_sequence[100];
-};
-
-struct dma_state_t
-{
-	uint32_t      offset;         /* source offset, in bits */
-	int32_t       rowbytes;       /* source bytes to skip each row */
-	int32_t       xpos;           /* x position, clipped */
-	int32_t       ypos;           /* y position, clipped */
-	int32_t       width;          /* horizontal pixel count */
-	int32_t       height;         /* vertical pixel count */
-	uint16_t      palette;        /* palette base */
-	uint16_t      color;          /* current foreground color with palette */
-};
 
 
 class midyunit_state : public driver_device
@@ -52,7 +37,7 @@ public:
 		, m_term2_adc(*this, "adc")
 		, m_nvram(*this, "nvram")
 		, m_generic_paletteram_16(*this, "paletteram")
-		, m_gfx_rom(*this, "gfx_rom", 16)
+		, m_gfx_rom(*this, "gfx_rom", 0x800000, ENDIANNESS_BIG)
 		, m_mainram(*this, "mainram")
 		, m_ports(*this, { { "IN0", "IN1", "IN2", "DSW", "UNK0", "UNK1" } })
 	{
@@ -78,16 +63,36 @@ public:
 	void init_trog();
 	void init_totcarn();
 	void init_mkyawdim();
+	void init_mkyawdim2();
 	void init_shimpact();
 	void init_hiimpact();
 	void init_mkyturbo();
 	void init_term2la2();
 
-	DECLARE_CUSTOM_INPUT_MEMBER(narc_talkback_strobe_r);
+	DECLARE_READ_LINE_MEMBER(narc_talkback_strobe_r);
 	DECLARE_CUSTOM_INPUT_MEMBER(narc_talkback_data_r);
-	DECLARE_CUSTOM_INPUT_MEMBER(adpcm_irq_state_r);
+	DECLARE_READ_LINE_MEMBER(adpcm_irq_state_r);
 
 private:
+	/* protection data types */
+	struct protection_data
+	{
+		uint16_t  reset_sequence[3];
+		uint16_t  data_sequence[100];
+	};
+
+	struct dma_state_t
+	{
+		uint32_t      offset;         // source offset, in bits
+		int32_t       rowbytes;       // source bytes to skip each row
+		int32_t       xpos;           // x position, clipped
+		int32_t       ypos;           // y position, clipped
+		int32_t       width;          // horizontal pixel count
+		int32_t       height;         // vertical pixel count
+		uint16_t      palette;        // palette base
+		uint16_t      color;          // current foreground color with palette
+	};
+
 	enum
 	{
 		TIMER_DMA,
@@ -106,11 +111,12 @@ private:
 	required_device<nvram_device> m_nvram;
 
 	required_shared_ptr<uint16_t> m_generic_paletteram_16;
-	optional_shared_ptr<uint8_t> m_gfx_rom;
+	memory_share_creator<uint8_t> m_gfx_rom;
 	required_shared_ptr<uint16_t> m_mainram;
 	optional_ioport_array<6> m_ports;
 
 	std::unique_ptr<uint16_t[]> m_cmos_ram;
+	std::unique_ptr<uint8_t[]> m_hidden_ram;
 	uint32_t m_cmos_page;
 	uint16_t m_prot_result;
 	uint16_t m_prot_sequence[3];
@@ -130,28 +136,30 @@ private:
 	dma_state_t m_dma_state;
 	emu_timer *m_dma_timer;
 	emu_timer *m_autoerase_line_timer;
-	DECLARE_WRITE16_MEMBER(midyunit_cmos_w);
-	DECLARE_READ16_MEMBER(midyunit_cmos_r);
-	DECLARE_WRITE16_MEMBER(midyunit_cmos_enable_w);
-	DECLARE_READ16_MEMBER(midyunit_protection_r);
-	DECLARE_READ16_MEMBER(midyunit_input_r);
-	DECLARE_WRITE16_MEMBER(midyunit_sound_w);
-	DECLARE_READ16_MEMBER(term2_input_r);
-	DECLARE_WRITE16_MEMBER(term2_sound_w);
-	DECLARE_WRITE16_MEMBER(term2_hack_w);
-	DECLARE_WRITE16_MEMBER(term2la3_hack_w);
-	DECLARE_WRITE16_MEMBER(term2la2_hack_w);
-	DECLARE_WRITE16_MEMBER(term2la1_hack_w);
-	DECLARE_WRITE8_MEMBER(cvsd_protection_w);
-	DECLARE_READ16_MEMBER(mkturbo_prot_r);
-	DECLARE_READ16_MEMBER(midyunit_gfxrom_r);
-	DECLARE_WRITE16_MEMBER(midyunit_vram_w);
-	DECLARE_READ16_MEMBER(midyunit_vram_r);
-	DECLARE_WRITE16_MEMBER(midyunit_control_w);
-	DECLARE_WRITE16_MEMBER(midyunit_paletteram_w);
-	DECLARE_READ16_MEMBER(midyunit_dma_r);
-	DECLARE_WRITE16_MEMBER(midyunit_dma_w);
-	DECLARE_WRITE8_MEMBER(yawdim_oki_bank_w);
+	void midyunit_cmos_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t midyunit_cmos_r(offs_t offset);
+	void midyunit_cmos_enable_w(address_space &space, uint16_t data);
+	uint16_t midyunit_protection_r();
+	uint16_t midyunit_input_r(offs_t offset);
+	void midyunit_sound_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t term2_input_r(offs_t offset);
+	void term2_sound_w(offs_t offset, uint16_t data);
+	void term2_hack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void term2la3_hack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void term2la2_hack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void term2la1_hack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void cvsd_protection_w(offs_t offset, uint8_t data);
+	uint16_t mkturbo_prot_r();
+	uint16_t midyunit_gfxrom_r(offs_t offset);
+	void midyunit_vram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t midyunit_vram_r(offs_t offset);
+	void midyunit_control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void midyunit_paletteram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t midyunit_dma_r(offs_t offset);
+	void midyunit_dma_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void yawdim_oki_bank_w(uint8_t data);
+	void yawdim2_oki_bank_w(uint8_t data);
+	uint8_t yawdim2_soundlatch_r();
 	TMS340X0_TO_SHIFTREG_CB_MEMBER(to_shiftreg);
 	TMS340X0_FROM_SHIFTREG_CB_MEMBER(from_shiftreg);
 	TMS340X0_SCANLINE_IND16_CB_MEMBER(scanline_update);
@@ -170,5 +178,7 @@ private:
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 	void dma_draw(uint16_t command);
 	void init_generic(int bpp, int sound, int prot_start, int prot_end);
-	void term2_init_common(write16_delegate hack_w);
+	void term2_init_common(write16s_delegate hack_w);
 };
+
+#endif // MAME_INCLUDES_MIDYUNIT_H

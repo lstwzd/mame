@@ -53,18 +53,18 @@ void trackfld_state::trackfld_palette(palette_device &palette) const
 		bit0 = BIT(color_prom[i], 0);
 		bit1 = BIT(color_prom[i], 1);
 		bit2 = BIT(color_prom[i], 2);
-		int const r = combine_3_weights(rweights, bit0, bit1, bit2);
+		int const r = combine_weights(rweights, bit0, bit1, bit2);
 
 		// green component
 		bit0 = BIT(color_prom[i], 3);
 		bit1 = BIT(color_prom[i], 4);
 		bit2 = BIT(color_prom[i], 5);
-		int const g = combine_3_weights(gweights, bit0, bit1, bit2);
+		int const g = combine_weights(gweights, bit0, bit1, bit2);
 
 		// blue component
 		bit0 = BIT(color_prom[i], 6);
 		bit1 = BIT(color_prom[i], 7);
-		int const b = combine_2_weights(bweights, bit0, bit1);
+		int const b = combine_weights(bweights, bit0, bit1);
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -87,13 +87,13 @@ void trackfld_state::trackfld_palette(palette_device &palette) const
 	}
 }
 
-WRITE8_MEMBER(trackfld_state::trackfld_videoram_w)
+void trackfld_state::trackfld_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(trackfld_state::trackfld_colorram_w)
+void trackfld_state::trackfld_colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -105,7 +105,7 @@ WRITE_LINE_MEMBER(trackfld_state::flipscreen_w)
 	machine().tilemap().mark_all_dirty();
 }
 
-WRITE8_MEMBER(trackfld_state::atlantol_gfxbank_w)
+void trackfld_state::atlantol_gfxbank_w(uint8_t data)
 {
 	if (data & 1)
 	{
@@ -162,12 +162,12 @@ TILE_GET_INFO_MEMBER(trackfld_state::get_bg_tile_info)
 	if (m_bg_bank)
 		code |= 0x400;
 
-	SET_TILE_INFO_MEMBER(1, code, color, flags);
+	tileinfo.set(1, code, color, flags);
 }
 
 VIDEO_START_MEMBER(trackfld_state,trackfld)
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(trackfld_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(trackfld_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
 	m_bg_tilemap->set_scroll_rows(32);
 	m_sprites_gfx_banked = 0;
 }

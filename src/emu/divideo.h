@@ -19,15 +19,6 @@
 
 
 //**************************************************************************
-//  INTERFACE CONFIGURATION MACROS
-//**************************************************************************
-
-#define MCFG_VIDEO_SET_SCREEN(_tag) \
-	dynamic_cast<device_video_interface &>(*device).set_screen(_tag);
-
-
-
-//**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
 
@@ -77,7 +68,7 @@ private:
 };
 
 // iterator
-typedef device_interface_iterator<device_video_interface> video_interface_iterator;
+typedef device_interface_enumerator<device_video_interface> video_interface_enumerator;
 
 
 #endif  /* MAME_EMU_DIVIDEO_H */

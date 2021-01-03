@@ -49,8 +49,8 @@ public:
 private:
 	MC6845_UPDATE_ROW(crtc_update_row);
 
-	void mx2178_io(address_map &map);
-	void mx2178_mem(address_map &map);
+	void io_map(address_map &map);
+	void mem_map(address_map &map);
 
 	virtual void machine_reset() override;
 	required_device<palette_device> m_palette;
@@ -59,7 +59,7 @@ private:
 	required_region_ptr<u8> m_p_chargen;
 };
 
-void mx2178_state::mx2178_mem(address_map &map)
+void mx2178_state::mem_map(address_map &map)
 {
 	map.unmap_value_high();
 	map(0x0000, 0x1fff).rom().region("roms", 0);
@@ -68,7 +68,7 @@ void mx2178_state::mx2178_mem(address_map &map)
 	map(0xe000, 0xe7ff).ram();
 }
 
-void mx2178_state::mx2178_io(address_map &map)
+void mx2178_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
 	map(0x00, 0x00).rw("crtc", FUNC(mc6845_device::status_r), FUNC(mc6845_device::address_w));
@@ -84,18 +84,16 @@ INPUT_PORTS_END
 
 MC6845_UPDATE_ROW( mx2178_state::crtc_update_row )
 {
-	const rgb_t *pens = m_palette->palette()->entry_list_raw();
-	uint8_t chr,gfx;
-	uint16_t mem,x;
-	uint32_t *p = &bitmap.pix32(y);
+	rgb_t const *const pens = m_palette->palette()->entry_list_raw();
+	uint32_t *p = &bitmap.pix(y);
 
-	for (x = 0; x < x_count; x++)
+	for (uint16_t x = 0; x < x_count; x++)
 	{
-		mem = (ma + x) & 0x7ff;
-		chr = m_p_videoram[mem];
+		uint16_t mem = (ma + x) & 0x7ff;
+		uint8_t chr = m_p_videoram[mem];
 
 		/* get pattern of pixels for that character scanline */
-		gfx = m_p_chargen[(chr<<4) | ra] ^ ((x == cursor_x) ? 0xff : 0);
+		uint8_t gfx = m_p_chargen[(chr<<4) | ra] ^ ((x == cursor_x) ? 0xff : 0);
 
 		/* Display a scanline of a character (8 pixels) */
 		*p++ = pens[BIT(gfx, 7)];
@@ -110,7 +108,7 @@ MC6845_UPDATE_ROW( mx2178_state::crtc_update_row )
 }
 
 /* F4 Character Displayer */
-static const gfx_layout mx2178_charlayout =
+static const gfx_layout charlayout =
 {
 	8, 16,                  /* 8 x 16 characters */
 	256,                    /* 256 characters */
@@ -124,27 +122,28 @@ static const gfx_layout mx2178_charlayout =
 };
 
 static GFXDECODE_START( gfx_mx2178 )
-	GFXDECODE_ENTRY( "chargen", 0x0000, mx2178_charlayout, 0, 1 )
+	GFXDECODE_ENTRY( "chargen", 0x0000, charlayout, 0, 1 )
 GFXDECODE_END
 
 void mx2178_state::machine_reset()
 {
 }
 
-MACHINE_CONFIG_START(mx2178_state::mx2178)
+void mx2178_state::mx2178(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(m_maincpu, Z80, XTAL(18'869'600) / 5) // guess
-	MCFG_DEVICE_PROGRAM_MAP(mx2178_mem)
-	MCFG_DEVICE_IO_MAP(mx2178_io)
+	Z80(config, m_maincpu, XTAL(18'869'600) / 5); // guess
+	m_maincpu->set_addrmap(AS_PROGRAM, &mx2178_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &mx2178_state::io_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::green())
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) // not correct
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_mx2178)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not correct
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_mx2178);
 	PALETTE(config, m_palette, palette_device::MONOCHROME);
 
 	/* Devices */
@@ -152,7 +151,7 @@ MACHINE_CONFIG_START(mx2178_state::mx2178)
 	crtc.set_screen("screen");
 	crtc.set_show_border_area(false);
 	crtc.set_char_width(8);
-	crtc.set_update_row_callback(FUNC(mx2178_state::crtc_update_row), this);
+	crtc.set_update_row_callback(FUNC(mx2178_state::crtc_update_row));
 	crtc.out_vsync_callback().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	clock_device &acia_clock(CLOCK(config, "acia_clock", XTAL(18'869'600) / 30));
@@ -178,7 +177,7 @@ MACHINE_CONFIG_START(mx2178_state::mx2178)
 	rs232_port_device &rs232b(RS232_PORT(config, "rs232b", default_rs232_devices, "keyboard"));
 	rs232b.rxd_handler().set("acia2", FUNC(acia6850_device::write_rxd));
 	rs232b.cts_handler().set("acia2", FUNC(acia6850_device::write_cts));
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( mx2178 )
@@ -198,4 +197,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY    FULLNAME        FLAGS
-COMP( 1984, mx2178, 0,      0,      mx2178,  mx2178, mx2178_state, empty_init, "Memorex", "Memorex 2178", MACHINE_IS_SKELETON )
+COMP( 1984, mx2178, 0,      0,      mx2178,  mx2178, mx2178_state, empty_init, "Memorex", "Memorex 2178", MACHINE_IS_SKELETON | MACHINE_SUPPORTS_SAVE )

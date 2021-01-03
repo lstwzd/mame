@@ -19,6 +19,8 @@
     called the Super AMS. Any documentation and software containing a reference
     to the AEMS are applicable to either AMS or SAMS.
 
+    The SAMS does not decode AMA/AMB/AMC.
+
     Michael Zapf
 
 *****************************************************************************/
@@ -28,7 +30,7 @@
 
 DEFINE_DEVICE_TYPE_NS(TI99_SAMSMEM, bus::ti99::peb, sams_memory_expansion_device, "ti99_sams", "SuperAMS memory expansion card")
 
-namespace bus { namespace ti99 { namespace peb {
+namespace bus::ti99::peb {
 
 #define SAMS_CRU_BASE 0x1e00
 
@@ -46,11 +48,11 @@ sams_memory_expansion_device::sams_memory_expansion_device(const machine_config 
     0x2000-0x3fff and 0xa000-0xffff, and the mapper area is at 0x4000-0x401e
     (only even addresses).
 */
-READ8Z_MEMBER(sams_memory_expansion_device::readz)
+void sams_memory_expansion_device::readz(offs_t offset, uint8_t *value)
 {
 	int base;
 
-	if (m_access_mapper && ((offset & 0xe000)==0x4000))
+	if (m_access_mapper && in_dsr_space(offset, false))
 	{
 		*value = m_mapper[(offset>>1)&0x000f];
 	}
@@ -70,11 +72,11 @@ READ8Z_MEMBER(sams_memory_expansion_device::readz)
 	}
 }
 
-WRITE8_MEMBER(sams_memory_expansion_device::write)
+void sams_memory_expansion_device::write(offs_t offset, uint8_t data)
 {
 	int base;
 
-	if (m_access_mapper && ((offset & 0xe000)==0x4000))
+	if (m_access_mapper && in_dsr_space(offset, false))
 	{
 		m_mapper[(offset>>1)&0x000f] = data;
 	}
@@ -97,14 +99,14 @@ WRITE8_MEMBER(sams_memory_expansion_device::write)
 /*
     CRU read. None here.
 */
-READ8Z_MEMBER(sams_memory_expansion_device::crureadz)
+void sams_memory_expansion_device::crureadz(offs_t offset, uint8_t *value)
 {
 }
 
 /*
     CRU write. Turns on the mapper and allows to change it.
 */
-WRITE8_MEMBER(sams_memory_expansion_device::cruwrite)
+void sams_memory_expansion_device::cruwrite(offs_t offset, uint8_t data)
 {
 	if ((offset & 0xff00)==SAMS_CRU_BASE)
 		m_crulatch->write_bit((offset & 0x000e) >> 1, data);
@@ -142,4 +144,4 @@ void sams_memory_expansion_device::device_reset()
 	for (auto & elem : m_mapper) elem = 0;
 }
 
-} } } // end namespace bus::ti99::peb
+} // end namespace bus::ti99::peb

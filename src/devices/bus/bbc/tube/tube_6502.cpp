@@ -84,7 +84,6 @@ void bbc_tube_6502_device::add_common_devices(machine_config &config)
 
 	/* software lists */
 	SOFTWARE_LIST(config, "flop_ls_6502").set_original("bbc_flop_6502");
-	SOFTWARE_LIST(config, "flop_ls_65c102").set_original("bbc_flop_65c102");
 }
 
 void bbc_tube_6502_device::device_add_mconfig(machine_config &config)
@@ -168,27 +167,27 @@ void bbc_tube_6502_device::device_reset()
 //  IMPLEMENTATION
 //**************************************************************************
 
-READ8_MEMBER(bbc_tube_6502_device::host_r)
+uint8_t bbc_tube_6502_device::host_r(offs_t offset)
 {
-	return m_ula->host_r(space, offset);
+	return m_ula->host_r(offset);
 }
 
-WRITE8_MEMBER(bbc_tube_6502_device::host_w)
+void bbc_tube_6502_device::host_w(offs_t offset, uint8_t data)
 {
-	m_ula->host_w(space, offset, data);
+	m_ula->host_w(offset, data);
 }
 
 
-READ8_MEMBER(bbc_tube_6502_device::tube_r)
+uint8_t bbc_tube_6502_device::tube_r(offs_t offset)
 {
 	// Disable ROM on first access
 	if (!machine().side_effects_disabled())
 		m_bankdev->set_bank(1);
 
-	return m_ula->parasite_r(space, offset);
+	return m_ula->parasite_r(offset);
 }
 
-WRITE8_MEMBER(bbc_tube_6502_device::tube_w)
+void bbc_tube_6502_device::tube_w(offs_t offset, uint8_t data)
 {
-	m_ula->parasite_w(space, offset, data);
+	m_ula->parasite_w(offset, data);
 }

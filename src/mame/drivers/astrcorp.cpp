@@ -48,6 +48,8 @@ To do:
 #include "speaker.h"
 
 
+namespace {
+
 class astrocorp_state : public driver_device
 {
 public:
@@ -68,8 +70,10 @@ public:
 	void showhand(machine_config &config);
 	void speeddrp(machine_config &config);
 	void showhanc(machine_config &config);
+	void magibomb(machine_config &config);
 
 	void init_astoneag();
+	void init_magibomb();
 	void init_showhanc();
 	void init_showhand();
 
@@ -78,6 +82,23 @@ protected:
 	virtual void video_start() override;
 
 private:
+	struct decryption_info {
+		struct {
+			// Address bits used for bitswap/xor selection
+			u8 bits[3];
+			struct {
+				// 8-8 Bitswap
+				u8 bits[8];
+				// Xor
+				u8 xor_mask;
+			} entries[8];
+		} rom[2];
+		// Global address bitswap (src -> dest, bits 12-8 only)
+		u8 bits[5];
+	};
+
+	static const decryption_info astoneag_table;
+
 	// devices
 	required_device<cpu_device> m_maincpu;
 	required_device<okim6295_device> m_oki;
@@ -97,22 +118,25 @@ private:
 
 	output_finder<7> m_lamps;
 
-	DECLARE_WRITE16_MEMBER(astrocorp_draw_sprites_w);
-	DECLARE_WRITE16_MEMBER(astrocorp_eeprom_w);
-	DECLARE_WRITE16_MEMBER(showhand_outputs_w);
-	DECLARE_WRITE16_MEMBER(skilldrp_outputs_w);
-	DECLARE_WRITE16_MEMBER(astrocorp_screen_enable_w);
-	DECLARE_READ16_MEMBER(astrocorp_unk_r);
-	DECLARE_WRITE16_MEMBER(astrocorp_sound_bank_w);
-	DECLARE_WRITE16_MEMBER(skilldrp_sound_bank_w);
+	void astrocorp_draw_sprites_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void astrocorp_eeprom_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void showhand_outputs_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void skilldrp_outputs_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void astrocorp_screen_enable_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t astrocorp_unk_r();
+	void astrocorp_sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void skilldrp_sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint32_t screen_update_astrocorp(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TIMER_DEVICE_CALLBACK_MEMBER(skilldrp_scanline);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 
+	void magibomb_map(address_map &map);
 	void showhanc_map(address_map &map);
 	void showhand_map(address_map &map);
 	void skilldrp_map(address_map &map);
 	void speeddrp_map(address_map &map);
+
+	void decrypt_rom(const decryption_info &table);
 };
 
 /***************************************************************************
@@ -157,9 +181,6 @@ void astrocorp_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &clipre
 
 	for ( ; source < finish; source += 8 / 2 )
 	{
-		int x, y;
-		int xwrap, ywrap;
-
 		int sx      = source[ 0x0/2 ];
 		int code    = source[ 0x2/2 ];
 		int sy      = source[ 0x4/2 ];
@@ -177,13 +198,13 @@ void astrocorp_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &clipre
 		sx &= 0x01ff;
 		sy &= 0x00ff;
 
-		for (y = 0 ; y < dimy ; y++)
+		for (int y = 0 ; y < dimy ; y++)
 		{
-			for (x = 0 ; x < dimx ; x++)
+			for (int x = 0 ; x < dimx ; x++)
 			{
-				for (ywrap = 0 ; ywrap <= 0x100 ; ywrap += 0x100)
+				for (int ywrap = 0 ; ywrap <= 0x100 ; ywrap += 0x100)
 				{
-					for (xwrap = 0 ; xwrap <= 0x200 ; xwrap += 0x200)
+					for (int xwrap = 0 ; xwrap <= 0x200 ; xwrap += 0x200)
 					{
 						m_gfxdecode->gfx(0)->transpen(bitmap,cliprect,
 								code, 0,
@@ -212,7 +233,7 @@ uint32_t astrocorp_state::screen_update_astrocorp(screen_device &screen, bitmap_
                                 Memory Maps
 ***************************************************************************/
 
-WRITE16_MEMBER(astrocorp_state::astrocorp_draw_sprites_w)
+void astrocorp_state::astrocorp_draw_sprites_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint16_t old = m_draw_sprites;
 	uint16_t now = COMBINE_DATA(&m_draw_sprites);
@@ -221,7 +242,7 @@ WRITE16_MEMBER(astrocorp_state::astrocorp_draw_sprites_w)
 		draw_sprites(m_bitmap, m_screen->visible_area());
 }
 
-WRITE16_MEMBER(astrocorp_state::astrocorp_eeprom_w)
+void astrocorp_state::astrocorp_eeprom_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -229,7 +250,7 @@ WRITE16_MEMBER(astrocorp_state::astrocorp_eeprom_w)
 	}
 }
 
-WRITE16_MEMBER(astrocorp_state::astrocorp_sound_bank_w)
+void astrocorp_state::astrocorp_sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_8_15)
 	{
@@ -238,7 +259,7 @@ WRITE16_MEMBER(astrocorp_state::astrocorp_sound_bank_w)
 	}
 }
 
-WRITE16_MEMBER(astrocorp_state::skilldrp_sound_bank_w)
+void astrocorp_state::skilldrp_sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -247,7 +268,7 @@ WRITE16_MEMBER(astrocorp_state::skilldrp_sound_bank_w)
 	}
 }
 
-WRITE16_MEMBER(astrocorp_state::showhand_outputs_w)
+void astrocorp_state::showhand_outputs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -267,7 +288,7 @@ WRITE16_MEMBER(astrocorp_state::showhand_outputs_w)
 //  popmessage("%04X",data);
 }
 
-WRITE16_MEMBER(astrocorp_state::skilldrp_outputs_w)
+void astrocorp_state::skilldrp_outputs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	// key in          (0001)
 	// coin in         (0002)
@@ -309,7 +330,7 @@ WRITE16_MEMBER(astrocorp_state::skilldrp_outputs_w)
 //  popmessage("%04X",data);
 }
 
-WRITE16_MEMBER(astrocorp_state::astrocorp_screen_enable_w)
+void astrocorp_state::astrocorp_screen_enable_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_screen_enable);
 //  popmessage("%04X",data);
@@ -317,7 +338,7 @@ WRITE16_MEMBER(astrocorp_state::astrocorp_screen_enable_w)
 		logerror("CPU #0 PC %06X: screen enable = %04X\n", m_maincpu->pc(), m_screen_enable);
 }
 
-READ16_MEMBER(astrocorp_state::astrocorp_unk_r)
+uint16_t astrocorp_state::astrocorp_unk_r()
 {
 	return 0xffff;  // bit 3?
 }
@@ -387,6 +408,24 @@ void astrocorp_state::speeddrp_map(address_map &map)
 	map(0x500000, 0x500001).w(FUNC(astrocorp_state::astrocorp_screen_enable_w));
 	map(0x580000, 0x580001).w(FUNC(astrocorp_state::skilldrp_sound_bank_w));
 	map(0x600001, 0x600001).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write));
+}
+
+void astrocorp_state::magibomb_map(address_map &map) // TODO: check everything, the ranges are currently supposed correct for magibombb
+{
+	map(0x000000, 0x01ffff).rom();
+	map(0x050000, 0x053fff).ram().share("nvram"); // battery
+	map(0x060000, 0x060fff).ram().share("spriteram");
+	map(0x062000, 0x062001).w(FUNC(astrocorp_state::astrocorp_draw_sprites_w));
+	map(0x064000, 0x064001).portr("INPUTS");
+	map(0x068000, 0x068001).w(FUNC(astrocorp_state::astrocorp_eeprom_w));
+	map(0x06a000, 0x06a001).w(FUNC(astrocorp_state::skilldrp_outputs_w));
+	map(0x06e000, 0x06e001).portr("EEPROMIN");
+	map(0x0b0000, 0x0b01ff).ram().w(m_palette, FUNC(palette_device::write16)).share("palette");
+
+	// tbd
+	//map(0xX00000, 0xX00001).w(FUNC(astrocorp_state::astrocorp_screen_enable_w));
+	//map(0xX80000, 0xX80001).w(FUNC(astrocorp_state::skilldrp_sound_bank_w));
+	//map(0xX00001, 0xX00001).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write));
 }
 
 /***************************************************************************
@@ -525,26 +564,26 @@ TODO: understand if later hardware uses different parameters (XTAL is almost sur
 #define ASTROCORP_VBEND 0
 #define ASTROCORP_VBSTART 240
 
-MACHINE_CONFIG_START(astrocorp_state::showhand)
-
+void astrocorp_state::showhand(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(20'000'000) / 2)
-	MCFG_DEVICE_PROGRAM_MAP(showhand_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", astrocorp_state,  irq4_line_hold)
+	M68000(config, m_maincpu, XTAL(20'000'000) / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &astrocorp_state::showhand_map);
+	m_maincpu->set_vblank_int("screen", FUNC(astrocorp_state::irq4_line_hold));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	EEPROM_93C46_16BIT(config, "eeprom").default_data(showhand_default_eeprom, sizeof(showhand_default_eeprom));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-//  MCFG_SCREEN_REFRESH_RATE(58.846)    // measured on pcb
-//  MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-//  MCFG_SCREEN_SIZE(320, 240)
-//  MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 0, 240-1)
-	MCFG_SCREEN_RAW_PARAMS(ASTROCORP_PIXEL_CLOCK,ASTROCORP_HTOTAL,ASTROCORP_HBEND,320,ASTROCORP_VTOTAL,ASTROCORP_VBEND,ASTROCORP_VBSTART)
-	MCFG_SCREEN_UPDATE_DRIVER(astrocorp_state, screen_update_astrocorp)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+//  m_screen->set_refresh_hz(58.846);    // measured on pcb
+//  m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+//  m_screen->set_size(320, 240);
+//  m_screen->set_visarea_full();
+	m_screen->set_raw(ASTROCORP_PIXEL_CLOCK,ASTROCORP_HTOTAL,ASTROCORP_HBEND,320,ASTROCORP_VTOTAL,ASTROCORP_VBEND,ASTROCORP_VBSTART);
+	m_screen->set_screen_update(FUNC(astrocorp_state::screen_update_astrocorp));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_astrocorp);
 	PALETTE(config, m_palette).set_format(palette_device::BGR_565, 0x100);
@@ -552,16 +591,15 @@ MACHINE_CONFIG_START(astrocorp_state::showhand)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(20'000'000)/20, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, XTAL(20'000'000)/20, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
-MACHINE_CONFIG_START(astrocorp_state::showhanc)
+void astrocorp_state::showhanc(machine_config &config)
+{
 	showhand(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(showhanc_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &astrocorp_state::showhanc_map);
+}
 
 
 TIMER_DEVICE_CALLBACK_MEMBER(astrocorp_state::skilldrp_scanline)
@@ -575,28 +613,28 @@ TIMER_DEVICE_CALLBACK_MEMBER(astrocorp_state::skilldrp_scanline)
 		m_maincpu->set_input_line(2, HOLD_LINE);
 }
 
-MACHINE_CONFIG_START(astrocorp_state::skilldrp)
-
+void astrocorp_state::skilldrp(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M68000, XTAL(24'000'000) / 2) // JX-1689F1028N GRX586.V5
-	MCFG_DEVICE_PROGRAM_MAP(skilldrp_map)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", astrocorp_state, skilldrp_scanline, "screen", 0, 1)
+	M68000(config, m_maincpu, XTAL(24'000'000) / 2); // JX-1689F1028N GRX586.V5
+	m_maincpu->set_addrmap(AS_PROGRAM, &astrocorp_state::skilldrp_map);
+	TIMER(config, "scantimer").configure_scanline(FUNC(astrocorp_state::skilldrp_scanline), "screen", 0, 1);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 	EEPROM_93C46_16BIT(config, "eeprom");
 
-	MCFG_TICKET_DISPENSER_ADD("ticket", attotime::from_msec(200), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
-	MCFG_TICKET_DISPENSER_ADD("hopper", attotime::from_msec(200), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
+	TICKET_DISPENSER(config, m_ticket, attotime::from_msec(200), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW );
+	TICKET_DISPENSER(config, m_hopper, attotime::from_msec(200), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW );
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-//  MCFG_SCREEN_REFRESH_RATE(58.846)
-//  MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-//  MCFG_SCREEN_SIZE(0x200, 0x100)
-//  MCFG_SCREEN_VISIBLE_AREA(0, 0x200-1, 0, 0xf0-1)
-	MCFG_SCREEN_RAW_PARAMS(ASTROCORP_PIXEL_CLOCK,ASTROCORP_HTOTAL,ASTROCORP_HBEND,512,ASTROCORP_VTOTAL,ASTROCORP_VBEND,ASTROCORP_VBSTART)
-	MCFG_SCREEN_UPDATE_DRIVER(astrocorp_state, screen_update_astrocorp)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+//  m_screen->set_refresh_hz(58.846);
+//  m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+//  m_screen->set_size(0x200, 0x100);
+//  m_screen->set_visarea(0, 0x200-1, 0, 0xf0-1);
+	m_screen->set_raw(ASTROCORP_PIXEL_CLOCK,ASTROCORP_HTOTAL,ASTROCORP_HBEND,512,ASTROCORP_VTOTAL,ASTROCORP_VBEND,ASTROCORP_VBSTART);
+	m_screen->set_screen_update(FUNC(astrocorp_state::screen_update_astrocorp));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_astrocorp);
 	PALETTE(config, m_palette).set_format(palette_device::BGR_565, 0x100);
@@ -604,17 +642,21 @@ MACHINE_CONFIG_START(astrocorp_state::skilldrp)
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, XTAL(24'000'000)/24, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, XTAL(24'000'000)/24, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 
-MACHINE_CONFIG_START(astrocorp_state::speeddrp)
+void astrocorp_state::speeddrp(machine_config &config)
+{
 	skilldrp(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(speeddrp_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &astrocorp_state::speeddrp_map);
+}
 
+void astrocorp_state::magibomb(machine_config &config)
+{
+	skilldrp(config);
+	m_maincpu->set_addrmap(AS_PROGRAM, &astrocorp_state::magibomb_map);
+}
 
 /***************************************************************************
                                 ROMs Loading
@@ -855,6 +897,82 @@ ROM_START( speeddrp )
 
 	ROM_REGION16_BE( 0x80, "eeprom", 0 )
 	ROM_LOAD16_WORD_SWAP( "93c46.u6", 0x00, 0x80, CRC(6890534e) SHA1(a62893015e53c02551d57d0e1cce436b6df8d289) )
+ROM_END
+
+/***************************************************************************
+ Magic Bomb
+***************************************************************************/
+
+ROM_START( magibomb )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, CRC(f74596fe) SHA1(8311ca73c975bda6846e1ba958fcf62655a111d0) )
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(ca0b693d) SHA1(27fc7db9d3f19d6dcb8756e4fc9c3839116977fe) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(c9edbf1b) SHA1(8e3a96a38aea23950d6add66a5a3d079013bc217) )
+ROM_END
+
+ROM_START( magibomba )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, BAD_DUMP CRC(f01ab462) SHA1(5c9052f66da166f926910562a6a8aea5397549db) ) // BADADDR        xxxxxx-xxxxxxxxx
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(ac3224ef) SHA1(810117dc89369eee0f4f5b6744cfbf0cb70ccce6) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(f7d14414) SHA1(af932df09aa970ec05cc12e590e152e7288c1f5c) )
+ROM_END
+
+ROM_START( magibombb )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, CRC(ac69612f) SHA1(0f1f3a05f90d4c0e65bc2b68c6510d2aa95f68c4) )
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(55ea8303) SHA1(974bc026f0b284ffad50d3e441613952db768e04) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(c9edbf1b) SHA1(8e3a96a38aea23950d6add66a5a3d079013bc217) )
+ROM_END
+
+ROM_START( magibombc )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, CRC(e388b79d) SHA1(ca3a6ffee39f3ac629f29fdd8ee98ddcf0787f9e) )
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(3d2abaa5) SHA1(8a39abda8e52a0d8a8d0c54a45b72a7d9f624e84) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(c9edbf1b) SHA1(8e3a96a38aea23950d6add66a5a3d079013bc217) )
+ROM_END
+
+ROM_START( magibombd )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, CRC(91883755) SHA1(bc6dd5cac352f169beac790825e86a2ecb45af05) )
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(b55bc270) SHA1(7486018b87708cf5b653c27b1ed824e441c169b7) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(c9edbf1b) SHA1(8e3a96a38aea23950d6add66a5a3d079013bc217) )
+ROM_END
+
+ROM_START( magibombe )
+	ROM_REGION( 0x20000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "rom1", 0x00000, 0x10000, CRC(d564fac4) SHA1(ac236a5760be6c4f518a8eb2af708f433e0fb899) )
+	ROM_LOAD16_BYTE( "rom2", 0x00001, 0x10000, CRC(ee212839) SHA1(e6175b27f3c510e98bc85e04be2fdde6e0289dfb) )
+
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "gfx", 0x000000, 0x200000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "rom5", 0x00000, 0x80000, CRC(c9edbf1b) SHA1(8e3a96a38aea23950d6add66a5a3d079013bc217) )
 ROM_END
 
 /***************************************************************************
@@ -1238,167 +1356,151 @@ void astrocorp_state::init_showhanc()
 #endif
 }
 
-void astrocorp_state::init_astoneag()
+void astrocorp_state::decrypt_rom(const decryption_info &table)
 {
-#if 0
-	uint16_t *rom = (uint16_t*)memregion("maincpu")->base();
-	uint16_t x;
-	int i;
+	u32 size = memregion("maincpu")->bytes();
+	u16 *rom = (u16 *)memregion("maincpu")->base();
+	std::unique_ptr<u16[]> tmp = std::make_unique<u16[]>(size/2);
 
-	for (i = 0x25100/2; i < 0x25200/2; i++)
-	{
-		x = 0x0000;
-		if (  (i & 0x0001) )                    x |= 0x0200;
-		if (  (i & 0x0004) && !(i & 0x0001) )   x |= 0x0080;
-		if (  (i & 0x0040) ||  (i & 0x0001) )   x |= 0x0040;
-		if (  (i & 0x0010) && !(i & 0x0001) )   x |= 0x0020;
-		if ( !(i & 0x0020) ||  (i & 0x0001) )   x |= 0x0010;
-		if (  (i & 0x0002) ||  (i & 0x0001) )   x |= 0x0008;
-		if (  (i & 0x0008) && !(i & 0x0001) )   x |= 0x0004;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0002;
-		if (  (i & 0x0040) && !(i & 0x0001) )   x |= 0x0001;
-		rom[i] ^= x;
+	// Pass 1: decrypt high and low byte independently.  They go
+	// trough a bitswap and an xor, choosing between 8 possibilities
+	// through address bits.
+
+	for(u32 i = 0; i != size; i += 2) {
+		u16 orig = rom[i >> 1];
+		u16 result = 0;
+		for(u32 rb = 0; rb < 2; rb ++) {
+			u8 val = orig >> (rb ? 0 : 8);
+			u32 index =
+				(BIT(i, table.rom[rb].bits[0]) << 2) |
+				(BIT(i, table.rom[rb].bits[1]) << 1) |
+				BIT(i, table.rom[rb].bits[2]);
+			val = bitswap(val,
+						  table.rom[rb].entries[index].bits[0],
+						  table.rom[rb].entries[index].bits[1],
+						  table.rom[rb].entries[index].bits[2],
+						  table.rom[rb].entries[index].bits[3],
+						  table.rom[rb].entries[index].bits[4],
+						  table.rom[rb].entries[index].bits[5],
+						  table.rom[rb].entries[index].bits[6],
+						  table.rom[rb].entries[index].bits[7]);
+			val = val ^ table.rom[rb].entries[index].xor_mask;
+
+			result |= val << (rb ? 0 : 8);
+		}
+		tmp[i >> 1] = result;
 	}
 
-/*
-    for (i = 0x25300/2; i < 0x25400/2; i++)
-    {
-        x = 0x1300;
-        rom[i] ^= x;
-    }
-*/
-
-	for (i = 0x25400/2; i < 0x25500/2; i++)
-	{
-		x = 0x4200;
-		if (  (i & 0x0001) )                    x |= 0x0400;
-		if (  (i & 0x0020) && !(i & 0x0001) )   x |= 0x0080;
-		if ( !(i & 0x0010) ||  (i & 0x0001) )   x |= 0x0040;
-		if (  (i & 0x0040) && !(i & 0x0001) )   x |= 0x0020;
-		if ( !(i & 0x0004) ||  (i & 0x0001) )   x |= 0x0010;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0004;
-		if (  (i & 0x0008) && !(i & 0x0001) )   x |= 0x0002;
-		if (  (i & 0x0002) ||  (i & 0x0001) )   x |= 0x0001;
-		rom[i] ^= x;
+	// Pass 2: copy back the decrypted data following the address
+	// scrambling
+	for(u32 i = 0; i != size; i += 2) {
+		u32 dest =
+			(i & 0xffffe0ff) |
+			(BIT(i, table.bits[0]) << 12) |
+			(BIT(i, table.bits[1]) << 11) |
+			(BIT(i, table.bits[2]) << 10) |
+			(BIT(i, table.bits[3]) <<  9) |
+			(BIT(i, table.bits[4]) <<  8);
+		rom[dest >> 1] = tmp[i >> 1];
 	}
 
-	for (i = 0x25500/2; i < 0x25600/2; i++)
-	{
-		x = 0x4200;
-		if (  (i & 0x0001) )                    x |= 0x0400;
-		if (  (i & 0x0010) && !(i & 0x0001) )   x |= 0x0080;
-		if (  (i & 0x0040) && !(i & 0x0001) )   x |= 0x0040;
-		if ( !(i & 0x0002) && !(i & 0x0001) )   x |= 0x0020;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0010;
-		if (  (i & 0x0008) && !(i & 0x0001) )   x |= 0x0008;
-		if (  (i & 0x0020) && !(i & 0x0001) )   x |= 0x0004;
-		if (  (i & 0x0004) && !(i & 0x0001) )   x |= 0x0002;
-		if (  (i & 0x0001) )                    x |= 0x0001;
-		rom[i] ^= x;
-	}
+	// There's more stuff happening for addresses < 0x400...
 
-/*
-    for (i = 0x25700/2; i < 0x25800/2; i++)
-    {
-        x = 0x6800;
-        if ( !(i & 0x0001) )                    x |= 0x8000;
-
-        if ( !(i & 0x0040) || ((i & 0x0001) || !(i & 0x0001)) )                 x |= 0x0100;
-
-        rom[i] ^= x;
-    }
-*/
-
-	for (i = 0x25800/2; i < 0x25900/2; i++)
-	{
-		x = 0x8300;
-		if (  (i & 0x0040) ||  (i & 0x0001) )   x |= 0x2000;
-		if (  (i & 0x0002) ||  (i & 0x0001) )   x |= 0x0080;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0040;
-		if (  (i & 0x0020) && !(i & 0x0001) )   x |= 0x0020;
-		if ( !(i & 0x0004) ||  (i & 0x0001) )   x |= 0x0010;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0008;
-		if (  (i & 0x0010) && !(i & 0x0001) )   x |= 0x0004;
-		if (  (i & 0x0008) && !(i & 0x0001) )   x |= 0x0002;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0001;
-		rom[i] ^= x;
-	}
-
-//  for (i = 0x25900/2; i < 0x25a00/2; i++)
-
-	for (i = 0x25c00/2; i < 0x25d00/2; i++)
-	{
-		// changed from 25400
-//      x = 0x4200;
-		x = 0x4000;
-//      if (  (i & 0x0001) )                    x |= 0x0400;
-		if (  (i & 0x0020) && !(i & 0x0001) )   x |= 0x0080;
-		if ( !(i & 0x0010) ||  (i & 0x0001) )   x |= 0x0040;
-		if (  (i & 0x0040) && !(i & 0x0001) )   x |= 0x0020;
-		if ( !(i & 0x0004) ||  (i & 0x0001) )   x |= 0x0010;
-		if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0004;
-		if (  (i & 0x0008) && !(i & 0x0001) )   x |= 0x0002;
-		if (  (i & 0x0002) ||  (i & 0x0001) )   x |= 0x0001;
-		rom[i] ^= x;
-	}
-
-/*
-    for (i = 0x25d00/2; i < 0x25e00/2; i++)
-    {
-        x = 0x4000;
-        if ( !(i & 0x0040) )                                    x |= 0x0800;
-
-        if ( !(i & 0x0040) && !(i & 0x0001) )   x |= 0x0100;    // almost!!
-
-        if ( ((i & 0x0040)&&((i & 0x0020)||(i & 0x0010))) || !(i & 0x0001) )    x |= 0x0200;    // almost!!
-        if ( (!(i & 0x0040) || !(i & 0x0008)) && !(i & 0x0001) )    x |= 0x0008;
-        if (  (i & 0x0040) || !(i & 0x0020) ||  (i & 0x0001) )  x |= 0x0001;    // almost!!
-        rom[i] ^= x;
-    }
-*/
-
-/*
-    for (i = 0x25e00/2; i < 0x25f00/2; i++)
-    {
-        x = 0xa600;
-
-        if (  (i & 0x0040) &&  (i & 0x0001) )   x |= 0x4000;
-        if (  (i & 0x0040) &&  (i & 0x0001) )   x |= 0x0800;
-        if ( !(i & 0x0001) )                    x |= 0x0100;
-
-        if ( (  (i & 0x0040) &&  (i & 0x0008) && !(i & 0x0001)) ||
-             ( !(i & 0x0040) && ((i & 0x0004) ^ (i & 0x0002)) && !(i & 0x0001) ) )  x |= 0x0002;    // almost!!
-
-        if ( !(i & 0x0040) || !(i & 0x0002) ||  (i & 0x0001) )  x |= 0x0001;
-        rom[i] ^= x;
-    }
-*/
-
-	for (i = 0x26f00/2; i < 0x27000/2; i++)
-	{
-		x = 0xb94c;
-		rom[i] ^= x;
-	}
-
-	for (i = 0x27000/2; i < 0x27100/2; i++)
-	{
-		x = 0x5f10;
-		rom[i] ^= x;
-	}
-
-#endif
 }
 
-GAME( 2000,  showhand,  0,        showhand, showhand, astrocorp_state, init_showhand, ROT0, "Astro Corp.",        "Show Hand (Italy)",                MACHINE_SUPPORTS_SAVE )
-GAME( 2000,  showhanc,  showhand, showhanc, showhanc, astrocorp_state, init_showhanc, ROT0, "Astro Corp.",        "Wang Pai Dui Jue (China)",         MACHINE_SUPPORTS_SAVE )
-GAME( 2002,  skilldrp,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Skill Drop Georgia (Ver. G1.0S)",  MACHINE_SUPPORTS_SAVE )
-GAME( 2003,  speeddrp,  0,        speeddrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Speed Drop (Ver. 1.06)",           MACHINE_SUPPORTS_SAVE )
+const astrocorp_state::decryption_info astrocorp_state::astoneag_table = {
+	{
+		{
+			{ 11, 10, 9 },
+			{
+				{ { 7, 5, 4, 6,  0, 3, 2, 1 }, 0x00 },
+				{ { 1, 4, 6, 0,  2, 5, 3, 7 }, 0xd0 },
+				{ { 1, 7, 4, 3,  6, 5, 0, 2 }, 0x88 },
+				{ { 6, 5, 2, 3,  7, 1, 0, 4 }, 0xd1 },
+				{ { 6, 1, 7, 2,  4, 0, 3, 5 }, 0x64 },
+				{ { 1, 7, 2, 6,  5, 4, 3, 0 }, 0x83 },
+				{ { 6, 7, 4, 2,  5, 0, 1, 3 }, 0x81 },
+				{ { 7, 5, 1, 0,  2, 4, 6, 3 }, 0xea },
+			}
+		},
+		{
+			{ 12, 10, 8 },
+			{
+				{ { 6, 5, 4, 3,  2, 1, 0, 7 }, 0x90 },
+				{ { 2, 4, 0, 7,  5, 6, 3, 1 }, 0x32 },
+				{ { 7, 1, 0, 6,  5, 2, 3, 4 }, 0xa9 },
+				{ { 2, 0, 3, 5,  1, 4, 6, 7 }, 0xa2 },
+				{ { 3, 0, 6, 5,  2, 1, 4, 7 }, 0x02 },
+				{ { 0, 1, 6, 4,  5, 2, 7, 3 }, 0x30 },
+				{ { 3, 5, 2, 7,  6, 1, 4, 0 }, 0x0a },
+				{ { 0, 6, 4, 2,  7, 3, 1, 5 }, 0x81 },
+			}
+		},
+	},
+	{ 12, 9, 11, 8, 10 }
+};
+
+void astrocorp_state::init_astoneag()
+{
+	decrypt_rom(astoneag_table);
+}
+
+void astrocorp_state::init_magibomb() // to be checked, game still doesn't work. Might be missing something here or on the emulation side
+{
+	// decrypt data
+	u8 *rom = memregion("maincpu")->base();
+
+	for (u32 i = 1; i < 0x20000; i += 2)
+	{
+		rom[i] = bitswap<8>(rom[i], 6, 7, 5, 0, 4, 1, 3, 2);
+	}
+
+	// descramble addresses
+	std::unique_ptr<u8[]> tmp = std::make_unique<u8[]>(0x20000);
+
+	for(u32 i = 0; i < 0x20000; i++)
+	{
+		tmp[i] = rom[i];
+	}
+
+	for(u32 i = 0; i < 0x20000; i++)
+	{
+		u32 dest =
+			(i & 0xffff20ff) |
+			(BIT(i, 14)  << 15) |
+			(BIT(i, 15)  << 14) |
+			(BIT(i, 8)   << 12) |
+			(BIT(i, 12)  << 11) |
+			(BIT(i, 9)   << 10) |
+			(BIT(i, 11)  <<  9) |
+			(BIT(i, 10)  <<  8);
+		rom[dest] = tmp[i];
+	}
+}
+
+} // Anonymous namespace
+
+
+GAME( 2000,  showhand,  0,        showhand, showhand, astrocorp_state, init_showhand, ROT0, "Astro Corp.",        "Show Hand (Italy)",                  MACHINE_SUPPORTS_SAVE )
+GAME( 2000,  showhanc,  showhand, showhanc, showhanc, astrocorp_state, init_showhanc, ROT0, "Astro Corp.",        "Wang Pai Dui Jue (China)",           MACHINE_SUPPORTS_SAVE )
+GAME( 2002,  skilldrp,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Skill Drop Georgia (Ver. G1.0S)",    MACHINE_SUPPORTS_SAVE )
+GAME( 2003,  speeddrp,  0,        speeddrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Speed Drop (Ver. 1.06)",             MACHINE_SUPPORTS_SAVE )
 
 // Encrypted games (not working):
-GAME( 2003?, dinodino,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Dino Dino",                        MACHINE_NOT_WORKING )
-GAME( 2004?, astoneag,  0,        skilldrp, skilldrp, astrocorp_state, init_astoneag, ROT0, "Astro Corp.",        "Stone Age (Astro, Ver. ENG.03.A)", MACHINE_NOT_WORKING )
-GAME( 2005?, winbingo,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Win Win Bingo (set 1)",            MACHINE_NOT_WORKING )
-GAME( 2005?, winbingoa, winbingo, skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Win Win Bingo (set 2)",            MACHINE_NOT_WORKING )
-GAME( 2005?, hacher,    winbingo, skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "bootleg (Gametron)", "Hacher (hack of Win Win Bingo)",   MACHINE_NOT_WORKING )
-GAME( 2005?, zoo,       0,        showhand, showhand, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Zoo (Ver. ZO.02.D)",               MACHINE_NOT_WORKING )
-GAME( 2007?, westvent,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Western Venture (Ver. AA.02.D)",   MACHINE_NOT_WORKING )
+
+// Simpler encryption
+GAME( 2001?, magibomb,  0,        magibomb, skilldrp, astrocorp_state, init_magibomb, ROT0, "Astro Corp.",        "Magic Bomb (Ver. L3.5S)",            MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )// no gfx dumps, less complex encryption
+GAME( 2002,  magibomba, magibomb, magibomb, skilldrp, astrocorp_state, init_magibomb, ROT0, "Astro Corp.",        "Magic Bomb (Ver. BR4.4, 04/19/02)",  MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )// one bad program ROM, no gfx dumps, less complex encryption
+GAME( 2002,  magibombb, magibomb, magibomb, skilldrp, astrocorp_state, init_magibomb, ROT0, "Astro Corp.",        "Magic Bomb (Ver. AB4.5A, 07/10/02)", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )// no gfx dumps, less complex encryption
+GAME( 2001,  magibombc, magibomb, magibomb, skilldrp, astrocorp_state, init_magibomb, ROT0, "Astro Corp.",        "Magic Bomb (Ver. AB4.2, 11/10/01)",  MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )// no gfx dumps, less complex encryption
+GAME( 2001?, magibombe, magibomb, magibomb, skilldrp, astrocorp_state, init_magibomb, ROT0, "Astro Corp.",        "Magic Bomb (Ver. A3.1A)",            MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )// no gfx dumps, less complex encryption
+
+// Heavier encryption
+GAME( 2003?, dinodino,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Dino Dino",                          MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2004?, astoneag,  0,        skilldrp, skilldrp, astrocorp_state, init_astoneag, ROT0, "Astro Corp.",        "Stone Age (Astro, Ver. ENG.03.A)",   MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2005,  magibombd, magibomb, magibomb, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Magic Bomb (Ver. AA.72D, 14/11/05)", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE ) // and no gfx dump
+GAME( 2005?, winbingo,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Win Win Bingo (set 1)",              MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2005?, winbingoa, winbingo, skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Win Win Bingo (set 2)",              MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2005?, hacher,    winbingo, skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "bootleg (Gametron)", "Hacher (hack of Win Win Bingo)",     MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2005?, zoo,       0,        showhand, showhand, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Zoo (Ver. ZO.02.D)",                 MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+GAME( 2007?, westvent,  0,        skilldrp, skilldrp, astrocorp_state, empty_init,    ROT0, "Astro Corp.",        "Western Venture (Ver. AA.02.D)",     MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )

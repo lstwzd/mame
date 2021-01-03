@@ -51,22 +51,21 @@ public:
 
 private:
 	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override;
 	uint32_t screen_update_p112(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	required_device<cpu_device> m_maincpu;
-	void p112_io(address_map &map);
-	void p112_mem(address_map &map);
+	void io_map(address_map &map);
+	void mem_map(address_map &map);
 };
 
 
-void p112_state::p112_mem(address_map &map)
+void p112_state::mem_map(address_map &map)
 {
-	map.unmap_value_high();
 	map(0x00000, 0x07fff).rom();
 	map(0x08000, 0xfffff).ram();
 }
 
-void p112_state::p112_io(address_map &map)
+void p112_state::io_map(address_map &map)
 {
 	map.unmap_value_high();
 	map.global_mask(0xff);
@@ -81,7 +80,7 @@ void p112_state::machine_reset()
 {
 }
 
-void p112_state::video_start()
+void p112_state::machine_start()
 {
 }
 
@@ -90,29 +89,28 @@ uint32_t p112_state::screen_update_p112(screen_device &screen, bitmap_ind16 &bit
 	return 0;
 }
 
-MACHINE_CONFIG_START(p112_state::p112)
+void p112_state::p112(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",Z180, XTAL(16'000'000))
-	MCFG_DEVICE_PROGRAM_MAP(p112_mem)
-	MCFG_DEVICE_IO_MAP(p112_io)
-
+	Z80182(config, m_maincpu, XTAL(16'000'000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &p112_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &p112_state::io_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(240, 320)
-	MCFG_SCREEN_VISIBLE_AREA(0, 240-1, 0, 320-1)
-	MCFG_SCREEN_UPDATE_DRIVER(p112_state, screen_update_p112)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(240, 320);
+	screen.set_visarea(0, 240-1, 0, 320-1);
+	screen.set_screen_update(FUNC(p112_state::screen_update_p112));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-
-MACHINE_CONFIG_END
+}
 
 /* ROM definition */
 ROM_START( p112 )
-	ROM_REGION( 0x20000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_SYSTEM_BIOS( 0, "960513", "ver 13-05-1996" )
 	ROMX_LOAD( "960513.bin",  0x00000, 0x8000, CRC(077c1c40) SHA1(c1e6b4b0de50bba90f0d4667f9344815bb578b9b), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS( 1, "970308", "ver 08-03-1997" )
@@ -135,4 +133,4 @@ ROM_END
 /* Driver */
 
 /*    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS       INIT        COMPANY        FULLNAME  FLAGS */
-COMP( 1996, p112, 0,      0,      p112,    p112,  p112_state, empty_init, "Dave Brooks", "P112",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND)
+COMP( 1996, p112, 0,      0,      p112,    p112,  p112_state, empty_init, "Dave Brooks", "P112",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )

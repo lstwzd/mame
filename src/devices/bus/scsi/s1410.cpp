@@ -112,7 +112,8 @@ ROM_START( s1410 )
 	ROM_REGION( 0x1000, Z8400A_TAG, 0 )
 	ROM_LOAD( "104521f", 0x0000, 0x1000, CRC(305b8e76) SHA1(9efaa53ae86bc111bd263ad433e083f78a000cab) )
 	ROM_LOAD( "104521g", 0x0000, 0x1000, CRC(24385115) SHA1(c389f6108cd5ed798a090acacce940ee43d77042) )
-	ROM_LOAD( "104788d", 0x0000, 0x1000, CRC(2e385e2d) SHA1(7e2c349b2b6e95f2134f82cffc38d86b8a68390d) )
+	ROM_LOAD( "104788d", 0x0000, 0x1000, CRC(2e385e2d) SHA1(7e2c349b2b6e95f2134f82cffc38d86b8a68390d) ) // BASF 6188
+	ROM_LOAD( "104788e", 0x0000, 0x1000, CRC(40a7195d) SHA1(bf68e99dad182bfcbb5d488aeb440cba572a6ef8) ) // Seagate ST-251
 
 	ROM_REGION( 0x20, "103911", 0 )
 	ROM_LOAD( "103911", 0x00, 0x20, NO_DUMP ) // DM74S288N
@@ -165,14 +166,15 @@ void s1410_device::s1410_io(address_map &map)
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(s1410_device::device_add_mconfig)
-	MCFG_DEVICE_ADD(Z8400A_TAG, Z80, XTAL(16'000'000)/4)
-	MCFG_DEVICE_PROGRAM_MAP(s1410_mem)
-	MCFG_DEVICE_IO_MAP(s1410_io)
-	MCFG_DEVICE_DISABLE()
+void s1410_device::device_add_mconfig(machine_config &config)
+{
+	z80_device &z8400a(Z80(config, Z8400A_TAG, XTAL(16'000'000)/4));
+	z8400a.set_addrmap(AS_PROGRAM, &s1410_device::s1410_mem);
+	z8400a.set_addrmap(AS_IO, &s1410_device::s1410_io);
+	z8400a.set_disable();
 
-	MCFG_HARDDISK_ADD("image")
-MACHINE_CONFIG_END
+	HARDDISK(config, "image");
+}
 
 
 

@@ -27,14 +27,18 @@ There also are unpopulated locations that might fit a YM3812 and YM3014.
 */
 
 #include "emu.h"
-#include "screen.h"
-#include "speaker.h"
+
 #include "cpu/z80/z80.h"
 #include "machine/i8255.h"
 #include "machine/nvram.h"
 #include "machine/ticket.h"
 #include "sound/ay8910.h"
 #include "video/ramdac.h"
+
+#include "screen.h"
+#include "speaker.h"
+#include "tilemap.h"
+
 
 class clpoker_state : public driver_device
 {
@@ -48,23 +52,25 @@ public:
 	{
 	}
 
-	DECLARE_WRITE8_MEMBER(output_a_w);
-	DECLARE_WRITE8_MEMBER(output_b_w);
-	DECLARE_WRITE8_MEMBER(output_c_w);
-
-	DECLARE_WRITE8_MEMBER(videoram_w);
-	DECLARE_WRITE_LINE_MEMBER(vblank_w);
-
-	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-
 	void clpoker(machine_config &config);
-	void io_map(address_map &map);
-	void prg_map(address_map &map);
-	void ramdac_map(address_map &map);
+
 protected:
 	virtual void video_start() override;
 
 private:
+	void output_a_w(u8 data);
+	void output_b_w(u8 data);
+	void output_c_w(u8 data);
+
+	void videoram_w(offs_t offset, u8 data);
+	DECLARE_WRITE_LINE_MEMBER(vblank_w);
+
+	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+
+	void io_map(address_map &map);
+	void prg_map(address_map &map);
+	void ramdac_map(address_map &map);
+
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	TILE_GET_INFO_MEMBER(get_fg_tile_info);
 
@@ -105,7 +111,7 @@ void clpoker_state::ramdac_map(address_map &map)
 	map(0x000, 0x3ff).rw("ramdac", FUNC(ramdac_device::ramdac_pal_r), FUNC(ramdac_device::ramdac_rgb666_w));
 }
 
-WRITE8_MEMBER(clpoker_state::output_a_w)
+void clpoker_state::output_a_w(u8 data)
 {
 	if (data != 0xff)
 	{
@@ -114,11 +120,11 @@ WRITE8_MEMBER(clpoker_state::output_a_w)
 	}
 }
 
-WRITE8_MEMBER(clpoker_state::output_b_w)
+void clpoker_state::output_b_w(u8 data)
 {
 }
 
-WRITE8_MEMBER(clpoker_state::output_c_w)
+void clpoker_state::output_c_w(u8 data)
 {
 	m_nmi_enable = BIT(data, 1);
 	if (!m_nmi_enable)
@@ -197,16 +203,16 @@ INPUT_PORTS_END
 TILE_GET_INFO_MEMBER(clpoker_state::get_bg_tile_info)
 {
 	u16 tileno = (m_videoram[tile_index] << 8) | m_videoram[tile_index + 0x0800];
-	SET_TILE_INFO_MEMBER(0, tileno, 0, 0);
+	tileinfo.set(0, tileno, 0, 0);
 }
 
 TILE_GET_INFO_MEMBER(clpoker_state::get_fg_tile_info)
 {
 	u16 tileno = (m_videoram[tile_index + 0x1000] << 8) | m_videoram[tile_index + 0x1800];
-	SET_TILE_INFO_MEMBER(0, tileno, 0, 0);
+	tileinfo.set(0, tileno, 0, 0);
 }
 
-WRITE8_MEMBER(clpoker_state::videoram_w)
+void clpoker_state::videoram_w(offs_t offset, u8 data)
 {
 	m_videoram[offset] = data;
 	(BIT(offset, 12) ? m_fg_tilemap : m_bg_tilemap)->mark_tile_dirty(offset & 0x07ff);
@@ -214,8 +220,8 @@ WRITE8_MEMBER(clpoker_state::videoram_w)
 
 void clpoker_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(clpoker_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
-	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(clpoker_state::get_fg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(clpoker_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
+	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(clpoker_state::get_fg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 64, 32);
 	m_fg_tilemap->set_transparent_pen(0);
 
 	m_nmi_enable = false;
@@ -253,11 +259,12 @@ static GFXDECODE_START( gfx_clpoker )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(clpoker_state::clpoker)
+void clpoker_state::clpoker(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(12'000'000) / 3) // Z0840004PSC, divider not verified
-	MCFG_DEVICE_PROGRAM_MAP(prg_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, XTAL(12'000'000) / 3); // Z0840004PSC, divider not verified
+	m_maincpu->set_addrmap(AS_PROGRAM, &clpoker_state::prg_map);
+	m_maincpu->set_addrmap(AS_IO, &clpoker_state::io_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // HY6116ALP-12
 
@@ -271,22 +278,22 @@ MACHINE_CONFIG_START(clpoker_state::clpoker)
 	ppi_inputs.in_pb_callback().set_ioport("INB");
 	ppi_inputs.in_pc_callback().set_ioport("INC");
 
-	MCFG_TICKET_DISPENSER_ADD("hopper", attotime::from_msec(60), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW)
+	TICKET_DISPENSER(config, m_hopper, attotime::from_msec(60), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60) // wrong
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))  // wrong
-	MCFG_SCREEN_SIZE(64*8, 32*8) // wrong
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 32*8-1) // probably right
-	MCFG_SCREEN_UPDATE_DRIVER(clpoker_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, clpoker_state, vblank_w))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60); // wrong
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));  // wrong
+	screen.set_size(64*8, 32*8); // wrong
+	screen.set_visarea_full(); // probably right
+	screen.set_screen_update(FUNC(clpoker_state::screen_update));
+	screen.set_palette("palette");
+	screen.screen_vblank().set(FUNC(clpoker_state::vblank_w));
 
-	MCFG_PALETTE_ADD("palette", 0x100)
+	PALETTE(config, "palette").set_entries(0x100);
 	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, "palette")); // HM86171
 	ramdac.set_addrmap(0, &clpoker_state::ramdac_map);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_clpoker)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_clpoker);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -294,7 +301,7 @@ MACHINE_CONFIG_START(clpoker_state::clpoker)
 	aysnd.port_a_read_callback().set_ioport("DSW1");
 	aysnd.port_b_read_callback().set_ioport("DSW2");
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.30);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( clpoker )

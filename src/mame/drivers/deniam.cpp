@@ -54,21 +54,18 @@ Notes:
 #include "speaker.h"
 
 
-WRITE8_MEMBER(deniam_state::deniam16b_oki_rom_bank_w)
+void deniam_state::deniam16b_oki_rom_bank_w(u8 data)
 {
 	m_oki->set_rom_bank((data >> 6) & 1);
 }
 
-WRITE16_MEMBER(deniam_state::deniam16c_oki_rom_bank_w)
+void deniam_state::deniam16c_oki_rom_bank_w(u8 data)
 {
-	if (ACCESSING_BITS_0_7)
-	{
-		if ((data&0xFE) != 0) popmessage("OKI bank was not 0 or 1! contact MAMEDEV!");
-		m_oki->set_rom_bank(data & 0x01);
-	}
+	if ((data&0xFE) != 0) popmessage("OKI bank was not 0 or 1! contact MAMEDEV!");
+	m_oki->set_rom_bank(data & 0x01);
 }
 
-WRITE16_MEMBER(deniam_state::deniam_irq_ack_w)
+void deniam_state::irq_ack_w(u16 data)
 {
 	m_maincpu->set_input_line(4, CLEAR_LINE);
 }
@@ -76,13 +73,13 @@ WRITE16_MEMBER(deniam_state::deniam_irq_ack_w)
 void deniam_state::deniam16b_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
-	map(0x400000, 0x40ffff).ram().w(FUNC(deniam_state::deniam_videoram_w)).share("videoram");
-	map(0x410000, 0x410fff).ram().w(FUNC(deniam_state::deniam_textram_w)).share("textram");
+	map(0x400000, 0x40ffff).ram().w(FUNC(deniam_state::videoram_w)).share("videoram");
+	map(0x410000, 0x410fff).ram().w(FUNC(deniam_state::textram_w)).share("textram");
 	map(0x440000, 0x4407ff).writeonly().share("spriteram");
-	map(0x840000, 0x840fff).w(FUNC(deniam_state::deniam_palette_w)).share("paletteram");
+	map(0x840000, 0x840fff).w(m_palette, FUNC(palette_device::write16)).share("palette");
 	map(0xc40000, 0xc40000).w(m_soundlatch, FUNC(generic_latch_8_device::write));
-	map(0xc40002, 0xc40003).rw(FUNC(deniam_state::deniam_coinctrl_r), FUNC(deniam_state::deniam_coinctrl_w));
-	map(0xc40004, 0xc40005).w(FUNC(deniam_state::deniam_irq_ack_w));
+	map(0xc40002, 0xc40003).rw(FUNC(deniam_state::coinctrl_r), FUNC(deniam_state::coinctrl_w));
+	map(0xc40004, 0xc40005).w(FUNC(deniam_state::irq_ack_w));
 	map(0xc44000, 0xc44001).portr("SYSTEM");
 	map(0xc44002, 0xc44003).portr("P1");
 	map(0xc44004, 0xc44005).portr("P2").nopw();
@@ -110,14 +107,14 @@ void deniam_state::sound_io_map(address_map &map)
 void deniam_state::deniam16c_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
-	map(0x400000, 0x40ffff).ram().w(FUNC(deniam_state::deniam_videoram_w)).share("videoram");
-	map(0x410000, 0x410fff).ram().w(FUNC(deniam_state::deniam_textram_w)).share("textram");
+	map(0x400000, 0x40ffff).ram().w(FUNC(deniam_state::videoram_w)).share("videoram");
+	map(0x410000, 0x410fff).ram().w(FUNC(deniam_state::textram_w)).share("textram");
 	map(0x440000, 0x4407ff).writeonly().share("spriteram");
-	map(0x840000, 0x840fff).w(FUNC(deniam_state::deniam_palette_w)).share("paletteram");
+	map(0x840000, 0x840fff).w(m_palette, FUNC(palette_device::write16)).share("palette");
 	map(0xc40001, 0xc40001).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write));
-	map(0xc40002, 0xc40003).rw(FUNC(deniam_state::deniam_coinctrl_r), FUNC(deniam_state::deniam_coinctrl_w));
-	map(0xc40004, 0xc40005).w(FUNC(deniam_state::deniam_irq_ack_w));
-	map(0xc40006, 0xc40007).w(FUNC(deniam_state::deniam16c_oki_rom_bank_w));
+	map(0xc40002, 0xc40003).rw(FUNC(deniam_state::coinctrl_r), FUNC(deniam_state::coinctrl_w));
+	map(0xc40004, 0xc40005).w(FUNC(deniam_state::irq_ack_w));
+	map(0xc40007, 0xc40007).w(FUNC(deniam_state::deniam16c_oki_rom_bank_w));
 	map(0xc44000, 0xc44001).portr("SYSTEM");
 	map(0xc44002, 0xc44003).portr("P1");
 	map(0xc44004, 0xc44005).portr("P2");
@@ -253,11 +250,11 @@ void deniam_state::machine_reset()
 void deniam_state::deniam16b(machine_config &config)
 {
 	/* basic machine hardware */
-	M68000(config, m_maincpu, XTAL(25'000'000)/2);	/* 12.5Mhz verified */
+	M68000(config, m_maincpu, XTAL(25'000'000)/2);  /* 12.5Mhz verified */
 	m_maincpu->set_addrmap(AS_PROGRAM, &deniam_state::deniam16b_map);
 	m_maincpu->set_vblank_int("screen", FUNC(deniam_state::irq4_line_assert));
 
-	Z80(config, m_audiocpu, XTAL(25'000'000)/4);	/* 6.25Mhz verified */
+	Z80(config, m_audiocpu, XTAL(25'000'000)/4);    /* 6.25Mhz verified */
 	m_audiocpu->set_addrmap(AS_PROGRAM, &deniam_state::sound_map);
 	m_audiocpu->set_addrmap(AS_IO, &deniam_state::sound_io_map);
 
@@ -268,11 +265,11 @@ void deniam_state::deniam16b(machine_config &config)
 	screen.set_size(512, 256);
 	//screen.set_visarea(24*8, 64*8-1, 0*8, 28*8-1); // looks better but doesn't match hardware
 	screen.set_visarea(24*8-4, 64*8-5, 0*8, 28*8-1);
-	screen.set_screen_update(FUNC(deniam_state::screen_update_deniam));
+	screen.set_screen_update(FUNC(deniam_state::screen_update));
 	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_deniam);
-	PALETTE(config, m_palette).set_entries(2048);
+	PALETTE(config, m_palette).set_format(palette_device::xBGRBBBBGGGGRRRR_bit0, 2048); // bit 15 is toggle shadow / hilight?
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -291,7 +288,7 @@ void deniam_state::deniam16b(machine_config &config)
 void deniam_state::deniam16c(machine_config &config)
 {
 	/* basic machine hardware */
-	M68000(config, m_maincpu, XTAL(25'000'000)/2);	/* 12.5Mhz verified */
+	M68000(config, m_maincpu, XTAL(25'000'000)/2);  /* 12.5Mhz verified */
 	m_maincpu->set_addrmap(AS_PROGRAM, &deniam_state::deniam16c_map);
 	m_maincpu->set_vblank_int("screen", FUNC(deniam_state::irq4_line_assert));
 
@@ -302,11 +299,11 @@ void deniam_state::deniam16c(machine_config &config)
 	screen.set_size(512, 256);
 	//screen.set_visarea(24*8, 64*8-1, 0*8, 28*8-1); // looks better but doesn't match hardware
 	screen.set_visarea(24*8-4, 64*8-5, 0*8, 28*8-1);
-	screen.set_screen_update(FUNC(deniam_state::screen_update_deniam));
+	screen.set_screen_update(FUNC(deniam_state::screen_update));
 	screen.set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_deniam);
-	PALETTE(config, m_palette).set_entries(2048);
+	PALETTE(config, m_palette).set_format(palette_device::xBGRBBBBGGGGRRRR_bit0, 2048); // bit 15 is toggle shadow / hilight?
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -326,6 +323,50 @@ void deniam_state::deniam16c(machine_config &config)
 
 ***************************************************************************/
 
+ROM_START( croquis )
+	ROM_REGION( 0x100000, "maincpu", 0 ) // ROM names are the PCB locations silkscreened under chip socket
+	ROM_LOAD16_BYTE( "sys_e0", 0x00000, 0x40000, CRC(b74cd4a9) SHA1(350557377bc5815d0e7f48a96898eba6374f65dd) ) // 27C020
+	ROM_LOAD16_BYTE( "sys_o0", 0x00001, 0x40000, CRC(346e18f4) SHA1(0107ef7b5843a654f393d6f22ef6d52b5bf45fc0) ) // 27C020
+
+	ROM_REGION( 0x10000, "audiocpu", 0 )    /* sound */
+	ROM_LOAD( "logicpro.r2", 0x0000, 0x10000, CRC(000d624b) SHA1(c0da218ee81d01b3dcef2159bbaaff5d3ddb7619) ) // 27C512 - silkscreened: DSS
+
+	ROM_REGION( 0x180000, "gfx1", 0 )   /* chars */
+	ROM_LOAD( "logicpro.r5", 0x000000, 0x080000, CRC(dedf18c9) SHA1(9725e096427f03ed5fd81584c0aa85a53f9681c9) ) // 27C040 - silkscreened: BG(00)
+	ROM_LOAD( "logicpro.r6", 0x080000, 0x080000, CRC(3ecbd1c2) SHA1(dd6afacd58eaaa2562e007a92b6667ecc968377d) ) // 27C040 - silkscreened: BG(01)
+	ROM_LOAD( "logicpro.r7", 0x100000, 0x080000, CRC(47135521) SHA1(ee6a93332190fc966f8e820430d652942f030b00) ) // 27C040 - silkscreened: BG(02)
+
+	ROM_REGION( 0x400000, "spritegfx", 0 )   /* sprites, used at run time */
+	ROM_LOAD16_BYTE( "logicpro.r9", 0x000000, 0x080000, CRC(a98bc1d2) SHA1(f4aed07cccca892f3d3a91546b3a98fbe3e66d9c) ) // 27C040 - silkscreened: OBJ(E0)
+	ROM_LOAD16_BYTE( "logicpro.r8", 0x000001, 0x080000, CRC(1de46298) SHA1(3385a2956d9a427c85554f39c8d85922bbeb1ce1) ) // 27C040 - silkscreened: OBJ(O0)
+	// OBJ(E1), OBJ(E2), OBJ(O1) & OBJ(O2) not populated
+
+	ROM_REGION( 0x100000, "oki", 0 )    /* OKIM6295 samples */
+	ROM_LOAD( "logicpro.r1", 0x0000, 0x080000, CRC(a1fec4d4) SHA1(4390cd18b4a7de2d8cb68270180ea3de42fd2282) ) // 27C040 - silkscreened: V_ROM0
+	// V_ROM1 not populated
+ROM_END
+
+ROM_START( croquisg )
+	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "r4.bin", 0x00000, 0x40000, CRC(03c9055e) SHA1(b1fa8e7a272887decca30eefe73ac782f296f0dd) )
+	ROM_LOAD16_BYTE( "r3.bin", 0x00001, 0x40000, CRC(a98ae4f6) SHA1(80fcedb4ee0f35eb2d0b4a248c15f872af2e08f2) )
+
+	ROM_REGION( 0x10000, "audiocpu", 0 )    /* sound */
+	ROM_LOAD( "logicpro.r2", 0x0000, 0x10000, CRC(000d624b) SHA1(c0da218ee81d01b3dcef2159bbaaff5d3ddb7619) )
+
+	ROM_REGION( 0x180000, "gfx1", 0 )   /* chars */
+	ROM_LOAD( "logicpro.r5", 0x000000, 0x080000, CRC(dedf18c9) SHA1(9725e096427f03ed5fd81584c0aa85a53f9681c9) )
+	ROM_LOAD( "logicpro.r6", 0x080000, 0x080000, CRC(3ecbd1c2) SHA1(dd6afacd58eaaa2562e007a92b6667ecc968377d) )
+	ROM_LOAD( "logicpro.r7", 0x100000, 0x080000, CRC(47135521) SHA1(ee6a93332190fc966f8e820430d652942f030b00) )
+
+	ROM_REGION( 0x400000, "spritegfx", 0 )   /* sprites, used at run time */
+	ROM_LOAD16_BYTE( "logicpro.r9", 0x000000, 0x080000, CRC(a98bc1d2) SHA1(f4aed07cccca892f3d3a91546b3a98fbe3e66d9c) )
+	ROM_LOAD16_BYTE( "logicpro.r8", 0x000001, 0x080000, CRC(1de46298) SHA1(3385a2956d9a427c85554f39c8d85922bbeb1ce1) )
+
+	ROM_REGION( 0x100000, "oki", 0 )    /* OKIM6295 samples */
+	ROM_LOAD( "logicpro.r1", 0x0000, 0x080000, CRC(a1fec4d4) SHA1(4390cd18b4a7de2d8cb68270180ea3de42fd2282) )
+ROM_END
+
 ROM_START( logicpro )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "logicpro.r4", 0x00000, 0x40000, CRC(c506d484) SHA1(5d662b109e1d2e09556bc4ecbc11bbf5ccb639d3) )
@@ -339,28 +380,7 @@ ROM_START( logicpro )
 	ROM_LOAD( "logicpro.r6", 0x080000, 0x080000, CRC(3ecbd1c2) SHA1(dd6afacd58eaaa2562e007a92b6667ecc968377d) )
 	ROM_LOAD( "logicpro.r7", 0x100000, 0x080000, CRC(47135521) SHA1(ee6a93332190fc966f8e820430d652942f030b00) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 )   /* sprites, used at run time */
-	ROM_LOAD16_BYTE( "logicpro.r9", 0x000000, 0x080000, CRC(a98bc1d2) SHA1(f4aed07cccca892f3d3a91546b3a98fbe3e66d9c) )
-	ROM_LOAD16_BYTE( "logicpro.r8", 0x000001, 0x080000, CRC(1de46298) SHA1(3385a2956d9a427c85554f39c8d85922bbeb1ce1) )
-
-	ROM_REGION( 0x100000, "oki", 0 )    /* OKIM6295 samples */
-	ROM_LOAD( "logicpro.r1", 0x0000, 0x080000, CRC(a1fec4d4) SHA1(4390cd18b4a7de2d8cb68270180ea3de42fd2282) )
-ROM_END
-
-ROM_START( croquis )
-	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "r4.bin", 0x00000, 0x40000, CRC(03c9055e) SHA1(b1fa8e7a272887decca30eefe73ac782f296f0dd) )
-	ROM_LOAD16_BYTE( "r3.bin", 0x00001, 0x40000, CRC(a98ae4f6) SHA1(80fcedb4ee0f35eb2d0b4a248c15f872af2e08f2) )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )    /* sound */
-	ROM_LOAD( "logicpro.r2", 0x0000, 0x10000, CRC(000d624b) SHA1(c0da218ee81d01b3dcef2159bbaaff5d3ddb7619) )
-
-	ROM_REGION( 0x180000, "gfx1", 0 )   /* chars */
-	ROM_LOAD( "logicpro.r5", 0x000000, 0x080000, CRC(dedf18c9) SHA1(9725e096427f03ed5fd81584c0aa85a53f9681c9) )
-	ROM_LOAD( "logicpro.r6", 0x080000, 0x080000, CRC(3ecbd1c2) SHA1(dd6afacd58eaaa2562e007a92b6667ecc968377d) )
-	ROM_LOAD( "logicpro.r7", 0x100000, 0x080000, CRC(47135521) SHA1(ee6a93332190fc966f8e820430d652942f030b00) )
-
-	ROM_REGION( 0x400000, "gfx2", 0 )   /* sprites, used at run time */
+	ROM_REGION( 0x400000, "spritegfx", 0 )   /* sprites, used at run time */
 	ROM_LOAD16_BYTE( "logicpro.r9", 0x000000, 0x080000, CRC(a98bc1d2) SHA1(f4aed07cccca892f3d3a91546b3a98fbe3e66d9c) )
 	ROM_LOAD16_BYTE( "logicpro.r8", 0x000001, 0x080000, CRC(1de46298) SHA1(3385a2956d9a427c85554f39c8d85922bbeb1ce1) )
 
@@ -381,7 +401,7 @@ ROM_START( karianx )
 	ROM_LOAD( "bkg2",        0x080000, 0x080000, CRC(95ff297c) SHA1(28f6c005e73e1680bd8be7ce355fa0d404827105) )
 	ROM_LOAD( "bkg3",        0x100000, 0x080000, CRC(6c81f1b2) SHA1(14ef907a9c381b7ef45441d480bb4ccb015e474b) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 )   /* sprites, used at run time */
+	ROM_REGION( 0x400000, "spritegfx", 0 )   /* sprites, used at run time */
 	ROM_LOAD16_BYTE( "obj4",        0x000000, 0x080000, CRC(5f8d75a9) SHA1(0552d046742aeb2fee176887156e73480c75a1bd) )
 	ROM_LOAD16_BYTE( "obj1",        0x000001, 0x080000, CRC(967ee97d) SHA1(689f2da67eab86653b846fada39139792cd4aee2) )
 	ROM_LOAD16_BYTE( "obj5",        0x100000, 0x080000, CRC(e9fc22f9) SHA1(a1f7f779520346406949500e3224c0c42cbbe026) )
@@ -403,7 +423,7 @@ ROM_START( logicpr2 )
 	ROM_LOAD( "log2-b02",    0x080000, 0x080000, CRC(1e0c51cd) SHA1(c25b3259a173e77785dcee1407ddf191c3efad79) )
 	ROM_LOAD( "log2-b03",    0x100000, 0x080000, CRC(916f2928) SHA1(8c73408664dcd3de42cb27fac0d22b87b540bf52) )
 
-	ROM_REGION( 0x400000, "gfx2", 0 )   /* sprites, used at run time */
+	ROM_REGION( 0x400000, "spritegfx", 0 )   /* sprites, used at run time */
 	ROM_LOAD16_WORD_SWAP( "obj",         0x000000, 0x400000, CRC(f221f305) SHA1(aa1d3d86d13e009bfb44cbc6ff4401b811b19f97) )
 
 	ROM_REGION( 0x100000, "oki", 0 )    /* OKIM6295 samples */
@@ -412,7 +432,8 @@ ROM_END
 
 
 
-GAME( 1996, logicpro, 0,        deniam16b, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Logic Pro (Japan)",       MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
-GAME( 1996, croquis,  logicpro, deniam16b, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Croquis (Germany)",       MACHINE_SUPPORTS_SAVE )
+GAME( 1996, croquis,  0,        deniam16b, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Croquis (Korea)",         MACHINE_SUPPORTS_SAVE )
+GAME( 1996, croquisg, croquis,  deniam16b, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Croquis (Germany)",       MACHINE_SUPPORTS_SAVE )
+GAME( 1996, logicpro, croquis,  deniam16b, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Logic Pro (Japan)",       MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
 GAME( 1996, karianx,  0,        deniam16b, karianx,  deniam_state, init_karianx,  ROT0, "Deniam", "Karian Cross (Rev. 1.0)", MACHINE_SUPPORTS_SAVE )
 GAME( 1997, logicpr2, 0,        deniam16c, logicpr2, deniam_state, init_logicpro, ROT0, "Deniam", "Logic Pro 2 (Japan)",     MACHINE_SUPPORTS_SAVE )

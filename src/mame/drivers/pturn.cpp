@@ -84,6 +84,7 @@ ROMS: All ROM labels say only "PROM" and a number.
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class pturn_state : public driver_device
@@ -124,19 +125,19 @@ private:
 	bool m_nmi_main;
 	bool m_nmi_sub;
 
-	DECLARE_WRITE8_MEMBER(videoram_w);
+	void videoram_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(nmi_main_enable_w);
-	DECLARE_WRITE8_MEMBER(nmi_sub_enable_w);
+	void nmi_sub_enable_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(coin_counter_1_w);
 	DECLARE_WRITE_LINE_MEMBER(coin_counter_2_w);
-	DECLARE_WRITE8_MEMBER(bgcolor_w);
-	DECLARE_WRITE8_MEMBER(bg_scrollx_w);
-	DECLARE_WRITE8_MEMBER(fgpalette_w);
-	DECLARE_WRITE8_MEMBER(bg_scrolly_w);
+	void bgcolor_w(uint8_t data);
+	void bg_scrollx_w(uint8_t data);
+	void fgpalette_w(uint8_t data);
+	void bg_scrolly_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(fgbank_w);
 	DECLARE_WRITE_LINE_MEMBER(bgbank_w);
 	DECLARE_WRITE_LINE_MEMBER(flip_w);
-	DECLARE_READ8_MEMBER(custom_r);
+	uint8_t custom_r(offs_t offset);
 
 	TILE_GET_INFO_MEMBER(get_tile_info);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
@@ -170,7 +171,7 @@ TILE_GET_INFO_MEMBER(pturn_state::get_tile_info)
 
 	tileno=tile_lookup[tileno>>4]|(tileno&0xf)|(m_fgbank<<8);
 
-	SET_TILE_INFO_MEMBER(0,tileno,m_fgpalette,0);
+	tileinfo.set(0,tileno,m_fgpalette,0);
 }
 
 
@@ -183,14 +184,14 @@ TILE_GET_INFO_MEMBER(pturn_state::get_bg_tile_info)
 	{
 		palno=25;
 	}
-	SET_TILE_INFO_MEMBER(1,tileno+m_bgbank*256,palno,0);
+	tileinfo.set(1,tileno+m_bgbank*256,palno,0);
 }
 
 void pturn_state::video_start()
 {
-	m_fgmap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(pturn_state::get_tile_info),this),TILEMAP_SCAN_ROWS,8, 8,32,32);
+	m_fgmap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(pturn_state::get_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 	m_fgmap->set_transparent_pen(0);
-	m_bgmap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(pturn_state::get_bg_tile_info),this),TILEMAP_SCAN_ROWS,8, 8,32,32*8);
+	m_bgmap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(pturn_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32*8);
 	m_bgmap->set_transparent_pen(0);
 
 	save_item(NAME(m_bgbank));
@@ -239,18 +240,18 @@ uint32_t pturn_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 }
 
 #ifdef UNUSED_FUNCTION
-READ8_MEMBER(pturn_state::protection_r)
+uint8_t pturn_state::protection_r()
 {
 	return 0x66;
 }
 
-READ8_MEMBER(pturn_state::protection2_r)
+uint8_t pturn_state::protection2_r()
 {
 	return 0xfe;
 }
 #endif
 
-WRITE8_MEMBER(pturn_state::videoram_w)
+void pturn_state::videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset]=data;
 	m_fgmap->mark_tile_dirty(offset);
@@ -264,7 +265,7 @@ WRITE_LINE_MEMBER(pturn_state::nmi_main_enable_w)
 		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 }
 
-WRITE8_MEMBER(pturn_state::nmi_sub_enable_w)
+void pturn_state::nmi_sub_enable_w(uint8_t data)
 {
 	m_nmi_sub = BIT(data, 0);
 	if (!m_nmi_sub)
@@ -281,25 +282,25 @@ WRITE_LINE_MEMBER(pturn_state::coin_counter_2_w)
 	machine().bookkeeping().coin_counter_w(1, state);
 }
 
-WRITE8_MEMBER(pturn_state::bgcolor_w)
+void pturn_state::bgcolor_w(uint8_t data)
 {
 	m_bgcolor=data;
 }
 
-WRITE8_MEMBER(pturn_state::bg_scrollx_w)
+void pturn_state::bg_scrollx_w(uint8_t data)
 {
 	m_bgmap->set_scrolly(0, (data>>5)*32*8);
 	m_bgpalette=data&0x1f;
 	m_bgmap->mark_all_dirty();
 }
 
-WRITE8_MEMBER(pturn_state::fgpalette_w)
+void pturn_state::fgpalette_w(uint8_t data)
 {
 	m_fgpalette=data&0x1f;
 	m_fgmap->mark_all_dirty();
 }
 
-WRITE8_MEMBER(pturn_state::bg_scrolly_w)
+void pturn_state::bg_scrolly_w(uint8_t data)
 {
 	m_bgmap->set_scrollx(0, data);
 }
@@ -322,7 +323,7 @@ WRITE_LINE_MEMBER(pturn_state::flip_w)
 }
 
 
-READ8_MEMBER(pturn_state::custom_r)
+uint8_t pturn_state::custom_r(offs_t offset)
 {
 	int addr = (int)offset + 0xc800;
 
@@ -450,23 +451,25 @@ static INPUT_PORTS_START( pturn )
 	PORT_BIT( 0xc8, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_START("DSW1")
-	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )
+	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )           PORT_DIPLOCATION("SW1:!1,!2")
 	PORT_DIPSETTING(    0x00, "3" )
 	PORT_DIPSETTING(    0x01, "5" )
 	PORT_DIPSETTING(    0x02, "7" )
 	PORT_DIPSETTING(    0x03, "Infinite (Cheat)")
-	PORT_DIPNAME( 0x0c, 0x08, DEF_STR( Bonus_Life ) )
+	PORT_DIPNAME( 0x0c, 0x08, DEF_STR( Bonus_Life ) )      PORT_DIPLOCATION("SW1:!3,!4")
 	PORT_DIPSETTING(    0x0c, "100000" )
 	PORT_DIPSETTING(    0x08, "50000" )
 	PORT_DIPSETTING(    0x04, "20000" )
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )
-	PORT_DIPNAME( 0x40, 0x00, DEF_STR( Cabinet ) )
+	PORT_DIPUNUSED_DIPLOC(0x10, IP_ACTIVE_HIGH, "SW1:!5")   // marked as "NOT USED" in doc
+	PORT_DIPUNUSED_DIPLOC(0x20, IP_ACTIVE_HIGH, "SW1:!6")   // marked as "NOT USED" in doc
+	PORT_DIPNAME( 0x40, 0x00, DEF_STR( Cabinet ) )         PORT_DIPLOCATION("SW1:!7")
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Cocktail ) )
-	PORT_BIT( 0xb0, IP_ACTIVE_HIGH, IPT_UNUSED ) /* marked as "NOT USED" in doc */
+	PORT_DIPUNUSED_DIPLOC(0x80, IP_ACTIVE_HIGH, "SW1:!8")  // marked as "NOT USED" in doc
 
 	PORT_START("DSW2")
-	PORT_DIPNAME( 0x07, 0x00, DEF_STR( Coin_A ) )
+	PORT_DIPNAME( 0x07, 0x00, DEF_STR( Coin_A ) )          PORT_DIPLOCATION("SW2:!1,!2,!3")
 	PORT_DIPSETTING(    0x07, DEF_STR( 6C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 2C_1C ) )
@@ -475,7 +478,7 @@ static INPUT_PORTS_START( pturn )
 	PORT_DIPSETTING(    0x01, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_6C ) )
-	PORT_DIPNAME( 0x38, 0x00, DEF_STR( Coin_B ) )
+	PORT_DIPNAME( 0x38, 0x00, DEF_STR( Coin_B ) )          PORT_DIPLOCATION("SW2:!4,!5,!6")
 	PORT_DIPSETTING(    0x38, DEF_STR( 6C_1C ) )
 	PORT_DIPSETTING(    0x30, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( 2C_1C ) )
@@ -484,10 +487,10 @@ static INPUT_PORTS_START( pturn )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_6C ) )
-	PORT_DIPNAME( 0x40, 0x00, "Freeze" )
+	PORT_DIPNAME( 0x40, 0x00, "Freeze" )                   PORT_DIPLOCATION("SW2:!7")
 	PORT_DIPSETTING(    0x00, "Normal Display" )
 	PORT_DIPSETTING(    0x40, "Stop Motion" )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Language ) ) /* marked as "NOT USED" in doc */
+	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Language ) )        PORT_DIPLOCATION("SW2:!8")  // marked as "NOT USED" in doc
 	PORT_DIPSETTING(    0x00, DEF_STR( English ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Japanese ) )
 INPUT_PORTS_END
@@ -512,19 +515,19 @@ void pturn_state::machine_start()
 
 void pturn_state::machine_reset()
 {
-	address_space &space = m_maincpu->space(AS_PROGRAM);
-	m_soundlatch->clear_w(space,0,0);
+	m_soundlatch->clear_w();
 	m_nmi_sub = false;
 }
 
-MACHINE_CONFIG_START(pturn_state::pturn)
-	MCFG_DEVICE_ADD("maincpu", Z80, 12000000/3)
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", pturn_state,  main_intgen)
+void pturn_state::pturn(machine_config &config)
+{
+	Z80(config, m_maincpu, 12000000/3);
+	m_maincpu->set_addrmap(AS_PROGRAM, &pturn_state::main_map);
+	m_maincpu->set_vblank_int("screen", FUNC(pturn_state::main_intgen));
 
-	MCFG_DEVICE_ADD("audiocpu", Z80, 12000000/3)
-	MCFG_DEVICE_PROGRAM_MAP(sub_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(pturn_state, sub_intgen, 3*60)
+	Z80(config, m_audiocpu, 12000000/3);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &pturn_state::sub_map);
+	m_audiocpu->set_periodic_int(FUNC(pturn_state::sub_intgen), attotime::from_hz(3*60));
 
 	ls259_device &mainlatch(LS259(config, "mainlatch"));
 	mainlatch.q_out_cb<0>().set(FUNC(pturn_state::flip_w));
@@ -535,17 +538,17 @@ MACHINE_CONFIG_START(pturn_state::pturn)
 	mainlatch.q_out_cb<5>().set(FUNC(pturn_state::fgbank_w));
 	mainlatch.q_out_cb<6>().set_nop(); // toggles frequently during gameplay
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(pturn_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(pturn_state::screen_update));
+	screen.set_palette(m_palette);
 
 	PALETTE(config, m_palette, palette_device::RGB_444_PROMS, "proms", 0x100);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_pturn)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_pturn);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -555,7 +558,7 @@ MACHINE_CONFIG_START(pturn_state::pturn)
 	AY8910(config, "ay1", 2000000).add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	AY8910(config, "ay2", 2000000).add_route(ALL_OUTPUTS, "mono", 0.25);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( pturn )

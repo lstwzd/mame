@@ -53,7 +53,7 @@ atari_vad_device::atari_vad_device(const machine_config &mconfig, const char *ta
 //  write.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::control_write)
+void atari_vad_device::control_write(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint16_t newword = m_control[offset];
 	COMBINE_DATA(&newword);
@@ -65,7 +65,7 @@ WRITE16_MEMBER(atari_vad_device::control_write)
 //  control_read: Handles an I/O read from the video controller.
 //-------------------------------------------------
 
-READ16_MEMBER(atari_vad_device::control_read)
+uint16_t atari_vad_device::control_read(offs_t offset)
 {
 	logerror("vc_r(%02X)\n", offset);
 
@@ -89,9 +89,9 @@ READ16_MEMBER(atari_vad_device::control_read)
 //  alpha_w: Generic write handler for alpha RAM.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::alpha_w)
+void atari_vad_device::alpha_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_alpha_tilemap->write16(space, offset, data, mem_mask);
+	m_alpha_tilemap->write16(offset, data, mem_mask);
 }
 
 
@@ -100,11 +100,11 @@ WRITE16_MEMBER(atari_vad_device::alpha_w)
 //  upper word of split playfield RAM.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::playfield_upper_w)
+void atari_vad_device::playfield_upper_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_playfield_tilemap->write16_ext(space, offset, data, mem_mask);
+	m_playfield_tilemap->write16_ext(offset, data, mem_mask);
 	if (m_playfield2_tilemap != nullptr)
-		m_playfield2_tilemap->write16_ext(space, offset, data, mem_mask);
+		m_playfield2_tilemap->write16_ext(offset, data, mem_mask);
 }
 
 
@@ -114,11 +114,11 @@ WRITE16_MEMBER(atari_vad_device::playfield_upper_w)
 //  upper word.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::playfield_latched_lsb_w)
+void atari_vad_device::playfield_latched_lsb_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_playfield_tilemap->write16(space, offset, data, mem_mask);
+	m_playfield_tilemap->write16(offset, data, mem_mask);
 	if ((m_control[0x0a] & 0x80) != 0)
-		m_playfield_tilemap->write16_ext(space, offset, m_control[0x1d], uint16_t(0x00ff));
+		m_playfield_tilemap->write16_ext(offset, m_control[0x1d], uint16_t(0x00ff));
 }
 
 
@@ -128,11 +128,11 @@ WRITE16_MEMBER(atari_vad_device::playfield_latched_lsb_w)
 //  upper word.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::playfield_latched_msb_w)
+void atari_vad_device::playfield_latched_msb_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_playfield_tilemap->write16(space, offset, data, mem_mask);
+	m_playfield_tilemap->write16(offset, data, mem_mask);
 	if ((m_control[0x0a] & 0x80) != 0)
-		m_playfield_tilemap->write16_ext(space, offset, m_control[0x1c], uint16_t(0xff00));
+		m_playfield_tilemap->write16_ext(offset, m_control[0x1c], uint16_t(0xff00));
 }
 
 
@@ -142,11 +142,11 @@ WRITE16_MEMBER(atari_vad_device::playfield_latched_msb_w)
 //  of the upper word.
 //-------------------------------------------------
 
-WRITE16_MEMBER(atari_vad_device::playfield2_latched_msb_w)
+void atari_vad_device::playfield2_latched_msb_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_playfield2_tilemap->write16(space, offset, data, mem_mask);
+	m_playfield2_tilemap->write16(offset, data, mem_mask);
 	if ((m_control[0x0a] & 0x80) != 0)
-		m_playfield2_tilemap->write16_ext(space, offset, m_control[0x1c], uint16_t(0xff00));
+		m_playfield2_tilemap->write16_ext(offset, m_control[0x1c], uint16_t(0xff00));
 }
 
 

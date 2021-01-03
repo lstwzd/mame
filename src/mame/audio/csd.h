@@ -32,8 +32,8 @@ public:
 	void suspend_cpu();
 
 	// read/write
-	DECLARE_READ8_MEMBER(stat_r);
-	DECLARE_WRITE8_MEMBER(sr_w);
+	u8 stat_r();
+	void sr_w(u8 data);
 	DECLARE_WRITE_LINE_MEMBER(sirq_w);
 	DECLARE_WRITE_LINE_MEMBER(reset_w);
 
@@ -56,8 +56,8 @@ private:
 	uint16_t m_dacval;
 
 	// internal communications
-	DECLARE_WRITE8_MEMBER(porta_w);
-	DECLARE_WRITE8_MEMBER(portb_w);
+	void porta_w(uint8_t data);
+	void portb_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(irq_w);
 };
 

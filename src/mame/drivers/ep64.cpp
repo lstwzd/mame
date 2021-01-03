@@ -174,6 +174,7 @@ Notes: (All IC's shown)
 #define CASSETTE1_TAG   "cassette1"
 #define CASSETTE2_TAG   "cassette2"
 #define SCREEN_TAG      "screen"
+#define EP64_EXPANSION_BUS_TAG  "exp"
 
 class ep64_state : public driver_device
 {
@@ -214,10 +215,10 @@ private:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
-	DECLARE_READ8_MEMBER( rd0_r );
-	DECLARE_WRITE8_MEMBER( wr0_w );
-	DECLARE_READ8_MEMBER( rd1_r );
-	DECLARE_WRITE8_MEMBER( wr2_w );
+	uint8_t rd0_r();
+	void wr0_w(uint8_t data);
+	uint8_t rd1_r();
+	void wr2_w(uint8_t data);
 
 	uint8_t m_key;
 
@@ -240,7 +241,7 @@ private:
 //  rd0_r -
 //-------------------------------------------------
 
-READ8_MEMBER( ep64_state::rd0_r )
+uint8_t ep64_state::rd0_r()
 {
 	uint8_t data = 0xff;
 
@@ -257,7 +258,7 @@ READ8_MEMBER( ep64_state::rd0_r )
 //  rd0_r -
 //-------------------------------------------------
 
-WRITE8_MEMBER( ep64_state::wr0_w )
+void ep64_state::wr0_w(uint8_t data)
 {
 	/*
 
@@ -298,7 +299,7 @@ WRITE_LINE_MEMBER( ep64_state::write_centronics_busy )
 //  rd1_r -
 //-------------------------------------------------
 
-READ8_MEMBER( ep64_state::rd1_r )
+uint8_t ep64_state::rd1_r()
 {
 	/*
 
@@ -335,7 +336,7 @@ READ8_MEMBER( ep64_state::rd1_r )
 //  wr2_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( ep64_state::wr2_w )
+void ep64_state::wr2_w(uint8_t data)
 {
 	/*
 
@@ -390,7 +391,7 @@ void ep64_state::ep64_io(address_map &map)
 void ep64_state::dave_64k_mem(address_map &map)
 {
 	map(0x000000, 0x007fff).rom().region(Z80_TAG, 0);
-	//AM_RANGE(0x010000, 0x01ffff)      // mapped by the cartslot
+	//map(0x010000, 0x01ffff)      // mapped by the cartslot
 	map(0x3f0000, 0x3fffff).m(m_nick, FUNC(nick_device::vram_map));
 }
 
@@ -415,7 +416,7 @@ void ep64_state::dave_io(address_map &map)
 	map.global_mask(0xff);
 	map(0x80, 0x8f).m(m_nick, FUNC(nick_device::vio_map));
 	map(0xb5, 0xb5).rw(FUNC(ep64_state::rd0_r), FUNC(ep64_state::wr0_w));
-	map(0xb6, 0xb6).r(FUNC(ep64_state::rd1_r)).w("cent_data_out", FUNC(output_latch_device::bus_w));
+	map(0xb6, 0xb6).r(FUNC(ep64_state::rd1_r)).w("cent_data_out", FUNC(output_latch_device::write));
 	map(0xb7, 0xb7).w(FUNC(ep64_state::wr2_w));
 }
 
@@ -543,7 +544,7 @@ INPUT_PORTS_END
 void ep64_state::machine_start()
 {
 	if (m_cart->exists())
-		m_dave->space(AS_PROGRAM).install_read_handler(0x010000, 0x01ffff, read8_delegate(FUNC(generic_slot_device::read_rom),(generic_slot_device*)m_cart));
+		m_dave->space(AS_PROGRAM).install_read_handler(0x010000, 0x01ffff, read8sm_delegate(*m_cart, FUNC(generic_slot_device::read_rom)));
 
 	// state saving
 	save_item(NAME(m_key));
@@ -556,10 +557,9 @@ void ep64_state::machine_reset()
 	m_dave->reset();
 	m_nick->reset();
 
-	address_space &program = m_maincpu->space(AS_PROGRAM);
-	wr0_w(program, 0, 0);
+	wr0_w(0);
 	subdevice<output_latch_device>("cent_data_out")->write(0);
-	wr2_w(program, 0, 0);
+	wr2_w(0);
 }
 
 
@@ -569,7 +569,7 @@ void ep64_state::machine_reset()
 //**************************************************************************
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( ep64 )
+//  machine_config( ep64 )
 //-------------------------------------------------
 
 void ep64_state::ep64(machine_config &config)
@@ -602,7 +602,8 @@ void ep64_state::ep64(machine_config &config)
 
 	// devices
 	EP64_EXPANSION_BUS_SLOT(config, m_exp, nullptr);
-	m_exp->set_dave_tag(m_dave);
+	m_exp->set_program_space(m_dave, AS_PROGRAM);
+	m_exp->set_io_space(m_dave, AS_IO);
 	m_exp->irq_wr().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_exp->nmi_wr().set_inputline(m_maincpu, INPUT_LINE_NMI);
 	m_exp->wait_wr().set_inputline(m_maincpu, Z80_INPUT_LINE_BOGUSWAIT);
@@ -616,12 +617,14 @@ void ep64_state::ep64(machine_config &config)
 	m_rs232->rxd_handler().set(m_dave, FUNC(dave_device::int2_w));
 
 	CASSETTE(config, m_cassette1);
-	m_cassette1->set_default_state((cassette_state)(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_MUTED));
+	m_cassette1->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED);
 	m_cassette1->set_interface("ep64_cass");
+	m_cassette1->add_route(ALL_OUTPUTS, "lspeaker", 0.05);
 
 	CASSETTE(config, m_cassette2);
-	m_cassette2->set_default_state((cassette_state)(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_MUTED));
+	m_cassette2->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED);
 	m_cassette2->set_interface("ep64_cass");
+	m_cassette2->add_route(ALL_OUTPUTS, "rspeaker", 0.05);
 
 	// internal RAM
 	RAM(config, m_ram).set_default_size("64K");
@@ -637,7 +640,7 @@ void ep64_state::ep64(machine_config &config)
 
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( ep128 )
+//  machine_config( ep128 )
 //-------------------------------------------------
 
 void ep64_state::ep128(machine_config &config)
@@ -684,5 +687,5 @@ ROM_END
 
 //    YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS       INIT        COMPANY                 FULLNAME                     FLAGS
 COMP( 1985, ep64,  0,      0,      ep64,    ep64,  ep64_state, empty_init, "Enterprise Computers", "Enterprise Sixty Four",     MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-COMP( 1985, phc64, ep64,   0,      ep64,    ep64,  ep64_state, empty_init, "Hegener & Glaser",     "Mephisto PHC 64 (Germany)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+COMP( 1985, phc64, ep64,   0,      ep64,    ep64,  ep64_state, empty_init, "Hegener + Glaser",     "Mephisto PHC 64 (Germany)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 COMP( 1986, ep128, ep64,   0,      ep128,   ep64,  ep64_state, empty_init, "Enterprise Computers", "Enterprise One Two Eight",  MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )

@@ -210,7 +210,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(jpmimpct_state::duart_1_timer_event)
 	update_irqs();
 }
 
-READ16_MEMBER(jpmimpct_state::duart_1_r)
+uint16_t jpmimpct_state::duart_1_r(offs_t offset)
 {
 	struct duart_t &duart_1 = m_duart_1;
 	uint16_t val = 0xffff;
@@ -253,7 +253,7 @@ READ16_MEMBER(jpmimpct_state::duart_1_r)
 		}
 		case 0xd:
 		{
-			val = ioport("TEST/DEMO")->read();
+			val = ioport("TEST_DEMO")->read();
 			break;
 		}
 		case 0xe:
@@ -274,7 +274,7 @@ READ16_MEMBER(jpmimpct_state::duart_1_r)
 	return val;
 }
 
-WRITE16_MEMBER(jpmimpct_state::duart_1_w)
+void jpmimpct_state::duart_1_w(offs_t offset, uint16_t data)
 {
 	struct duart_t &duart_1 = m_duart_1;
 	//int old_val;
@@ -360,7 +360,7 @@ WRITE16_MEMBER(jpmimpct_state::duart_1_w)
     Communication with a touchscreen interface PCB
     is handled via UART B.
 */
-READ16_MEMBER(jpmimpct_state::duart_2_r)
+uint16_t jpmimpct_state::duart_2_r(offs_t offset)
 {
 	switch (offset)
 	{
@@ -401,7 +401,7 @@ READ16_MEMBER(jpmimpct_state::duart_2_r)
 /*
     Nothing important here?
 */
-WRITE16_MEMBER(jpmimpct_state::duart_2_w)
+void jpmimpct_state::duart_2_w(uint16_t data)
 {
 }
 
@@ -428,7 +428,7 @@ WRITE16_MEMBER(jpmimpct_state::duart_2_w)
  *  9: Coin mechanism
  */
 
-READ16_MEMBER(jpmimpct_state::inputs1_r)
+uint16_t jpmimpct_state::inputs1_r(offs_t offset)
 {
 	uint16_t val = 0x00ff;
 
@@ -465,7 +465,7 @@ READ16_MEMBER(jpmimpct_state::inputs1_r)
  *  Sound control
  *
  *************************************/
-WRITE16_MEMBER(jpmimpct_state::volume_w)
+void jpmimpct_state::volume_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -474,7 +474,7 @@ WRITE16_MEMBER(jpmimpct_state::volume_w)
 	}
 }
 
-WRITE16_MEMBER(jpmimpct_state::upd7759_w)
+void jpmimpct_state::upd7759_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -484,7 +484,7 @@ WRITE16_MEMBER(jpmimpct_state::upd7759_w)
 	}
 }
 
-READ16_MEMBER(jpmimpct_state::upd7759_r)
+uint16_t jpmimpct_state::upd7759_r(offs_t offset, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -500,12 +500,12 @@ READ16_MEMBER(jpmimpct_state::upd7759_r)
  *
  *************************************/
 
-READ16_MEMBER(jpmimpct_state::unk_r)
+uint16_t jpmimpct_state::unk_r()
 {
 	return 0xffff;
 }
 
-WRITE16_MEMBER(jpmimpct_state::unk_w)
+void jpmimpct_state::unk_w(uint16_t data)
 {
 }
 
@@ -520,12 +520,12 @@ void jpmimpct_state::jpm_draw_lamps(int data, int lamp_strobe)
 	}
 }
 
-READ16_MEMBER(jpmimpct_state::jpmio_r)
+uint16_t jpmimpct_state::jpmio_r()
 {
 	return 0xffff;
 }
 
-WRITE16_MEMBER(jpmimpct_state::jpmio_w)
+void jpmimpct_state::jpmio_w(offs_t offset, uint16_t data)
 {
 	switch (offset)
 	{
@@ -629,22 +629,22 @@ void jpmimpct_state::awp68k_program_map(address_map &map)
 	map(0x00480084, 0x00480085).r(FUNC(jpmimpct_state::upd7759_r));
 	map(0x00480086, 0x0048009f).r(FUNC(jpmimpct_state::prot_1_r));
 	map(0x004800a0, 0x004800af).rw(FUNC(jpmimpct_state::jpmio_r), FUNC(jpmimpct_state::jpmioawp_w));
-//  AM_RANGE(0x004800b0, 0x004800df) AM_READ(prot_1_r)
-//  AM_RANGE(0x004800e0, 0x004800e1) AM_WRITE(unk_w)
-//  AM_RANGE(0x00480086, 0x006576ff) AM_READ(prot_1_r)
+//  map(0x004800b0, 0x004800df).r(FUNC(jpmimpct_state::prot_1_r));
+//  map(0x004800e0, 0x004800e1).w(FUNC(jpmimpct_state::unk_w));
+//  map(0x00480086, 0x006576ff).r(FUNC(jpmimpct_state::prot_1_r));
 	map(0x004801dc, 0x004801dd).r(FUNC(jpmimpct_state::prot_1_r));
 	map(0x004801de, 0x006575ff).r(FUNC(jpmimpct_state::prot_1_r));
 	map(0x00657600, 0x00657601).r(FUNC(jpmimpct_state::prot_0_r));
 	map(0x00657602, 0x00ffffff).r(FUNC(jpmimpct_state::prot_1_r));
 
-//  AM_RANGE(0x004801dc, 0x004801dd) AM_READ(unk_r)
-//  AM_RANGE(0x004801de, 0x004801df) AM_READ(unk_r)
-	//AM_RANGE(0x00657602, 0x00bfffff) AM_READ(prot_1_r)
-//  AM_RANGE(0x004801e0, 0x004801ff) AM_READWRITE(duart_2_r, duart_2_w)
-//  AM_RANGE(0x00c00000, 0x00cfffff) AM_ROM
-//  AM_RANGE(0x00d00000, 0x00dfffff) AM_ROM
-//  AM_RANGE(0x00e00000, 0x00efffff) AM_ROM
-//  AM_RANGE(0x00f00000, 0x00ffffff) AM_ROM
+//  map(0x004801dc, 0x004801dd).r(FUNC(jpmimpct_state::unk_r));
+//  map(0x004801de, 0x004801df).r(FUNC(jpmimpct_state::unk_r));
+//  map(0x00657602, 0x00bfffff).r(FUNC(jpmimpct_state::prot_1_r));
+//  map(0x004801e0, 0x004801ff).rw(FUNC(jpmimpct_state::duart_2_r), FUNC(jpmimpct_state::duart_2_w));
+//  map(0x00c00000, 0x00cfffff).rom();
+//  map(0x00d00000, 0x00dfffff).rom();
+//  map(0x00e00000, 0x00efffff).rom();
+//  map(0x00f00000, 0x00ffffff).rom();
 }
 
 
@@ -659,10 +659,9 @@ void jpmimpct_state::tms_program_map(address_map &map)
 	map(0x00000000, 0x003fffff).mirror(0xf8000000).ram().share("vram");
 	map(0x00800000, 0x00ffffff).mirror(0xf8000000).rom().region("user1", 0x100000);
 	map(0x02000000, 0x027fffff).mirror(0xf8000000).rom().region("user1", 0);
-//  AM_RANGE(0x01000000, 0x0100003f) AM_MIRROR(0xf87fffc0) AM_READWRITE(jpmimpct_bt477_r, jpmimpct_bt477_w)
+//  map(0x01000000, 0x0100003f).mirror(0xf87fffc0).rw(FUNC(jpmimpct_state::jpmimpct_bt477_r), FUNC(jpmimpct_state::jpmimpct_bt477_w));
 	map(0x01000000, 0x017fffff).mirror(0xf8000000).mask(0x1f).rw(FUNC(jpmimpct_state::jpmimpct_bt477_r), FUNC(jpmimpct_state::jpmimpct_bt477_w));
 	map(0x07800000, 0x07bfffff).mirror(0xf8400000).ram();
-	map(0xc0000000, 0xc00001ff).rw(m_dsp, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 }
 
 
@@ -704,7 +703,7 @@ static INPUT_PORTS_START( common )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE2 ) PORT_TOGGLE PORT_NAME( "Cash Door" )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE3 ) PORT_TOGGLE PORT_NAME( "Refill Key" )
 
-	PORT_START("TEST/DEMO")
+	PORT_START("TEST_DEMO")
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE4 ) PORT_NAME( "Test/Demo" )
 INPUT_PORTS_END
 
@@ -839,9 +838,10 @@ WRITE_LINE_MEMBER(jpmimpct_state::tms_irq)
  *
  *************************************/
 
-MACHINE_CONFIG_START(jpmimpct_state::jpmimpct)
-	MCFG_DEVICE_ADD("maincpu", M68000, 8000000)
-	MCFG_DEVICE_PROGRAM_MAP(m68k_program_map)
+void jpmimpct_state::jpmimpct(machine_config &config)
+{
+	M68000(config, m_maincpu, 8000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &jpmimpct_state::m68k_program_map);
 
 	TMS34010(config, m_dsp, 40000000);
 	m_dsp->set_addrmap(AS_PROGRAM, &jpmimpct_state::tms_program_map);
@@ -853,27 +853,25 @@ MACHINE_CONFIG_START(jpmimpct_state::jpmimpct)
 	m_dsp->set_shiftreg_in_callback(FUNC(jpmimpct_state::to_shiftreg));
 	m_dsp->set_shiftreg_out_callback(FUNC(jpmimpct_state::from_shiftreg));
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(30000))
+	config.set_maximum_quantum(attotime::from_hz(30000));
 	MCFG_MACHINE_START_OVERRIDE(jpmimpct_state,jpmimpct)
 	MCFG_MACHINE_RESET_OVERRIDE(jpmimpct_state,jpmimpct)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
-	MCFG_TIMER_DRIVER_ADD("duart_1_timer", jpmimpct_state, duart_1_timer_event)
+	TIMER(config, m_duart_1_timer).configure_generic(FUNC(jpmimpct_state::duart_1_timer_event));
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(40000000/4, 156*4, 0, 100*4, 328, 0, 300)
-	MCFG_SCREEN_UPDATE_DEVICE("dsp", tms34010_device, tms340x0_rgb32)
-	MCFG_PALETTE_ADD("palette", 256)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(40000000/4, 156*4, 0, 100*4, 328, 0, 300);
+	screen.set_screen_update("dsp", FUNC(tms34010_device::tms340x0_rgb32));
+	PALETTE(config, m_palette).set_entries(256);
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("upd", UPD7759)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	MCFG_VIDEO_START_OVERRIDE(jpmimpct_state,jpmimpct)
 
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(5)
-MACHINE_CONFIG_END
+	METERS(config, m_meters, 0).set_number(5);
+}
 
 
 
@@ -884,7 +882,7 @@ MACHINE_CONFIG_END
  *
  *************************************/
 
-READ8_MEMBER(jpmimpct_state::hopper_b_r)
+uint8_t jpmimpct_state::hopper_b_r()
 {
 	int retval;
 	// B0 = 100p Hopper Out Verif
@@ -910,7 +908,7 @@ READ8_MEMBER(jpmimpct_state::hopper_b_r)
 	return retval;
 }
 
-READ8_MEMBER(jpmimpct_state::hopper_c_r)
+uint8_t jpmimpct_state::hopper_c_r()
 {
 	int retval;
 	// C0-C2 = Alpha
@@ -947,7 +945,7 @@ READ8_MEMBER(jpmimpct_state::hopper_c_r)
 	return retval;
 }
 
-WRITE8_MEMBER(jpmimpct_state::payen_a_w)
+void jpmimpct_state::payen_a_w(uint8_t data)
 {
 	m_motor[0] = (data & 0x01);
 	m_payen = (data & 0x10);
@@ -956,7 +954,7 @@ WRITE8_MEMBER(jpmimpct_state::payen_a_w)
 	m_hopinhibit = (data & 0x80);
 }
 
-WRITE8_MEMBER(jpmimpct_state::display_c_w)
+void jpmimpct_state::display_c_w(uint8_t data)
 {
 	//Reset 0x04, data 0x02, clock 0x01
 	m_vfd->por(data & 0x04);
@@ -1005,7 +1003,7 @@ MACHINE_RESET_MEMBER(jpmimpct_state,impctawp)
  *  8: Payslides
  *  9: Coin mechanism
  */
-READ16_MEMBER(jpmimpct_state::inputs1awp_r)
+uint16_t jpmimpct_state::inputs1awp_r(offs_t offset)
 {
 	uint16_t val = 0x00;
 
@@ -1062,22 +1060,22 @@ READ16_MEMBER(jpmimpct_state::inputs1awp_r)
 	}
 }
 
-READ16_MEMBER(jpmimpct_state::optos_r)
+uint16_t jpmimpct_state::optos_r()
 {
 	return m_optic_pattern;
 }
 
-READ16_MEMBER(jpmimpct_state::prot_1_r)
+uint16_t jpmimpct_state::prot_1_r()
 {
 	return 0x01;
 }
 
-READ16_MEMBER(jpmimpct_state::prot_0_r)
+uint16_t jpmimpct_state::prot_0_r()
 {
 	return 0x00;
 }
 
-WRITE16_MEMBER(jpmimpct_state::jpmioawp_w)
+void jpmimpct_state::jpmioawp_w(offs_t offset, uint16_t data)
 {
 	int i,metno;
 	switch (offset)
@@ -1178,7 +1176,7 @@ WRITE16_MEMBER(jpmimpct_state::jpmioawp_w)
 	}
 }
 
-READ16_MEMBER(jpmimpct_state::ump_r)
+uint16_t jpmimpct_state::ump_r()
 {
 	return 0xff;//0xffff;
 }
@@ -1289,7 +1287,7 @@ INPUT_PORTS_START( tbirds )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE2 ) PORT_TOGGLE PORT_NAME( "Cash Door" )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE3 ) PORT_TOGGLE PORT_NAME( "Refill Key" )
 
-	PORT_START("TEST/DEMO")
+	PORT_START("TEST_DEMO")
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE4 ) PORT_NAME( "Test/Demo" )
 
 	PORT_START("COINS")
@@ -1311,11 +1309,12 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(jpmimpct_state::impctawp)
-	MCFG_DEVICE_ADD("maincpu",M68000, 8000000)
-	MCFG_DEVICE_PROGRAM_MAP(awp68k_program_map)
+void jpmimpct_state::impctawp(machine_config &config)
+{
+	M68000(config, m_maincpu, 8000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &jpmimpct_state::awp68k_program_map);
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(30000))
+	config.set_maximum_quantum(attotime::from_hz(30000));
 	S16LF01(config, m_vfd);
 
 	MCFG_MACHINE_START_OVERRIDE(jpmimpct_state,impctawp)
@@ -1328,11 +1327,11 @@ MACHINE_CONFIG_START(jpmimpct_state::impctawp)
 	ppi.in_pc_callback().set(FUNC(jpmimpct_state::hopper_c_r));
 	ppi.out_pc_callback().set(FUNC(jpmimpct_state::display_c_w));
 
-	MCFG_TIMER_DRIVER_ADD("duart_1_timer", jpmimpct_state, duart_1_timer_event)
+	TIMER(config, m_duart_1_timer).configure_generic(FUNC(jpmimpct_state::duart_1_timer_event));
 
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("upd",UPD7759)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.50);
+
 	config.set_default_layout(layout_jpmimpct);
 
 	REEL(config, m_reel[0], STARPOINT_48STEP_REEL, 1, 3, 0x09, 4);
@@ -1348,11 +1347,8 @@ MACHINE_CONFIG_START(jpmimpct_state::impctawp)
 	REEL(config, m_reel[5], STARPOINT_48STEP_REEL, 1, 3, 0x09, 4);
 	m_reel[5]->optic_handler().set(FUNC(jpmimpct_state::reel_optic_cb<5>));
 
-	MCFG_DEVICE_ADD("meters", METERS, 0)
-	MCFG_METERS_NUMBER(5)
-
-MACHINE_CONFIG_END
-
+	METERS(config, m_meters, 0).set_number(5);
+}
 
 
 /*************************************
@@ -1741,6 +1737,20 @@ ROM_START( monspdr )
 	/* missing? */
 ROM_END
 
+ROM_START( jpmreno ) // was in an MPU4 video set
+	ROM_REGION( 0x1000000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "reno_71_27c040.bin",0x000000, 0x080000,  CRC(c1125c51) SHA1(a461049cd3768096c03f3a5149cdef31d0ab447e) )
+	ROM_LOAD16_BYTE( "reno_72_27c040.bin",0x000001, 0x080000,  CRC(31773743) SHA1(e1245f6b35c9049b3d1478e93fb1b6cfff34733e) )
+
+	ROM_REGION16_LE( 0x200000, "user1", ROMREGION_ERASEFF )
+	ROM_LOAD16_BYTE( "gr1.bin", 0x000000, 0x100000, NO_DUMP )
+	ROM_LOAD16_BYTE( "gr2.bin", 0x000001, 0x100000, NO_DUMP )
+
+	ROM_REGION( 0x800000, "upd", 0 )
+	ROM_LOAD( "reno reels sound 1a",  0x000000, 0x080000,  CRC(a8b7bba7) SHA1(5fa3512a6fdcf512fafa6261b3a99922a00d6874) )
+ROM_END
+
+
 /************************************
  *
  *  Game driver(s)
@@ -1764,5 +1774,6 @@ GAME( 1999, coronatn,  0,        jpmimpct, coronatn, jpmimpct_state, empty_init,
 GAME( 1999, coronatnd, coronatn, jpmimpct, coronatn, jpmimpct_state, empty_init, ROT0, "JPM", "Coronation Street Quiz Game (Protocol)", MACHINE_SUPPORTS_SAVE )
 GAME( 199?, tqst,      0,        jpmimpct, cluedo,   jpmimpct_state, empty_init, ROT0, "JPM", "Treasure Quest"             , MACHINE_NOT_WORKING) // incomplete (ACE?)
 GAME( 199?, snlad,     0,        jpmimpct, cluedo,   jpmimpct_state, empty_init, ROT0, "JPM", "Snake & Ladders"            , MACHINE_NOT_WORKING) // incomplete
+GAME( 199?, jpmreno ,  0,        jpmimpct, cluedo,   jpmimpct_state, empty_init, ROT0, "JPM", "Reno Reels (JPM)", MACHINE_NOT_WORKING ) // incomplete
 GAME( 199?, buzzundr,  0,        jpmimpct, cluedo,   jpmimpct_state, empty_init, ROT0, "Ace", "Buzzundrum (Ace)", MACHINE_NOT_WORKING )
 GAME( 199?, monspdr ,  0,        jpmimpct, cluedo,   jpmimpct_state, empty_init, ROT0, "Ace", "Money Spider (Ace)", MACHINE_NOT_WORKING )

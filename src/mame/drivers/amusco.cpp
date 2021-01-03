@@ -83,6 +83,7 @@
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 #include "amusco.lh"
 
@@ -126,21 +127,21 @@ protected:
 
 private:
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
-	DECLARE_READ8_MEMBER(mc6845_r);
-	DECLARE_WRITE8_MEMBER(mc6845_w);
-	DECLARE_WRITE8_MEMBER(output_a_w);
-	DECLARE_WRITE8_MEMBER(output_b_w);
-	DECLARE_WRITE8_MEMBER(output_c_w);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_READ8_MEMBER(lpt_status_r);
-	DECLARE_WRITE8_MEMBER(lpt_data_w);
-	DECLARE_WRITE8_MEMBER(rtc_control_w);
+	uint8_t mc6845_r(offs_t offset);
+	void mc6845_w(offs_t offset, uint8_t data);
+	void output_a_w(uint8_t data);
+	void output_b_w(uint8_t data);
+	void output_c_w(uint8_t data);
+	void vram_w(offs_t offset, uint8_t data);
+	uint8_t lpt_status_r();
+	void lpt_data_w(uint8_t data);
+	void rtc_control_w(uint8_t data);
 	MC6845_ON_UPDATE_ADDR_CHANGED(crtc_addr);
 	MC6845_UPDATE_ROW(update_row);
 	void amusco_palette(palette_device &palette) const;
 
-	void amusco_mem_map(address_map &map);
-	void amusco_io_map(address_map &map);
+	void mem_map(address_map &map);
+	void io_map(address_map &map);
 
 	std::unique_ptr<uint8_t []> m_videoram;
 	tilemap_t *m_bg_tilemap;
@@ -180,7 +181,7 @@ TILE_GET_INFO_MEMBER(amusco_state::get_bg_tile_info)
 	if (BIT(code, 15) && !m_blink_state)
 		code = 0;
 
-	SET_TILE_INFO_MEMBER(
+	tileinfo.set(
 							0 /* bank */,
 							code & 0x3ff,
 							color,
@@ -190,7 +191,7 @@ TILE_GET_INFO_MEMBER(amusco_state::get_bg_tile_info)
 
 void amusco_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(amusco_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 10, 74, 24);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(amusco_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 10, 74, 24);
 	m_blink_state = false;
 
 	m_videoram = std::make_unique<uint8_t []>(videoram_size);
@@ -209,25 +210,25 @@ void amusco_state::machine_start()
 * Memory Map Information *
 *************************/
 
-void amusco_state::amusco_mem_map(address_map &map)
+void amusco_state::mem_map(address_map &map)
 {
 	map(0x00000, 0x0ffff).ram();
-	map(0xf8000, 0xfffff).rom();
+	map(0xf8000, 0xfffff).rom().region("maincpu", 0);
 }
 
-READ8_MEMBER( amusco_state::mc6845_r)
+uint8_t amusco_state::mc6845_r(offs_t offset)
 {
 	if(offset & 1)
-		return m_crtc->register_r(space, 0);
+		return m_crtc->register_r();
 
-	return m_crtc->status_r(space,0); // not a plain 6845, requests update bit here ...
+	return m_crtc->status_r(); // not a plain 6845, requests update bit here ...
 }
 
-WRITE8_MEMBER( amusco_state::mc6845_w)
+void amusco_state::mc6845_w(offs_t offset, uint8_t data)
 {
 	if(offset & 1)
 	{
-		m_crtc->register_w(space, 0,data);
+		m_crtc->register_w(data);
 		if(m_mc6845_address == 0x12)
 			m_video_update_address = ((data & 0xff) << 8) | (m_video_update_address & 0x00ff);
 		if(m_mc6845_address == 0x13)
@@ -235,12 +236,12 @@ WRITE8_MEMBER( amusco_state::mc6845_w)
 	}
 	else
 	{
-		m_crtc->address_w(space,0,data);
+		m_crtc->address_w(data);
 		m_mc6845_address = data;
 	}
 }
 
-WRITE8_MEMBER(amusco_state::output_a_w)
+void amusco_state::output_a_w(uint8_t data)
 {
 /* Lamps from port A
 
@@ -260,7 +261,7 @@ WRITE8_MEMBER(amusco_state::output_a_w)
 //  logerror("Writing %02Xh to PPI output A\n", data);
 }
 
-WRITE8_MEMBER(amusco_state::output_b_w)
+void amusco_state::output_b_w(uint8_t data)
 {
 /* Lamps and counters from port B
 
@@ -282,7 +283,7 @@ WRITE8_MEMBER(amusco_state::output_b_w)
 //  logerror("Writing %02Xh to PPI output B\n", data);
 }
 
-WRITE8_MEMBER(amusco_state::output_c_w)
+void amusco_state::output_c_w(uint8_t data)
 {
 /* Lamps and counters from port C
 
@@ -303,14 +304,14 @@ WRITE8_MEMBER(amusco_state::output_c_w)
 //  logerror("Writing %02Xh to PPI output C\n", data);
 }
 
-WRITE8_MEMBER(amusco_state::vram_w)
+void amusco_state::vram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[m_video_update_address * 2 + offset] = data;
 	m_bg_tilemap->mark_tile_dirty(m_video_update_address);
 //  printf("%04x %04x\n",m_video_update_address,data);
 }
 
-READ8_MEMBER(amusco_state::lpt_status_r)
+uint8_t amusco_state::lpt_status_r()
 {
 	// Bit 0 = busy
 	// Bit 1 = paper jam (active low)
@@ -319,7 +320,7 @@ READ8_MEMBER(amusco_state::lpt_status_r)
 	return 2;
 }
 
-WRITE8_MEMBER(amusco_state::lpt_data_w)
+void amusco_state::lpt_data_w(uint8_t data)
 {
 	switch (data)
 	{
@@ -356,7 +357,7 @@ WRITE8_MEMBER(amusco_state::lpt_data_w)
 	}
 }
 
-WRITE8_MEMBER(amusco_state::rtc_control_w)
+void amusco_state::rtc_control_w(uint8_t data)
 {
 	m_rtc->address_w(data & 0x0f);
 	m_rtc->cs_w(BIT(data, 6));
@@ -365,14 +366,14 @@ WRITE8_MEMBER(amusco_state::rtc_control_w)
 	m_rtc->read_w(BIT(data, 4));
 }
 
-void amusco_state::amusco_io_map(address_map &map)
+void amusco_state::io_map(address_map &map)
 {
 	map(0x0000, 0x0001).rw(FUNC(amusco_state::mc6845_r), FUNC(amusco_state::mc6845_w));
 	map(0x0010, 0x0011).w(m_pic, FUNC(pic8259_device::write));
 	map(0x0020, 0x0023).w(m_pit, FUNC(pit8253_device::write));
 	map(0x0030, 0x0033).rw("ppi_outputs", FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x0040, 0x0043).rw("ppi_inputs", FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0x0060, 0x0060).w("sn", FUNC(sn76489a_device::command_w));
+	map(0x0060, 0x0060).w("sn", FUNC(sn76489a_device::write));
 	map(0x0070, 0x0071).w(FUNC(amusco_state::vram_w));
 	map(0x0280, 0x0283).rw("lpt_interface", FUNC(i8155_device::io_r), FUNC(i8155_device::io_w));
 	map(0x0380, 0x0383).rw("rtc_interface", FUNC(i8155_device::io_r), FUNC(i8155_device::io_w));
@@ -532,12 +533,12 @@ void amusco_state::amusco_palette(palette_device &palette) const
 *    Machine Drivers     *
 *************************/
 
-MACHINE_CONFIG_START(amusco_state::amusco)
-
+void amusco_state::amusco(machine_config &config)
+{
 	/* basic machine hardware */
 	I8088(config, m_maincpu, CPU_CLOCK);        // 5 MHz ?
-	m_maincpu->set_addrmap(AS_PROGRAM, &amusco_state::amusco_mem_map);
-	m_maincpu->set_addrmap(AS_IO, &amusco_state::amusco_io_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &amusco_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &amusco_state::io_map);
 	m_maincpu->set_irq_acknowledge_callback("pic8259", FUNC(pic8259_device::inta_cb));
 
 	PIC8259(config, m_pic, 0);
@@ -571,15 +572,15 @@ MACHINE_CONFIG_START(amusco_state::amusco)
 	i8155b.in_pc_callback().set(m_rtc, FUNC(msm5832_device::data_r));
 	i8155b.out_pc_callback().set(m_rtc, FUNC(msm5832_device::data_w));
 
-	MCFG_TICKET_DISPENSER_ADD("hopper", attotime::from_msec(30), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH)
+	TICKET_DISPENSER(config, m_hopper, attotime::from_msec(30), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(88*8, 27*10)                           // screen size: 88*8 27*10
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 74*8-1, 0*10, 24*10-1)    // visible scr: 74*8 24*10
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	m_screen->set_size(88*8, 27*10);                           // screen size: 88*8 27*10
+	m_screen->set_visarea(0*8, 74*8-1, 0*10, 24*10-1);    // visible scr: 74*8 24*10
+	m_screen->set_screen_update("crtc", FUNC(mc6845_device::screen_update));
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_amusco);
 	PALETTE(config, "palette", FUNC(amusco_state::amusco_palette), 8*8);
@@ -588,30 +589,28 @@ MACHINE_CONFIG_START(amusco_state::amusco)
 	m_crtc->set_screen(m_screen);
 	m_crtc->set_show_border_area(false);
 	m_crtc->set_char_width(8);
-	m_crtc->set_on_update_addr_change_callback(FUNC(amusco_state::crtc_addr), this);
+	m_crtc->set_on_update_addr_change_callback(FUNC(amusco_state::crtc_addr));
 	m_crtc->out_de_callback().set(m_pic, FUNC(pic8259_device::ir1_w)); // IRQ1 sets 0x918 bit 3
-	m_crtc->set_update_row_callback(FUNC(amusco_state::update_row), this);
-
+	m_crtc->set_update_row_callback(FUNC(amusco_state::update_row));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("sn", SN76489A, SND_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	SN76489A(config, "sn", SND_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.80);
+}
 
-MACHINE_CONFIG_START(amusco_state::draw88pkr)
+void amusco_state::draw88pkr(machine_config &config)
+{
 	amusco(config);
-	//MCFG_DEVICE_MODIFY("ppi_outputs") // Some bits are definitely different
-MACHINE_CONFIG_END
-
+	// TODO: Some bits of ppi_outputs are definitely different
+}
 
 /*************************
 *        Rom Load        *
 *************************/
 
 ROM_START( amusco )
-	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD( "pk_v1.4_u42.u42",  0xf8000, 0x08000, CRC(bf57d7b1) SHA1(fc8b062b12c241c6c096325f728305316b80be8b) )
+	ROM_REGION( 0x8000, "maincpu", 0 )
+	ROM_LOAD( "pk_v1.4_u42.u42",  0x0000, 0x8000, CRC(bf57d7b1) SHA1(fc8b062b12c241c6c096325f728305316b80be8b) )
 
 	ROM_REGION( 0xc000, "gfx1", 0 )
 	ROM_LOAD( "char_a_u35.u35",  0x0000, 0x4000, CRC(ded67ef6) SHA1(da7326c190211e956e5a5f763d5045615bb8ffb3) )
@@ -638,8 +637,8 @@ ROM_END
 
 */
 ROM_START( draw88pkr )
-	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD( "u42.bin",  0xf8000, 0x08000, CRC(e98a7cfd) SHA1(8dc581c3e0cfd78bd33fbbbafd40307cf66f154d) )
+	ROM_REGION( 0x8000, "maincpu", 0 )
+	ROM_LOAD( "u42.bin",  0x0000, 0x8000, CRC(e98a7cfd) SHA1(8dc581c3e0cfd78bd33fbbbafd40307cf66f154d) )
 
 	ROM_REGION( 0xc000, "gfx1", 0 )
 	ROM_LOAD( "u35.bin",  0x0000, 0x4000, CRC(f608019a) SHA1(f0c5e10a03f39976d9bc6e8bc9f78e30ffefa03e) )
@@ -647,11 +646,10 @@ ROM_START( draw88pkr )
 	ROM_LOAD( "u37.bin",  0x8000, 0x4000, CRC(6e23b9f2) SHA1(6916828d84d1ecb44dc454e6786f97801a8550c7) )
 ROM_END
 
-
 /*************************
 *      Game Drivers      *
 *************************/
 
-/*     YEAR  NAME       PARENT  MACHINE    INPUT      CLASS         INIT        ROT   COMPANY      FULLNAME                       FLAGS                                                LAYOUT    */
-GAMEL( 1987, amusco,    0,      amusco,    amusco,    amusco_state, empty_init, ROT0, "Amusco",    "American Music Poker (V1.4)", MACHINE_IMPERFECT_COLORS | MACHINE_NODEVICE_PRINTER, layout_amusco ) // palette totally wrong
-GAMEL( 1988, draw88pkr, 0,      draw88pkr, draw88pkr, amusco_state, empty_init, ROT0, "BTE, Inc.", "Draw 88 Poker (V2.0)",        MACHINE_IMPERFECT_COLORS | MACHINE_NODEVICE_PRINTER, layout_amusco ) // palette totally wrong
+/*     YEAR  NAME       PARENT  MACHINE    INPUT      CLASS         INIT        ROT   COMPANY            FULLNAME                       FLAGS                                                LAYOUT    */
+GAMEL( 1987, amusco,    0,      amusco,    amusco,    amusco_state, empty_init, ROT0, "Amusco",          "American Music Poker (V1.4)", MACHINE_IMPERFECT_COLORS | MACHINE_NODEVICE_PRINTER, layout_amusco ) // palette totally wrong
+GAMEL( 1988, draw88pkr, 0,      draw88pkr, draw88pkr, amusco_state, empty_init, ROT0, "BTE, Inc.",       "Draw 88 Poker (V2.0)",        MACHINE_IMPERFECT_COLORS | MACHINE_NODEVICE_PRINTER, layout_amusco ) // palette totally wrong

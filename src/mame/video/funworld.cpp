@@ -70,29 +70,29 @@ void funworld_state::funworld_palette(palette_device &palette) const
 		bit0 = BIT(color_prom[i], 0);
 		bit1 = BIT(color_prom[i], 1);
 		bit2 = BIT(color_prom[i], 2);
-		int const r = combine_3_weights(weights_r, bit0, bit1, bit2);
+		int const r = combine_weights(weights_r, bit0, bit1, bit2);
 		// blue component
 		bit0 = BIT(color_prom[i], 3);
 		bit1 = BIT(color_prom[i], 4);
 		bit2 = BIT(color_prom[i], 5);
-		int const b = combine_3_weights(weights_b, bit0, bit1, bit2);
+		int const b = combine_weights(weights_b, bit0, bit1, bit2);
 		// green component
 		bit0 = BIT(color_prom[i], 6);
 		bit1 = BIT(color_prom[i], 7);
-		int const g = combine_2_weights(weights_g, bit0, bit1);
+		int const g = combine_weights(weights_g, bit0, bit1);
 
 		palette.set_pen_color(i, rgb_t(r, g, b));
 	}
 }
 
 
-WRITE8_MEMBER(funworld_state::funworld_videoram_w)
+void funworld_state::funworld_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
-WRITE8_MEMBER(funworld_state::funworld_colorram_w)
+void funworld_state::funworld_colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -110,36 +110,41 @@ WRITE8_MEMBER(funworld_state::funworld_colorram_w)
 TILE_GET_INFO_MEMBER(funworld_state::get_bg_tile_info)
 {
 	/*  - bits -
-		7654 3210
-		xxxx ----   tiles color.
-		---- xxxx   unused.
+	    7654 3210
+	    xxxx ----   tiles color.
+	    ---- xxxx   unused.
 	*/
 	int offs = tile_index;
 	int attr = m_videoram[offs] + (m_colorram[offs] << 8);
 	int code = attr & 0xfff;
 	int color = m_colorram[offs] >> 4;  // 4 bits for color.
 
-	SET_TILE_INFO_MEMBER(0, code, color, 0);
+	tileinfo.set(0, code, color, 0);
 }
 
 
 void funworld_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(funworld_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 4, 8, 96, 29);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(funworld_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 4, 8, 96, 29);
 }
 
 void magicrd2_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(magicrd2_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 4, 8, 112, 34);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(magicrd2_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 4, 8, 112, 34);
 }
 
 void chinatow_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(chinatow_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 4, 8, 96, 31);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(chinatow_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 4, 8, 96, 31);
+}
+
+void multiwin_state::video_start()
+{
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(multiwin_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 4, 8, 96, 31);
 }
 
 
-uint32_t funworld_state::screen_update_funworld(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t funworld_state::screen_update_funworld(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	m_bg_tilemap->draw(screen, bitmap, cliprect, 0, 0);
 	return 0;

@@ -1,5 +1,6 @@
 // license:BSD-3-Clause
 // copyright-holders:Sandro Ronco
+// thanks-to:rfka01
 /***************************************************************************
 
         NCR Decision Mate V
@@ -24,6 +25,7 @@
 
 // expansion slots
 #include "bus/dmv/dmvbus.h"
+#include "bus/dmv/k012.h"
 #include "bus/dmv/k210.h"
 #include "bus/dmv/k220.h"
 #include "bus/dmv/k230.h"
@@ -79,29 +81,29 @@ public:
 private:
 	void update_halt_line();
 
-	DECLARE_WRITE8_MEMBER(leds_w);
+	void leds_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(dma_hrq_changed);
 	DECLARE_WRITE_LINE_MEMBER(dmac_eop);
 	DECLARE_WRITE_LINE_MEMBER(dmac_dack3);
 	DECLARE_WRITE_LINE_MEMBER(fdc_irq);
 	DECLARE_WRITE_LINE_MEMBER(pit_out0);
 	DECLARE_WRITE_LINE_MEMBER(timint_w);
-	DECLARE_WRITE8_MEMBER(fdd_motor_w);
-	DECLARE_READ8_MEMBER(sys_status_r);
-	DECLARE_WRITE8_MEMBER(tc_set_w);
-	DECLARE_WRITE8_MEMBER(switch16_w);
-	DECLARE_READ8_MEMBER(ramsel_r);
-	DECLARE_READ8_MEMBER(romsel_r);
-	DECLARE_WRITE8_MEMBER(ramsel_w);
-	DECLARE_WRITE8_MEMBER(romsel_w);
-	DECLARE_READ8_MEMBER(kb_mcu_port1_r);
-	DECLARE_WRITE8_MEMBER(kb_mcu_port1_w);
-	DECLARE_WRITE8_MEMBER(kb_mcu_port2_w);
-	DECLARE_WRITE8_MEMBER(rambank_w);
-	DECLARE_READ8_MEMBER(program_r);
-	DECLARE_WRITE8_MEMBER(program_w);
-	DECLARE_READ8_MEMBER(exp_program_r);
-	DECLARE_WRITE8_MEMBER(exp_program_w);
+	void fdd_motor_w(uint8_t data);
+	uint8_t sys_status_r();
+	void tc_set_w(uint8_t data);
+	void switch16_w(uint8_t data);
+	uint8_t ramsel_r();
+	uint8_t romsel_r();
+	void ramsel_w(uint8_t data);
+	void romsel_w(uint8_t data);
+	uint8_t kb_mcu_port1_r();
+	void kb_mcu_port1_w(uint8_t data);
+	void kb_mcu_port2_w(uint8_t data);
+	void rambank_w(offs_t offset, uint8_t data);
+	uint8_t program_r(offs_t offset);
+	void program_w(offs_t offset, uint8_t data);
+	uint8_t exp_program_r(offs_t offset);
+	void exp_program_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(thold7_w);
 
 	void update_busint(int slot, int state);
@@ -125,23 +127,23 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(irq7a_w)      { update_irqs(7, state); }
 
 	DECLARE_FLOPPY_FORMATS( floppy_formats );
-	DECLARE_QUICKLOAD_LOAD_MEMBER(dmv);
+	DECLARE_QUICKLOAD_LOAD_MEMBER(quickload_cb);
 
-	uint8_t program_read(address_space &space, int cas, offs_t offset);
-	void program_write(address_space &space, int cas, offs_t offset, uint8_t data);
+	uint8_t program_read(int cas, offs_t offset);
+	void program_write(int cas, offs_t offset, uint8_t data);
 
-	void ifsel_r(address_space &space, int ifsel, offs_t offset, uint8_t &data);
-	void ifsel_w(address_space &space, int ifsel, offs_t offset, uint8_t data);
-	DECLARE_READ8_MEMBER(ifsel0_r)  { uint8_t data = 0xff;   ifsel_r(space, 0, offset, data);   return data; }
-	DECLARE_READ8_MEMBER(ifsel1_r)  { uint8_t data = 0xff;   ifsel_r(space, 1, offset, data);   return data; }
-	DECLARE_READ8_MEMBER(ifsel2_r)  { uint8_t data = 0xff;   ifsel_r(space, 2, offset, data);   return data; }
-	DECLARE_READ8_MEMBER(ifsel3_r)  { uint8_t data = 0xff;   ifsel_r(space, 3, offset, data);   return data; }
-	DECLARE_READ8_MEMBER(ifsel4_r)  { uint8_t data = 0xff;   ifsel_r(space, 4, offset, data);   return data; }
-	DECLARE_WRITE8_MEMBER(ifsel0_w) { ifsel_w(space, 0, offset, data); }
-	DECLARE_WRITE8_MEMBER(ifsel1_w) { ifsel_w(space, 1, offset, data); }
-	DECLARE_WRITE8_MEMBER(ifsel2_w) { ifsel_w(space, 2, offset, data); }
-	DECLARE_WRITE8_MEMBER(ifsel3_w) { ifsel_w(space, 3, offset, data); }
-	DECLARE_WRITE8_MEMBER(ifsel4_w) { ifsel_w(space, 4, offset, data); }
+	void ifsel_r(int ifsel, offs_t offset, uint8_t &data);
+	void ifsel_w(int ifsel, offs_t offset, uint8_t data);
+	uint8_t ifsel0_r(offs_t offset)  { uint8_t data = 0xff;   ifsel_r(0, offset, data);   return data; }
+	uint8_t ifsel1_r(offs_t offset)  { uint8_t data = 0xff;   ifsel_r(1, offset, data);   return data; }
+	uint8_t ifsel2_r(offs_t offset)  { uint8_t data = 0xff;   ifsel_r(2, offset, data);   return data; }
+	uint8_t ifsel3_r(offs_t offset)  { uint8_t data = 0xff;   ifsel_r(3, offset, data);   return data; }
+	uint8_t ifsel4_r(offs_t offset)  { uint8_t data = 0xff;   ifsel_r(4, offset, data);   return data; }
+	void ifsel0_w(offs_t offset, uint8_t data) { ifsel_w(0, offset, data); }
+	void ifsel1_w(offs_t offset, uint8_t data) { ifsel_w(1, offset, data); }
+	void ifsel2_w(offs_t offset, uint8_t data) { ifsel_w(2, offset, data); }
+	void ifsel3_w(offs_t offset, uint8_t data) { ifsel_w(3, offset, data); }
+	void ifsel4_w(offs_t offset, uint8_t data) { ifsel_w(4, offset, data); }
 
 	UPD7220_DISPLAY_PIXELS_MEMBER( hgdc_display_pixels );
 	UPD7220_DRAW_TEXT_LINE_MEMBER( hgdc_draw_text );
@@ -194,18 +196,18 @@ private:
 	int         m_irqs[8];
 };
 
-WRITE8_MEMBER(dmv_state::tc_set_w)
+void dmv_state::tc_set_w(uint8_t data)
 {
 	m_fdc->tc_w(true);
 }
 
-WRITE8_MEMBER(dmv_state::switch16_w)
+void dmv_state::switch16_w(uint8_t data)
 {
 	m_switch16 = !m_switch16;
 	update_halt_line();
 }
 
-WRITE8_MEMBER(dmv_state::leds_w)
+void dmv_state::leds_w(uint8_t data)
 {
 	/*
 	    LEDs    Value       Significance
@@ -225,44 +227,44 @@ WRITE8_MEMBER(dmv_state::leds_w)
 		m_leds[7-i] = BIT(data, i);
 }
 
-READ8_MEMBER(dmv_state::ramsel_r)
+uint8_t dmv_state::ramsel_r()
 {
 	m_ramoutdis = false;
 	return 0;
 }
 
-READ8_MEMBER(dmv_state::romsel_r)
+uint8_t dmv_state::romsel_r()
 {
 	m_ramoutdis = true;
 	return 0;
 }
 
-WRITE8_MEMBER(dmv_state::ramsel_w)
+void dmv_state::ramsel_w(uint8_t data)
 {
 	m_ramoutdis = false;
 }
 
-WRITE8_MEMBER(dmv_state::romsel_w)
+void dmv_state::romsel_w(uint8_t data)
 {
 	m_ramoutdis = true;
 }
 
-WRITE8_MEMBER(dmv_state::rambank_w)
+void dmv_state::rambank_w(offs_t offset, uint8_t data)
 {
 	m_ram_bank = offset;
 }
 
-WRITE8_MEMBER(dmv_state::fdd_motor_w)
+void dmv_state::fdd_motor_w(uint8_t data)
 {
 	m_pit->write_gate0(1);
 	m_pit->write_gate0(0);
 
 	m_floppy_motor = 0;
-	m_floppy0->get_device()->mon_w(m_floppy_motor);
-	m_floppy1->get_device()->mon_w(m_floppy_motor);
+	if (m_floppy0->get_device()) m_floppy0->get_device()->mon_w(m_floppy_motor);
+	if (m_floppy1->get_device()) m_floppy1->get_device()->mon_w(m_floppy_motor);
 }
 
-READ8_MEMBER(dmv_state::sys_status_r)
+uint8_t dmv_state::sys_status_r()
 {
 	/*
 	    Main system status
@@ -284,7 +286,7 @@ READ8_MEMBER(dmv_state::sys_status_r)
 	if (!(m_slot7->av16bit() || m_slot7a->av16bit()))
 		data |= 0x02;
 
-	if (!m_floppy0->get_device()->ready_r())
+	if (m_floppy0->get_device() && !m_floppy0->get_device()->ready_r())
 		data |= 0x04;
 
 	if (m_fdc->get_irq())
@@ -313,17 +315,17 @@ UPD7220_DISPLAY_PIXELS_MEMBER( dmv_state::hgdc_display_pixels )
 
 		for(int xi=0; xi<16; xi++)
 		{
-			int r = ((red   >> xi) & 1) ? 255 : 0;
-			int g = ((green >> xi) & 1) ? 255 : 0;
-			int b = ((blue  >> xi) & 1) ? 255 : 0;
+			int r = BIT(red,   xi) ? 255 : 0;
+			int g = BIT(green, xi) ? 255 : 0;
+			int b = BIT(blue,  xi) ? 255 : 0;
 
 			if (bitmap.cliprect().contains(x + xi, y))
-				bitmap.pix32(y, x + xi) = rgb_t(r, g, b);
+				bitmap.pix(y, x + xi) = rgb_t(r, g, b);
 		}
 	}
 	else
 	{
-		const rgb_t *palette = m_palette->palette()->entry_list_raw();
+		rgb_t const *const palette = m_palette->palette()->entry_list_raw();
 
 		// 32KB videoram
 		uint16_t gfx = m_video_ram[(address & 0xffff) >> 1];
@@ -331,7 +333,7 @@ UPD7220_DISPLAY_PIXELS_MEMBER( dmv_state::hgdc_display_pixels )
 		for(int xi=0;xi<16;xi++)
 		{
 			if (bitmap.cliprect().contains(x + xi, y))
-				bitmap.pix32(y, x + xi) = ((gfx >> xi) & 1) ? palette[2] : palette[0];
+				bitmap.pix(y, x + xi) = ((gfx >> xi) & 1) ? palette[2] : palette[0];
 		}
 	}
 }
@@ -365,18 +367,17 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 
 			for( int xi = 0; xi < 8; xi++)
 			{
-				int res_x,res_y;
 				int pen = (tile_data >> xi) & 1 ? 1 : 0;
 
-				res_x = x * 8 + xi;
-				res_y = y + yi;
+				int res_x = x * 8 + xi;
+				int res_y = y + yi;
 
 				if(!m_screen->visible_area().contains(res_x, res_y))
 					continue;
 
 				if(yi >= 16) { pen = 0; }
 
-				bitmap.pix32(res_y, res_x) = pen ? fg : bg;
+				bitmap.pix(res_y, res_x) = pen ? fg : bg;
 			}
 		}
 	}
@@ -393,7 +394,7 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 
 ************************************************************/
 
-QUICKLOAD_LOAD_MEMBER( dmv_state, dmv )
+QUICKLOAD_LOAD_MEMBER(dmv_state::quickload_cb)
 {
 	/* Avoid loading a program if CP/M-80 is not in memory */
 	if ((m_ram->base()[0] != 0xc3) || (m_ram->base()[5] != 0xc3))
@@ -426,38 +427,36 @@ static void dmv_floppies(device_slot_interface &device)
 }
 
 
-void dmv_state::ifsel_r(address_space &space, int ifsel, offs_t offset, uint8_t &data)
+void dmv_state::ifsel_r(int ifsel, offs_t offset, uint8_t &data)
 {
-	dmvcart_slot_device *slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a };
-	for(auto & slot : slots)
-		slot->io_read(space, ifsel, offset, data);
+	for (auto &slot : { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a })
+		slot->io_read(ifsel, offset, data);
 }
 
-void dmv_state::ifsel_w(address_space &space, int ifsel, offs_t offset, uint8_t data)
+void dmv_state::ifsel_w(int ifsel, offs_t offset, uint8_t data)
 {
-	dmvcart_slot_device *slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a };
-	for(auto & slot : slots)
-		slot->io_write(space, ifsel, offset, data);
+	for(auto &slot : { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a })
+		slot->io_write(ifsel, offset, data);
 }
 
-WRITE8_MEMBER(dmv_state::exp_program_w)
+void dmv_state::exp_program_w(offs_t offset, uint8_t data)
 {
-	program_write(space, (offset >> 16) & 0x07, offset, data);
+	program_write((offset >> 16) & 0x07, offset, data);
 }
 
-READ8_MEMBER(dmv_state::exp_program_r)
+uint8_t dmv_state::exp_program_r(offs_t offset)
 {
-	return program_read(space, (offset >> 16) & 0x07, offset);
+	return program_read((offset >> 16) & 0x07, offset);
 }
 
-WRITE8_MEMBER(dmv_state::program_w)
+void dmv_state::program_w(offs_t offset, uint8_t data)
 {
-	program_write(space, m_ram_bank, offset, data);
+	program_write(m_ram_bank, offset, data);
 }
 
-READ8_MEMBER(dmv_state::program_r)
+uint8_t dmv_state::program_r(offs_t offset)
 {
-	return program_read(space, m_ram_bank, offset);
+	return program_read(m_ram_bank, offset);
 }
 
 WRITE_LINE_MEMBER( dmv_state::thold7_w )
@@ -519,7 +518,7 @@ void dmv_state::update_irqs(int slot, int state)
 	}
 }
 
-void dmv_state::program_write(address_space &space, int cas, offs_t offset, uint8_t data)
+void dmv_state::program_write(int cas, offs_t offset, uint8_t data)
 {
 	bool tramd = false;
 	dmvcart_slot_device *slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a };
@@ -535,7 +534,7 @@ void dmv_state::program_write(address_space &space, int cas, offs_t offset, uint
 	}
 }
 
-uint8_t dmv_state::program_read(address_space &space, int cas, offs_t offset)
+uint8_t dmv_state::program_read(int cas, offs_t offset)
 {
 	uint8_t data = 0xff;
 	if (m_ramoutdis && offset < 0x2000)
@@ -592,18 +591,18 @@ void dmv_state::dmv_io(address_map &map)
 	map(0xc0, 0xcf).rw(FUNC(dmv_state::ifsel4_r), FUNC(dmv_state::ifsel4_w));
 }
 
-READ8_MEMBER(dmv_state::kb_mcu_port1_r)
+uint8_t dmv_state::kb_mcu_port1_r()
 {
 	return !(m_keyboard->sd_poll_r() & !m_sd_poll_state);
 }
 
-WRITE8_MEMBER(dmv_state::kb_mcu_port1_w)
+void dmv_state::kb_mcu_port1_w(uint8_t data)
 {
 	m_sd_poll_state = BIT(data, 1);
 	m_keyboard->sd_poll_w(!m_sd_poll_state);
 }
 
-WRITE8_MEMBER(dmv_state::kb_mcu_port2_w)
+void dmv_state::kb_mcu_port2_w(uint8_t data)
 {
 	m_speaker->level_w(BIT(data, 0));
 	m_slot7a->keyint_w(BIT(data, 4));
@@ -619,7 +618,7 @@ void dmv_state::upd7220_map(address_map &map)
 /* Input ports */
 INPUT_PORTS_START( dmv )
 	PORT_START("CONFIG")
-	PORT_CONFNAME( 0x01, 0x00, "Video Board" )
+	PORT_CONFNAME( 0x01, 0x01, "Video Board" )
 	PORT_CONFSETTING( 0x00, "Monochrome" )
 	PORT_CONFSETTING( 0x01, "Color" )
 INPUT_PORTS_END
@@ -627,6 +626,21 @@ INPUT_PORTS_END
 void dmv_state::machine_start()
 {
 	m_leds.resolve();
+
+	// register for state saving
+	save_item(NAME(m_ramoutdis));
+	save_item(NAME(m_switch16));
+	save_item(NAME(m_thold7));
+	save_item(NAME(m_dma_hrq));
+	save_item(NAME(m_ram_bank));
+	save_item(NAME(m_color_mode));
+	save_item(NAME(m_eop_line));
+	save_item(NAME(m_dack3_line));
+	save_item(NAME(m_sd_poll_state));
+	save_item(NAME(m_floppy_motor));
+	save_item(NAME(m_busint));
+	save_item(NAME(m_irqs));
+	save_pointer(NAME(m_ram->base()), m_ram->bytes());
 }
 
 void dmv_state::machine_reset()
@@ -711,8 +725,8 @@ WRITE_LINE_MEMBER( dmv_state::pit_out0 )
 	if (!state)
 	{
 		m_floppy_motor = 1;
-		m_floppy0->get_device()->mon_w(m_floppy_motor);
-		m_floppy1->get_device()->mon_w(m_floppy_motor);
+		if (m_floppy0->get_device()) m_floppy0->get_device()->mon_w(m_floppy_motor);
+		if (m_floppy1->get_device()) m_floppy1->get_device()->mon_w(m_floppy_motor);
 	}
 }
 
@@ -754,6 +768,7 @@ static void dmv_slot2_6(device_slot_interface &device)
 	device.option_add("k801", DMV_K801);        // K801 RS-232 Switchable Interface
 	device.option_add("k803", DMV_K803);        // K803 RTC module
 	device.option_add("k806", DMV_K806);        // K806 Mouse module
+	device.option_add("c3282", DMV_C3282);      // C3282 External HD Interface
 }
 
 static void dmv_slot7(device_slot_interface &device)
@@ -766,7 +781,7 @@ static void dmv_slot7(device_slot_interface &device)
 
 static void dmv_slot2a(device_slot_interface &device)
 {
-
+	device.option_add("k012", DMV_K012);        // K012 Internal HD Interface
 }
 
 static void dmv_slot7a(device_slot_interface &device)
@@ -775,37 +790,38 @@ static void dmv_slot7a(device_slot_interface &device)
 	device.option_add("k235", DMV_K235);        // K235 Internal 8088 module with interrupt controller
 }
 
-MACHINE_CONFIG_START(dmv_state::dmv)
+void dmv_state::dmv(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu",Z80, XTAL(24'000'000) / 6)
-	MCFG_DEVICE_PROGRAM_MAP(dmv_mem)
-	MCFG_DEVICE_IO_MAP(dmv_io)
+	Z80(config, m_maincpu, XTAL(24'000'000) / 6);
+	m_maincpu->set_addrmap(AS_PROGRAM, &dmv_state::dmv_mem);
+	m_maincpu->set_addrmap(AS_IO, &dmv_state::dmv_io);
 
-	i8741_device &kbmcu(I8741(config, "kb_ctrl_mcu", XTAL(6'000'000)));
+	i8741a_device &kbmcu(I8741A(config, "kb_ctrl_mcu", XTAL(6'000'000)));
 	kbmcu.p1_in_cb().set(FUNC(dmv_state::kb_mcu_port1_r)); // bit 0 data from kb
 	kbmcu.p1_out_cb().set(FUNC(dmv_state::kb_mcu_port1_w)); // bit 1 data to kb
 	kbmcu.p2_out_cb().set(FUNC(dmv_state::kb_mcu_port2_w));
 
-	MCFG_QUANTUM_PERFECT_CPU("maincpu")
+	config.set_perfect_quantum(m_maincpu);
 
 	DMV_KEYBOARD(config, m_keyboard, 0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_UPDATE_DEVICE("upd7220", upd7220_device, screen_update)
-	MCFG_SCREEN_SIZE(640, 400)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 400-1)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(50);
+	m_screen->set_screen_update("upd7220", FUNC(upd7220_device::screen_update));
+	m_screen->set_size(640, 400);
+	m_screen->set_visarea(0, 640-1, 0, 400-1);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_dmv)
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_dmv);
 	PALETTE(config, m_palette, palette_device::RGB_3BIT);
 	config.set_default_layout(layout_dmv);
 
 	// devices
 	UPD7220(config, m_hgdc, XTAL(5'000'000)/2); // unk clock
 	m_hgdc->set_addrmap(0, &dmv_state::upd7220_map);
-	m_hgdc->set_display_pixels_callback(FUNC(dmv_state::hgdc_display_pixels), this);
-	m_hgdc->set_draw_text_callback(FUNC(dmv_state::hgdc_draw_text), this);
+	m_hgdc->set_display_pixels(FUNC(dmv_state::hgdc_display_pixels));
+	m_hgdc->set_draw_text(FUNC(dmv_state::hgdc_draw_text));
 
 	AM9517A(config, m_dmac, 4_MHz_XTAL);
 	m_dmac->out_hreq_callback().set(FUNC(dmv_state::dma_hrq_changed));
@@ -818,15 +834,15 @@ MACHINE_CONFIG_START(dmv_state::dmv)
 	m_dmac->out_iow_callback<1>().set_log("Write DMA CH2");
 	m_dmac->in_ior_callback<2>().set(m_hgdc, FUNC(upd7220_device::dack_r));
 	m_dmac->out_iow_callback<2>().set(m_hgdc, FUNC(upd7220_device::dack_w));
-	m_dmac->in_ior_callback<3>().set(m_fdc, FUNC(i8272a_device::mdma_r));
-	m_dmac->out_iow_callback<3>().set(m_fdc, FUNC(i8272a_device::mdma_w));
+	m_dmac->in_ior_callback<3>().set(m_fdc, FUNC(i8272a_device::dma_r));
+	m_dmac->out_iow_callback<3>().set(m_fdc, FUNC(i8272a_device::dma_w));
 	m_dmac->out_dack_callback<3>().set(FUNC(dmv_state::dmac_dack3));
 
 	I8272A(config, m_fdc, 8'000'000, true);
 	m_fdc->intrq_wr_callback().set(FUNC(dmv_state::fdc_irq));
 	m_fdc->drq_wr_callback().set(m_dmac, FUNC(am9517a_device::dreq3_w));
-	MCFG_FLOPPY_DRIVE_ADD("i8272:0", dmv_floppies, "525dd", dmv_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats)
+	FLOPPY_CONNECTOR(config, "i8272:0", dmv_floppies, "525dd", dmv_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats);
 
 	PIT8253(config, m_pit, 0);
 	m_pit->set_clk<0>(50);
@@ -836,54 +852,51 @@ MACHINE_CONFIG_START(dmv_state::dmv)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD("speaker", SPEAKER_SOUND)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	MCFG_DEVICE_ADD("slot1", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot1, nullptr, false)
-	MCFG_DEVICE_ADD("slot2", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2_6, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint2_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq2_w))
-	MCFG_DEVICE_ADD("slot2a", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2a, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint2a_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq2a_w))
-	MCFG_DEVICE_ADD("slot3", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2_6, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint3_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq3_w))
-	MCFG_DEVICE_ADD("slot4", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2_6, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint4_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq4_w))
-	MCFG_DEVICE_ADD("slot5", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2_6, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint5_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq5_w))
-	MCFG_DEVICE_ADD("slot6", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot2_6, nullptr, false)
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint6_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq6_w))
+	DMVCART_SLOT(config, m_slot1, dmv_slot1, nullptr);
+	DMVCART_SLOT(config, m_slot2, dmv_slot2_6, nullptr);
+	m_slot2->out_int().set(FUNC(dmv_state::busint2_w));
+	m_slot2->out_irq().set(FUNC(dmv_state::irq2_w));
+	DMVCART_SLOT(config, m_slot2a, dmv_slot2a, nullptr);
+	m_slot2a->out_int().set(FUNC(dmv_state::busint2a_w));
+	m_slot2a->out_irq().set(FUNC(dmv_state::irq2a_w));
+	DMVCART_SLOT(config, m_slot3, dmv_slot2_6, nullptr);
+	m_slot3->out_int().set(FUNC(dmv_state::busint3_w));
+	m_slot3->out_irq().set(FUNC(dmv_state::irq3_w));
+	DMVCART_SLOT(config, m_slot4, dmv_slot2_6, nullptr);
+	m_slot4->out_int().set(FUNC(dmv_state::busint4_w));
+	m_slot4->out_irq().set(FUNC(dmv_state::irq4_w));
+	DMVCART_SLOT(config, m_slot5, dmv_slot2_6, nullptr);
+	m_slot5->out_int().set(FUNC(dmv_state::busint5_w));
+	m_slot5->out_irq().set(FUNC(dmv_state::irq5_w));
+	DMVCART_SLOT(config, m_slot6, dmv_slot2_6, nullptr);
+	m_slot6->out_int().set(FUNC(dmv_state::busint6_w));
+	m_slot6->out_irq().set(FUNC(dmv_state::irq6_w));
 
-	MCFG_DEVICE_ADD("slot7", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot7, nullptr, false)
-	MCFG_DMVCART_SLOT_PROGRAM_READWRITE_CB(READ8(*this, dmv_state, exp_program_r), WRITE8(*this, dmv_state, exp_program_w))
-	MCFG_DMVCART_SLOT_OUT_THOLD_CB(WRITELINE(*this, dmv_state, thold7_w))
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint7_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq7_w))
-	MCFG_DEVICE_ADD("slot7a", DMVCART_SLOT, 0)
-	MCFG_DEVICE_SLOT_INTERFACE(dmv_slot7a, "k230", false)
-	MCFG_DMVCART_SLOT_PROGRAM_READWRITE_CB(READ8(*this, dmv_state, exp_program_r), WRITE8(*this, dmv_state, exp_program_w))
-	MCFG_DMVCART_SLOT_OUT_THOLD_CB(WRITELINE(*this, dmv_state, thold7_w))
-	MCFG_DMVCART_SLOT_OUT_INT_CB(WRITELINE(*this, dmv_state, busint7a_w))
-	MCFG_DMVCART_SLOT_OUT_IRQ_CB(WRITELINE(*this, dmv_state, irq7a_w))
+	DMVCART_SLOT(config, m_slot7, dmv_slot7, nullptr);
+	m_slot7->prog_read().set(FUNC(dmv_state::exp_program_r));
+	m_slot7->prog_write().set(FUNC(dmv_state::exp_program_w));
+	m_slot7->out_thold().set(FUNC(dmv_state::thold7_w));
+	m_slot7->out_int().set(FUNC(dmv_state::busint7_w));
+	m_slot7->out_irq().set(FUNC(dmv_state::irq7_w));
+	DMVCART_SLOT(config, m_slot7a, dmv_slot7a, "k230");
+	m_slot7a->prog_read().set(FUNC(dmv_state::exp_program_r));
+	m_slot7a->prog_write().set(FUNC(dmv_state::exp_program_w));
+	m_slot7a->out_thold().set(FUNC(dmv_state::thold7_w));
+	m_slot7a->out_int().set(FUNC(dmv_state::busint7a_w));
+	m_slot7a->out_irq().set(FUNC(dmv_state::irq7a_w));
 
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "dmv")
+	for (auto &slot : { m_slot1, m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a })
+	{
+		slot->set_memspace(m_maincpu, AS_PROGRAM);
+		slot->set_iospace(m_maincpu, AS_IO);
+	}
 
-	MCFG_QUICKLOAD_ADD("quickload", dmv_state, dmv, "com,cpm", 3)
+	SOFTWARE_LIST(config, "flop_list").set_original("dmv");
 
-MACHINE_CONFIG_END
+	QUICKLOAD(config, "quickload", "com,cpm", attotime::from_seconds(3)).set_load_callback(FUNC(dmv_state::quickload_cb));
+}
 
 /* ROM definition */
 ROM_START( dmv )
@@ -916,4 +929,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS      INIT        COMPANY  FULLNAME           FLAGS
-COMP( 1984, dmv,  0,      0,      dmv,     dmv,   dmv_state, empty_init, "NCR",   "Decision Mate V", MACHINE_NOT_WORKING | MACHINE_NO_SOUND)
+COMP( 1984, dmv,  0,      0,      dmv,     dmv,   dmv_state, empty_init, "NCR",   "Decision Mate V", MACHINE_SUPPORTS_SAVE)

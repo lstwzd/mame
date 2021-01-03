@@ -8,6 +8,11 @@
     - Use NSCSI instead of legacy one!
     - ADPCM Transfer is correct?
 
+    ADPCM related patents:
+    - https://patents.google.com/patent/US5692099
+    - https://patents.google.com/patent/US6453286
+    - https://patents.google.com/patent/US5548655A
+
 ***************************************************************************/
 
 #include "emu.h"
@@ -25,13 +30,17 @@ DEFINE_DEVICE_TYPE(HUC6272, huc6272_device, "huc6272", "Hudson HuC6272 \"King\""
 
 void huc6272_device::microprg_map(address_map &map)
 {
-	map(0x00, 0x0f).ram().share("microprg_ram");
+	if (!has_configured_map(0))
+		map(0x00, 0x0f).ram().share("microprg_ram");
 }
 
 void huc6272_device::kram_map(address_map &map)
 {
-	map(0x000000, 0x0fffff).ram().share("kram_page0");
-	map(0x100000, 0x1fffff).ram().share("kram_page1");
+	if (!has_configured_map(1))
+	{
+		map(0x000000, 0x0fffff).ram().share("kram_page0");
+		map(0x100000, 0x1fffff).ram().share("kram_page1");
+	}
 }
 
 
@@ -49,8 +58,8 @@ huc6272_device::huc6272_device(const machine_config &mconfig, const char *tag, d
 		m_huc6271(*this, finder_base::DUMMY_TAG),
 		m_cdda_l(*this, "cdda_l"),
 		m_cdda_r(*this, "cdda_r"),
-		m_program_space_config("microprg", ENDIANNESS_LITTLE, 16, 4, 0, address_map_constructor(), address_map_constructor(FUNC(huc6272_device::microprg_map), this)),
-		m_data_space_config("kram", ENDIANNESS_LITTLE, 32, 21, 0, address_map_constructor(), address_map_constructor(FUNC(huc6272_device::kram_map), this)),
+		m_program_space_config("microprg", ENDIANNESS_LITTLE, 16, 4, 0, address_map_constructor(FUNC(huc6272_device::microprg_map), this)),
+		m_data_space_config("kram", ENDIANNESS_LITTLE, 32, 21, 0, address_map_constructor(FUNC(huc6272_device::kram_map), this)),
 		m_microprg_ram(*this, "microprg_ram"),
 		m_kram_page0(*this, "kram_page0"),
 		m_kram_page1(*this, "kram_page1"),
@@ -181,7 +190,7 @@ void huc6272_device::write_microprg_data(offs_t address, uint16_t data)
 //  READ/WRITE HANDLERS
 //**************************************************************************
 
-READ32_MEMBER( huc6272_device::read )
+uint32_t huc6272_device::read(offs_t offset)
 {
 	uint32_t res = 0;
 
@@ -255,7 +264,7 @@ READ32_MEMBER( huc6272_device::read )
 	return res;
 }
 
-WRITE32_MEMBER( huc6272_device::write )
+void huc6272_device::write(offs_t offset, uint32_t data)
 {
 	if((offset & 1) == 0)
 		m_register = data & 0x7f;
@@ -490,9 +499,9 @@ uint8_t huc6272_device::adpcm_update(int chan)
 	if (!m_adpcm.playing[chan])
 		return 0;
 
-	int rate = (1 << m_adpcm.rate);
+	const unsigned rate = (1 << m_adpcm.rate);
 	m_adpcm.pos[chan]++;
-	if (m_adpcm.pos[chan] > rate)
+	if (m_adpcm.pos[chan] >= rate)
 	{
 		if (m_adpcm.input[chan] == -1)
 		{
@@ -534,22 +543,23 @@ uint8_t huc6272_device::adpcm_update(int chan)
 			if (m_adpcm.nibble[chan] >= 28)
 				m_adpcm.input[chan] = -1;
 		}
+		m_adpcm.pos[chan] = 0;
 	}
 
 	return (m_adpcm.input[chan] >> m_adpcm.nibble[chan]) & 0xf;
 }
 
-READ8_MEMBER(huc6272_device::adpcm_update_0)
+uint8_t huc6272_device::adpcm_update_0()
 {
 	return adpcm_update(0);
 }
 
-READ8_MEMBER(huc6272_device::adpcm_update_1)
+uint8_t huc6272_device::adpcm_update_1()
 {
 	return adpcm_update(1);
 }
 
-WRITE8_MEMBER(huc6272_device::cdda_update)
+void huc6272_device::cdda_update(offs_t offset, uint8_t data)
 {
 	if (offset)
 		m_cdda_r->set_output_gain(ALL_OUTPUTS, float(data) / 63.0);
@@ -567,9 +577,9 @@ void huc6272_device::interrupt_update()
 
 void huc6272_device::cdrom_config(device_t *device)
 {
-	device = device->subdevice("cdda");
-	MCFG_SOUND_ROUTE(0, "^^cdda_l", 1.0)
-	MCFG_SOUND_ROUTE(1, "^^cdda_r", 1.0)
+	cdda_device *cdda = device->subdevice<cdda_device>("cdda");
+	cdda->add_route(0, "^^cdda_l", 1.0);
+	cdda->add_route(1, "^^cdda_r", 1.0);
 }
 
 //-------------------------------------------------

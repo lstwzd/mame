@@ -258,7 +258,7 @@ Typically, only the high 2 bits are read.
 
 */
 
-READ8_MEMBER(bwidow_state::spacduel_IN3_r)
+uint8_t bwidow_state::spacduel_IN3_r(offs_t offset)
 {
 	int res;
 	int res1;
@@ -309,12 +309,12 @@ READ8_MEMBER(bwidow_state::spacduel_IN3_r)
 	return res;
 }
 
-CUSTOM_INPUT_MEMBER(bwidow_state::clock_r)
+READ_LINE_MEMBER(bwidow_state::clock_r)
 {
 	return (m_maincpu->total_cycles() & 0x100) ? 1 : 0;
 }
 
-READ8_MEMBER(bwidow_state::bwidowp_in_r)
+uint8_t bwidow_state::bwidowp_in_r()
 {
 	return (m_in4->read() & 0x0f) | ((m_in3->read() & 0x0f) << 4);
 }
@@ -325,7 +325,7 @@ READ8_MEMBER(bwidow_state::bwidowp_in_r)
  *
  *************************************/
 
-WRITE8_MEMBER(bwidow_state::bwidow_misc_w)
+void bwidow_state::bwidow_misc_w(uint8_t data)
 {
 	/*
 	    0x10 = p1 led
@@ -342,7 +342,7 @@ WRITE8_MEMBER(bwidow_state::bwidow_misc_w)
 	m_lastdata = data;
 }
 
-WRITE8_MEMBER(bwidow_state::spacduel_coin_counter_w)
+void bwidow_state::spacduel_coin_counter_w(uint8_t data)
 {
 	if (data == m_lastdata) return;
 	m_leds[0] = BIT(~data, 5); // start lamp
@@ -362,18 +362,18 @@ WRITE8_MEMBER(bwidow_state::spacduel_coin_counter_w)
  *
  *************************************/
 
-READ8_MEMBER(bwidow_state::earom_read)
+uint8_t bwidow_state::earom_read()
 {
 	return m_earom->data();
 }
 
-WRITE8_MEMBER(bwidow_state::earom_write)
+void bwidow_state::earom_write(offs_t offset, uint8_t data)
 {
 	m_earom->set_address(offset & 0x3f);
 	m_earom->set_data(data);
 }
 
-WRITE8_MEMBER(bwidow_state::earom_control_w)
+void bwidow_state::earom_control_w(uint8_t data)
 {
 	// CK = DB0, C1 = /DB2, C2 = DB1, CS1 = DB3, /CS2 = GND
 	m_earom->set_control(BIT(data, 3), 1, !BIT(data, 2), BIT(data, 1));
@@ -382,7 +382,7 @@ WRITE8_MEMBER(bwidow_state::earom_control_w)
 
 void bwidow_state::machine_reset()
 {
-	earom_control_w(machine().dummy_space(), 0, 0);
+	earom_control_w(0);
 }
 
 
@@ -392,7 +392,7 @@ void bwidow_state::machine_reset()
  *
  *************************************/
 
-WRITE8_MEMBER(bwidow_state::irq_ack_w)
+void bwidow_state::irq_ack_w(uint8_t data)
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
@@ -407,21 +407,21 @@ WRITE8_MEMBER(bwidow_state::irq_ack_w)
 void bwidow_state::bwidow_map(address_map &map)
 {
 	map(0x0000, 0x07ff).ram();
-	map(0x2000, 0x27ff).ram().share("vectorram").region("maincpu", 0x2000);
-	map(0x2800, 0x5fff).rom();
+	map(0x2000, 0x27ff).ram(); // vector RAM
+	map(0x2800, 0x5fff).rom(); // vector ROM
 	map(0x6000, 0x67ff).rw("pokey1", FUNC(pokey_device::read), FUNC(pokey_device::write));
 	map(0x6800, 0x6fff).rw("pokey2", FUNC(pokey_device::read), FUNC(pokey_device::write));
 	map(0x7000, 0x7000).r(FUNC(bwidow_state::earom_read));
 	map(0x7800, 0x7800).portr("IN0");
 	map(0x8000, 0x8000).portr("IN3");
 	map(0x8800, 0x8800).portr("IN4");
-	map(0x8800, 0x8800).w(FUNC(bwidow_state::bwidow_misc_w)); /* coin counters, leds */
+	map(0x8800, 0x8800).w(FUNC(bwidow_state::bwidow_misc_w)); // coin counters, LEDs
 	map(0x8840, 0x8840).w("avg", FUNC(avg_device::go_w));
 	map(0x8880, 0x8880).w("avg", FUNC(avg_device::reset_w));
-	map(0x88c0, 0x88c0).w(FUNC(bwidow_state::irq_ack_w)); /* interrupt acknowledge */
+	map(0x88c0, 0x88c0).w(FUNC(bwidow_state::irq_ack_w)); // interrupt acknowledge
 	map(0x8900, 0x8900).w(FUNC(bwidow_state::earom_control_w));
 	map(0x8940, 0x897f).w(FUNC(bwidow_state::earom_write));
-	map(0x8980, 0x89ed).nopw(); /* watchdog clear */
+	map(0x8980, 0x89ed).nopw(); // watchdog clear
 	map(0x9000, 0xffff).rom();
 }
 
@@ -435,14 +435,14 @@ void bwidow_state::bwidowp_map(address_map &map)
 	map(0x2000, 0x2000).w("avg", FUNC(avg_device::go_w));
 	map(0x2800, 0x2800).w("avg", FUNC(avg_device::reset_w));
 	map(0x3000, 0x3000).w("watchdog", FUNC(watchdog_timer_device::reset_w));
-	map(0x3800, 0x3800).w(FUNC(bwidow_state::bwidow_misc_w)); /* coin counters, leds */
-	map(0x4000, 0x47ff).ram().share("vectorram").region("maincpu", 0x4000);
-	map(0x4800, 0x6fff).rom();
-	map(0x6000, 0x6000).w(FUNC(bwidow_state::irq_ack_w)); /* interrupt acknowledge */
+	map(0x3800, 0x3800).w(FUNC(bwidow_state::bwidow_misc_w)); // coin counters, LEDs
+	map(0x4000, 0x47ff).ram(); // vector RAM
+	map(0x4800, 0x6fff).rom(); // vector ROM
+	map(0x6000, 0x6000).w(FUNC(bwidow_state::irq_ack_w)); // interrupt acknowledge
 	map(0x8000, 0x803f).w(FUNC(bwidow_state::earom_write));
 	map(0x8800, 0x8800).w(FUNC(bwidow_state::earom_control_w));
 	map(0x9000, 0x9000).r(FUNC(bwidow_state::earom_read));
-	map(0x9800, 0x9800).nopw(); /* ? written once at startup */
+	map(0x9800, 0x9800).nopw(); // ? written once at startup
 	map(0xa000, 0xffff).rom();
 }
 
@@ -450,20 +450,20 @@ void bwidow_state::spacduel_map(address_map &map)
 {
 	map(0x0000, 0x03ff).ram();
 	map(0x0800, 0x0800).portr("IN0");
-	map(0x0900, 0x0907).r(FUNC(bwidow_state::spacduel_IN3_r));    /* IN1 */
-	map(0x0905, 0x0906).nopw(); /* ignore? */
+	map(0x0900, 0x0907).r(FUNC(bwidow_state::spacduel_IN3_r)); // IN1
+	map(0x0905, 0x0906).nopw(); // ignore?
 	map(0x0a00, 0x0a00).r(FUNC(bwidow_state::earom_read));
-	map(0x0c00, 0x0c00).w(FUNC(bwidow_state::spacduel_coin_counter_w)); /* coin out */
+	map(0x0c00, 0x0c00).w(FUNC(bwidow_state::spacduel_coin_counter_w)); // coin out
 	map(0x0c80, 0x0c80).w("avg", FUNC(avg_device::go_w));
-	map(0x0d00, 0x0d00).nopw(); /* watchdog clear */
+	map(0x0d00, 0x0d00).nopw(); // watchdog clear
 	map(0x0d80, 0x0d80).w("avg", FUNC(avg_device::reset_w));
-	map(0x0e00, 0x0e00).w(FUNC(bwidow_state::irq_ack_w)); /* interrupt acknowledge */
+	map(0x0e00, 0x0e00).w(FUNC(bwidow_state::irq_ack_w)); // interrupt acknowledge
 	map(0x0e80, 0x0e80).w(FUNC(bwidow_state::earom_control_w));
 	map(0x0f00, 0x0f3f).w(FUNC(bwidow_state::earom_write));
-	map(0x1000, 0x10ff).rw("pokey1", FUNC(pokey_device::read), FUNC(pokey_device::write));
-	map(0x1400, 0x14ff).rw("pokey2", FUNC(pokey_device::read), FUNC(pokey_device::write));
-	map(0x2000, 0x27ff).ram().share("vectorram").region("maincpu", 0x2000);
-	map(0x2800, 0x3fff).rom();
+	map(0x1000, 0x10ff).mirror(0x0300).rw("pokey1", FUNC(pokey_device::read), FUNC(pokey_device::write));
+	map(0x1400, 0x14ff).mirror(0x0300).rw("pokey2", FUNC(pokey_device::read), FUNC(pokey_device::write));
+	map(0x2000, 0x27ff).ram(); // vector RAM
+	map(0x2800, 0x3fff).rom(); // vector ROM
 	map(0x4000, 0xffff).rom();
 }
 
@@ -484,9 +484,9 @@ static INPUT_PORTS_START( bwidow )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Diagnostic Step")
 	/* bit 6 is the VG HALT bit. We set it to "low" */
 	/* per default (busy vector processor). */
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER("avg", avg_device, done_r, nullptr)
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("avg", avg_device, done_r)
 	/* bit 7 is tied to a 3kHz clock */
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, bwidow_state,clock_r, nullptr)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(bwidow_state, clock_r)
 
 	PORT_START("DSW0")
 	PORT_DIPNAME(0x03, 0x00, DEF_STR( Coinage ) ) PORT_DIPLOCATION("D4:!7,!8")
@@ -562,9 +562,9 @@ static INPUT_PORTS_START( gravitar )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Diagnostic Step")
 	/* bit 6 is the VG HALT bit. We set it to "low" */
 	/* per default (busy vector processor). */
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER("avg", avg_device, done_r, nullptr)
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("avg", avg_device, done_r)
 	/* bit 7 is tied to a 3kHz clock */
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, bwidow_state,clock_r, nullptr)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(bwidow_state, clock_r)
 
 	PORT_START("DSW0")
 	PORT_DIPUNUSED_DIPLOC( 0x03, IP_ACTIVE_HIGH, "D4:!7,!8" )
@@ -636,9 +636,9 @@ static INPUT_PORTS_START( lunarbat )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	/* bit 6 is the VG HALT bit. We set it to "low" */
 	/* per default (busy vector processor). */
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER("avg", avg_device, done_r, nullptr)
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("avg", avg_device, done_r)
 	/* bit 7 is tied to a 3kHz clock */
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, bwidow_state,clock_r, nullptr)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(bwidow_state, clock_r)
 
 	PORT_START("DSW0")  /* DSW0 - Not read */
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -670,9 +670,9 @@ static INPUT_PORTS_START( spacduel )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Diagnostic Step")
 	/* bit 6 is the VG HALT bit. We set it to "low" */
 	/* per default (busy vector processor). */
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER("avg", avg_device, done_r, nullptr)
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("avg", avg_device, done_r)
 	/* bit 7 is tied to a 3kHz clock */
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, bwidow_state,clock_r, nullptr)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(bwidow_state, clock_r)
 
 	PORT_START("DSW0")
 	PORT_DIPNAME(0x03, 0x01, DEF_STR( Lives ) ) PORT_DIPLOCATION("D4:!7,!8")
@@ -763,77 +763,78 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(bwidow_state::bwidow)
-
+void bwidow_state::bwidow(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, MASTER_CLOCK / 8)
-	MCFG_DEVICE_PROGRAM_MAP(bwidow_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(bwidow_state, irq0_line_assert, CLOCK_3KHZ / 12)
+	M6502(config, m_maincpu, MASTER_CLOCK / 8);
+	m_maincpu->set_addrmap(AS_PROGRAM, &bwidow_state::bwidow_map);
+	m_maincpu->set_periodic_int(FUNC(bwidow_state::irq0_line_assert), attotime::from_hz(CLOCK_3KHZ / 12));
 
-	MCFG_DEVICE_ADD("earom", ER2055)
+	ER2055(config, m_earom);
 
 	/* video hardware */
-	MCFG_VECTOR_ADD("vector")
-	MCFG_SCREEN_ADD("screen", VECTOR)
-	MCFG_SCREEN_REFRESH_RATE(CLOCK_3KHZ / 12 / 4)
-	MCFG_SCREEN_SIZE(400, 300)
-	MCFG_SCREEN_VISIBLE_AREA(0, 480, 0, 440)
-	MCFG_SCREEN_UPDATE_DEVICE("vector", vector_device, screen_update)
+	VECTOR(config, "vector", 0);
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_VECTOR));
+	screen.set_refresh_hz(CLOCK_3KHZ / 12 / 4);
+	screen.set_size(400, 300);
+	screen.set_visarea(0, 480, 0, 440);
+	screen.set_screen_update("vector", FUNC(vector_device::screen_update));
 
 	avg_device &avg(AVG(config, "avg", 0));
-	avg.set_vector_tag("vector");
+	avg.set_vector("vector");
+	avg.set_memory(m_maincpu, AS_PROGRAM, 0x2000);
 
 	/* sound hardware */
 	bwidow_audio(config);
 
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(bwidow_state::bwidowp)
+void bwidow_state::bwidowp(machine_config &config)
+{
 	bwidow(config);
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(bwidowp_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bwidow_state::bwidowp_map);
+
+	subdevice<avg_device>("avg")->set_memory(m_maincpu, AS_PROGRAM, 0x4000);
 
 	WATCHDOG_TIMER(config, "watchdog");
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(bwidow_state::gravitar)
+void bwidow_state::gravitar(machine_config &config)
+{
 	bwidow(config);
 
 	/* basic machine hardware */
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0, 420, 0, 400)
+	subdevice<screen_device>("screen")->set_visarea(0, 420, 0, 400);
 
 	/* sound hardware */
 	gravitar_audio(config);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(bwidow_state::lunarbat)
+void bwidow_state::lunarbat(machine_config &config)
+{
 	gravitar(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(spacduel_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bwidow_state::spacduel_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0, 500, 0, 440)
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_visarea(0, 500, 0, 440);
+}
 
 
-MACHINE_CONFIG_START(bwidow_state::spacduel)
+void bwidow_state::spacduel(machine_config &config)
+{
 	gravitar(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(spacduel_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &bwidow_state::spacduel_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0, 540, 0, 400)
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_visarea(0, 540, 0, 400);
+}
 
 
 
@@ -860,7 +861,7 @@ ROM_START( bwidow )
 	ROM_RELOAD(                  0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 ROM_END
 
@@ -879,7 +880,7 @@ ROM_START( bwidowp )
 	ROM_RELOAD(                  0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "avgsmr",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Proms */
@@ -905,7 +906,7 @@ ROM_START( gravitar )
 	ROM_RELOAD(                  0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Address decoding */
@@ -931,7 +932,7 @@ ROM_START( gravitar2 )
 	ROM_RELOAD(                  0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Address decoding */
@@ -957,7 +958,7 @@ ROM_START( gravitar1 )
 	ROM_RELOAD(                  0xf000, 0x1000 )  /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Address decoding */
@@ -982,7 +983,7 @@ ROM_START( lunarbat )
 	ROM_RELOAD(                 0xf000, 0x1000 )  /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Address decoding */
@@ -1011,7 +1012,7 @@ ROM_START( lunarba1 )
 	ROM_RELOAD(              0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",   0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 
 	/* Address decoding */
@@ -1040,7 +1041,7 @@ ROM_START( spacduel )
 	ROM_RELOAD(                 0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",  0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 ROM_END
 
@@ -1064,7 +1065,7 @@ ROM_START( spacduel1 )
 	ROM_RELOAD(                 0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",  0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 ROM_END
 
@@ -1088,7 +1089,7 @@ ROM_START( spacduel0 )
 	ROM_RELOAD(                 0xf000, 0x1000 )   /* for reset/interrupt vectors */
 
 	/* AVG PROM */
-	ROM_REGION( 0x100, "user1", 0 )
+	ROM_REGION( 0x100, "avg:prom", 0 )
 	ROM_LOAD( "136002-125.n4",  0x0000, 0x0100, CRC(5903af03) SHA1(24bc0366f394ad0ec486919212e38be0f08d0239) )
 ROM_END
 

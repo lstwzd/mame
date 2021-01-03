@@ -135,11 +135,11 @@ Dip locations added based on the notes above.
 #include "cpu/z80/z80.h"
 #include "machine/gen_latch.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "sound/ym2413.h"
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 class ppmast93_state : public driver_device
@@ -165,9 +165,9 @@ private:
 	tilemap_t *m_fg_tilemap;
 	tilemap_t *m_bg_tilemap;
 
-	DECLARE_WRITE8_MEMBER(fgram_w);
-	DECLARE_WRITE8_MEMBER(bgram_w);
-	DECLARE_WRITE8_MEMBER(port4_w);
+	void fgram_w(offs_t offset, uint8_t data);
+	void bgram_w(offs_t offset, uint8_t data);
+	void port4_w(uint8_t data);
 
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	TILE_GET_INFO_MEMBER(get_fg_tile_info);
@@ -188,19 +188,19 @@ void ppmast93_state::machine_start()
 	membank("cpubank")->configure_entries(0, 8, memregion("maincpu")->base(), 0x4000);
 }
 
-WRITE8_MEMBER(ppmast93_state::fgram_w)
+void ppmast93_state::fgram_w(offs_t offset, uint8_t data)
 {
 	m_fgram[offset] = data;
 	m_fg_tilemap->mark_tile_dirty(offset/2);
 }
 
-WRITE8_MEMBER(ppmast93_state::bgram_w)
+void ppmast93_state::bgram_w(offs_t offset, uint8_t data)
 {
 	m_bgram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset/2);
 }
 
-WRITE8_MEMBER(ppmast93_state::port4_w)
+void ppmast93_state::port4_w(uint8_t data)
 {
 	machine().bookkeeping().coin_counter_w(0, data & 0x08);
 	machine().bookkeeping().coin_counter_w(1, data & 0x10);
@@ -343,7 +343,7 @@ GFXDECODE_END
 TILE_GET_INFO_MEMBER(ppmast93_state::get_bg_tile_info)
 {
 	int code = (m_bgram[tile_index*2+1] << 8) | m_bgram[tile_index*2];
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			code & 0x0fff,
 			(code & 0xf000) >> 12,
 			0);
@@ -352,7 +352,7 @@ TILE_GET_INFO_MEMBER(ppmast93_state::get_bg_tile_info)
 TILE_GET_INFO_MEMBER(ppmast93_state::get_fg_tile_info)
 {
 	int code = (m_fgram[tile_index*2+1] << 8) | m_fgram[tile_index*2];
-	SET_TILE_INFO_MEMBER(0,
+	tileinfo.set(0,
 			(code & 0x0fff)+0x1000,
 			(code & 0xf000) >> 12,
 			0);
@@ -360,8 +360,8 @@ TILE_GET_INFO_MEMBER(ppmast93_state::get_fg_tile_info)
 
 void ppmast93_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(ppmast93_state::get_bg_tile_info),this),TILEMAP_SCAN_ROWS,8,8,32, 32);
-	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(ppmast93_state::get_fg_tile_info),this),TILEMAP_SCAN_ROWS,8,8,32, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(ppmast93_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
+	m_fg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(ppmast93_state::get_fg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 32, 32);
 
 	m_fg_tilemap->set_transparent_pen(0);
 }
@@ -373,28 +373,29 @@ uint32_t ppmast93_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	return 0;
 }
 
-MACHINE_CONFIG_START(ppmast93_state::ppmast93)
+void ppmast93_state::ppmast93(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80,5000000)         /* 5 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(ppmast93_cpu1_map)
-	MCFG_DEVICE_IO_MAP(ppmast93_cpu1_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", ppmast93_state, irq0_line_hold)
+	Z80(config, m_maincpu, 5000000);         /* 5 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &ppmast93_state::ppmast93_cpu1_map);
+	m_maincpu->set_addrmap(AS_IO, &ppmast93_state::ppmast93_cpu1_io);
+	m_maincpu->set_vblank_int("screen", FUNC(ppmast93_state::irq0_line_hold));
 
-	MCFG_DEVICE_ADD("sub", Z80,5000000)         /* 5 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(ppmast93_cpu2_map)
-	MCFG_DEVICE_IO_MAP(ppmast93_cpu2_io)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(ppmast93_state, irq0_line_hold, 8000)
+	z80_device &sub(Z80(config, "sub", 5000000));         /* 5 MHz */
+	sub.set_addrmap(AS_PROGRAM, &ppmast93_state::ppmast93_cpu2_map);
+	sub.set_addrmap(AS_IO, &ppmast93_state::ppmast93_cpu2_io);
+	sub.set_periodic_int(FUNC(ppmast93_state::irq0_line_hold), attotime::from_hz(8000));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(55)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE_DRIVER(ppmast93_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(55);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(256, 256);
+	screen.set_visarea(0, 256-1, 0, 256-1);
+	screen.set_screen_update(FUNC(ppmast93_state::screen_update));
+	screen.set_palette("palette");
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_ppmast93)
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_ppmast93);
 
 	PALETTE(config, "palette", palette_device::RGB_444_PROMS, "proms", 0x100);
 
@@ -403,13 +404,10 @@ MACHINE_CONFIG_START(ppmast93_state::ppmast93)
 
 	GENERIC_LATCH_8(config, "soundlatch");
 
-	MCFG_DEVICE_ADD("ymsnd", YM2413, 5000000/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
+	YM2413(config, "ymsnd", 5000000/2).add_route(ALL_OUTPUTS, "speaker", 1.0);
 
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.3) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.3); // unknown DAC
+}
 
 ROM_START( ppmast93 )
 	ROM_REGION( 0x20000, "maincpu", 0 )

@@ -65,9 +65,9 @@ void ym3812_device::timer_handler(int c, const attotime &period)
 //  sound_stream_update - handle a stream update
 //-------------------------------------------------
 
-void ym3812_device::sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples)
+void ym3812_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
-	ym3812_update_one(m_chip, outputs[0], samples);
+	ym3812_update_one(m_chip, outputs[0]);
 }
 
 //-------------------------------------------------
@@ -82,7 +82,8 @@ void ym3812_device::device_start()
 
 	/* stream system initialize */
 	m_chip = ym3812_init(this, clock(), rate);
-	assert_always(m_chip != nullptr, "Error creating YM3812 chip");
+	if (!m_chip)
+		throw emu_fatalerror("ym3812_device(%s): Error creating YM3812 chip", tag());
 
 	calculate_rates();
 
@@ -109,7 +110,7 @@ void ym3812_device::calculate_rates()
 	if (m_stream != nullptr)
 		m_stream->set_sample_rate(rate);
 	else
-		m_stream = machine().sound().stream_alloc(*this, 0, 1, rate);
+		m_stream = stream_alloc(0, 1, rate);
 }
 
 //-------------------------------------------------
@@ -131,20 +132,20 @@ void ym3812_device::device_reset()
 }
 
 
-READ8_MEMBER( ym3812_device::read )
+u8 ym3812_device::read(offs_t offset)
 {
 	return ym3812_read(m_chip, offset & 1);
 }
 
-WRITE8_MEMBER( ym3812_device::write )
+void ym3812_device::write(offs_t offset, u8 data)
 {
 	ym3812_write(m_chip, offset & 1, data);
 }
 
-READ8_MEMBER( ym3812_device::status_port_r ) { return read(space, 0); }
-READ8_MEMBER( ym3812_device::read_port_r ) { return read(space, 1); }
-WRITE8_MEMBER( ym3812_device::control_port_w ) { write(space, 0, data); }
-WRITE8_MEMBER( ym3812_device::write_port_w ) { write(space, 1, data); }
+u8 ym3812_device::status_port_r() { return read(0); }
+u8 ym3812_device::read_port_r() { return read(1); }
+void ym3812_device::control_port_w(u8 data) { write(0, data); }
+void ym3812_device::write_port_w(u8 data) { write(1, data); }
 
 
 DEFINE_DEVICE_TYPE(YM3812, ym3812_device, "ym3812", "YM3812 OPL2")

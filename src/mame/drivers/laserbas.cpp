@@ -64,7 +64,6 @@ expected: 43 FB CC 9A D4 23 6C 01 3E  <- From ROM 4
 #include "machine/pit8253.h"
 #include "machine/timer.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "video/mc6845.h"
 #include "emupal.h"
 #include "screen.h"
@@ -105,13 +104,13 @@ private:
 	required_device<palette_device> m_palette;
 	required_device_array<dac_byte_interface, 6> m_dac;
 
-	DECLARE_READ8_MEMBER(vram_r);
-	DECLARE_WRITE8_MEMBER(vram_w);
-	DECLARE_WRITE8_MEMBER(videoctrl_w);
-	DECLARE_READ8_MEMBER(z1_r);
-	DECLARE_READ8_MEMBER(track_lo_r);
-	DECLARE_READ8_MEMBER(track_hi_r);
-	DECLARE_WRITE8_MEMBER(out_w);
+	uint8_t vram_r(offs_t offset);
+	void vram_w(offs_t offset, uint8_t data);
+	void videoctrl_w(offs_t offset, uint8_t data);
+	uint8_t z1_r(offs_t offset);
+	uint8_t track_lo_r();
+	uint8_t track_hi_r();
+	void out_w(uint8_t data);
 	template<uint8_t Which> DECLARE_WRITE_LINE_MEMBER(pit_out_w);
 	TIMER_DEVICE_CALLBACK_MEMBER(laserbas_scanline);
 	MC6845_UPDATE_ROW(crtc_update_row);
@@ -150,8 +149,8 @@ MC6845_UPDATE_ROW( laserbas_state::crtc_update_row )
 	}
 
 	int pixaddr = y << 8;
-	const rgb_t *palette = m_palette->palette()->entry_list_raw();
-	uint32_t *b = &bitmap.pix32(y);
+	rgb_t const *const palette = m_palette->palette()->entry_list_raw();
+	uint32_t *const b = &bitmap.pix(y);
 
 	while (x != x_max)
 	{
@@ -175,17 +174,17 @@ MC6845_UPDATE_ROW( laserbas_state::crtc_update_row )
 	}
 }
 
-READ8_MEMBER(laserbas_state::vram_r)
+uint8_t laserbas_state::vram_r(offs_t offset)
 {
 	return m_vram[offset+(m_vrambank?0x8000:0)];
 }
 
-WRITE8_MEMBER(laserbas_state::vram_w)
+void laserbas_state::vram_w(offs_t offset, uint8_t data)
 {
 	m_vram[offset+(m_vrambank?0x8000:0)] = data;
 }
 
-WRITE8_MEMBER(laserbas_state::videoctrl_w)
+void laserbas_state::videoctrl_w(offs_t offset, uint8_t data)
 {
 	if (!(offset&1))
 	{
@@ -203,7 +202,7 @@ WRITE8_MEMBER(laserbas_state::videoctrl_w)
 	}
 }
 
-READ8_MEMBER(laserbas_state::z1_r)
+uint8_t laserbas_state::z1_r(offs_t offset)
 {
 	m_z1data = (m_z1data >> 10) | (uint64_t(offset & 0x03ff) << 30);
 
@@ -223,7 +222,7 @@ READ8_MEMBER(laserbas_state::z1_r)
 	return (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | (bit0 << 0);
 }
 
-READ8_MEMBER(laserbas_state::track_lo_r)
+uint8_t laserbas_state::track_lo_r()
 {
 	uint8_t dx = ioport("TRACK_X")->read();
 	uint8_t dy = ioport("TRACK_Y")->read();
@@ -235,13 +234,13 @@ READ8_MEMBER(laserbas_state::track_lo_r)
 	return data;
 }
 
-READ8_MEMBER(laserbas_state::track_hi_r)
+uint8_t laserbas_state::track_hi_r()
 {
 	int data =   ((ioport("TRACK_X")->read() & 0x10) >> 4) | ((ioport("TRACK_Y")->read() & 0x10) >> 3);
 	return data;
 }
 
-WRITE8_MEMBER(laserbas_state::out_w)
+void laserbas_state::out_w(uint8_t data)
 {
 	/* sound related , maybe also lamps */
 }
@@ -368,12 +367,12 @@ INPUT_PORTS_END
 #define CLOCK 16680000
 #define PIT_CLOCK (CLOCK/16) // 12 divider ?
 
-MACHINE_CONFIG_START(laserbas_state::laserbas)
-
-	MCFG_DEVICE_ADD("maincpu", Z80, CLOCK / 4)
-	MCFG_DEVICE_PROGRAM_MAP(laserbas_memory)
-	MCFG_DEVICE_IO_MAP(laserbas_io)
-	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", laserbas_state, laserbas_scanline, "screen", 0, 1)
+void laserbas_state::laserbas(machine_config &config)
+{
+	Z80(config, m_maincpu, CLOCK / 4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &laserbas_state::laserbas_memory);
+	m_maincpu->set_addrmap(AS_IO, &laserbas_state::laserbas_io);
+	TIMER(config, "scantimer").configure_scanline(FUNC(laserbas_state::laserbas_scanline), "screen", 0, 1);
 
 	/* TODO: clocks aren't known */
 	pit8253_device &pit0(PIT8253(config, "pit0", 0));
@@ -392,35 +391,27 @@ MACHINE_CONFIG_START(laserbas_state::laserbas)
 	pit1.out_handler<1>().set(FUNC(laserbas_state::pit_out_w<4>));
 	pit1.out_handler<2>().set(FUNC(laserbas_state::pit_out_w<5>));
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(4000000, 256, 0, 256, 256, 0, 256)   /* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(4000000, 256, 0, 256, 256, 0, 256);   /* temporary, CRTC will configure screen */
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
 
-	h46505_device &crtc(H46505(config, "crtc", 3000000/4)); /* unknown clock, hand tuned to get ~60 fps */
+	mc6845_device &crtc(MC6845(config, "crtc", 3000000/4)); /* unknown clock, hand tuned to get ~60 fps */
 	crtc.set_screen("screen");
 	crtc.set_show_border_area(false);
 	crtc.set_char_width(8);
-	crtc.set_update_row_callback(FUNC(laserbas_state::crtc_update_row), this);
+	crtc.set_update_row_callback(FUNC(laserbas_state::crtc_update_row));
 
 	PALETTE(config, m_palette).set_format(palette_device::RGB_332, 32);
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD(m_dac[0], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD(m_dac[1], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD(m_dac[2], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD(m_dac[3], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD(m_dac[4], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD(m_dac[5], DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.16)
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac1", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac1", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac2", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac2", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac3", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac3", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac4", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac4", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac5", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac5", -1.0, DAC_VREF_NEG_INPUT)
-	MCFG_SOUND_ROUTE(0, "dac6", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac6", -1.0, DAC_VREF_NEG_INPUT)
-
-MACHINE_CONFIG_END
+	DAC_4BIT_R2R(config, m_dac[0], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+	DAC_4BIT_R2R(config, m_dac[1], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+	DAC_4BIT_R2R(config, m_dac[2], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+	DAC_4BIT_R2R(config, m_dac[3], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+	DAC_4BIT_R2R(config, m_dac[4], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+	DAC_4BIT_R2R(config, m_dac[5], 0).add_route(ALL_OUTPUTS, "speaker", 0.16);
+}
 
 /*
 Amstar LaserBase 1981 (Hoei)

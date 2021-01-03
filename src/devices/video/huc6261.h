@@ -15,16 +15,6 @@
 #include "video/huc6272.h"
 
 
-#define MCFG_HUC6261_VDC1(_tag) \
-	downcast<huc6261_device &>(*device).set_vdc1_tag(_tag);
-
-#define MCFG_HUC6261_VDC2(_tag) \
-	downcast<huc6261_device &>(*device).set_vdc2_tag(_tag);
-
-#define MCFG_HUC6261_KING(_tag) \
-	downcast<huc6261_device &>(*device).set_king_tag(_tag);
-
-
 class huc6261_device :  public device_t,
 						public device_video_interface
 {
@@ -41,8 +31,8 @@ public:
 	template <typename T> void set_king_tag(T &&tag) { m_huc6272.set_tag(std::forward<T>(tag)); }
 
 	void video_update(bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	DECLARE_READ16_MEMBER( read );
-	DECLARE_WRITE16_MEMBER( write );
+	uint16_t read(offs_t offset);
+	void write(offs_t offset, uint16_t data);
 
 protected:
 	// device-level overrides

@@ -12,6 +12,7 @@
 
 #include "video/ladybug.h"
 #include "emupal.h"
+#include "tilemap.h"
 
 
 class ladybug_base_state : public driver_device
@@ -53,8 +54,9 @@ protected:
 
 	void ladybug_map(address_map &map);
 
-private:
 	required_device<cpu_device> m_maincpu;
+
+private:
 	required_device<ladybug_video_device> m_video;
 
 	required_ioport m_port_dsw0;
@@ -99,9 +101,9 @@ public:
 	void sraider(machine_config &config);
 
 protected:
-	DECLARE_READ8_MEMBER(sraider_8005_r);
-	DECLARE_WRITE8_MEMBER(sraider_misc_w);
-	DECLARE_WRITE8_MEMBER(sraider_io_w);
+	uint8_t sraider_8005_r();
+	void sraider_misc_w(offs_t offset, uint8_t data);
+	void sraider_io_w(uint8_t data);
 	void sraider_palette(palette_device &palette) const;
 	DECLARE_WRITE_LINE_MEMBER(screen_vblank_sraider);
 	TILE_GET_INFO_MEMBER(get_grid_tile_info);

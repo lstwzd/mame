@@ -260,6 +260,64 @@ inline float recip_approx(float value)
 #endif
 
 
+/*-------------------------------------------------
+    mul_64x64 - perform a signed 64 bit x 64 bit
+    multiply and return the full 128 bit result
+-------------------------------------------------*/
+
+#ifndef mul_64x64
+inline int64_t mul_64x64(int64_t a, int64_t b, int64_t *hi)
+{
+	uint64_t const a_hi = uint64_t(a) >> 32;
+	uint64_t const b_hi = uint64_t(b) >> 32;
+	uint64_t const a_lo = uint32_t(uint64_t(a));
+	uint64_t const b_lo = uint32_t(uint64_t(b));
+
+	uint64_t const ab_lo = a_lo * b_lo;
+	uint64_t const ab_m1 = a_hi * b_lo;
+	uint64_t const ab_m2 = a_lo * b_hi;
+	uint64_t const ab_hi = a_hi * b_hi;
+	uint64_t const carry = ((ab_lo >> 32) + uint32_t(ab_m1) + uint32_t(ab_m2)) >> 32;
+
+	*hi = ab_hi + (ab_m1 >> 32) + (ab_m2 >> 32) + carry;
+
+	// adjust for sign
+	if (a < 0)
+		*hi -= b;
+	if (b < 0)
+		*hi -= a;
+
+	return ab_lo + (ab_m1 << 32) + (ab_m2 << 32);
+}
+#endif
+
+
+/*-------------------------------------------------
+    mulu_64x64 - perform an unsigned 64 bit x 64
+    bit multiply and return the full 128 bit result
+-------------------------------------------------*/
+
+#ifndef mulu_64x64
+inline uint64_t mulu_64x64(uint64_t a, uint64_t b, uint64_t *hi)
+{
+	uint64_t const a_hi = uint32_t(a >> 32);
+	uint64_t const b_hi = uint32_t(b >> 32);
+	uint64_t const a_lo = uint32_t(a);
+	uint64_t const b_lo = uint32_t(b);
+
+	uint64_t const ab_lo = a_lo * b_lo;
+	uint64_t const ab_m1 = a_hi * b_lo;
+	uint64_t const ab_m2 = a_lo * b_hi;
+	uint64_t const ab_hi = a_hi * b_hi;
+	uint64_t const carry = ((ab_lo >> 32) + uint32_t(ab_m1) + uint32_t(ab_m2)) >> 32;
+
+	*hi = ab_hi + (ab_m1 >> 32) + (ab_m2 >> 32) + carry;
+
+	return ab_lo + (ab_m1 << 32) + (ab_m2 << 32);
+}
+#endif
+
+
 
 /***************************************************************************
     INLINE BIT MANIPULATION FUNCTIONS
@@ -312,7 +370,7 @@ inline unsigned population_count_32(uint32_t val)
 	static_assert(sizeof(val) == sizeof(unsigned), "expected 32-bit unsigned int");
 	return unsigned(__builtin_popcount(static_cast<unsigned>(val)));
 #else
-	// optimal Hamming weight assuing fast 32*32->32
+	// optimal Hamming weight assuming fast 32*32->32
 	constexpr uint32_t m1(0x55555555);
 	constexpr uint32_t m2(0x33333333);
 	constexpr uint32_t m4(0x0f0f0f0f);

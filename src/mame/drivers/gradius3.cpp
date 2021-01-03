@@ -36,45 +36,23 @@
 #include "speaker.h"
 
 
-READ16_MEMBER(gradius3_state::k052109_halfword_r)
+uint16_t gradius3_state::k052109_halfword_r(offs_t offset)
 {
-	return m_k052109->read(space, offset);
+	return m_k052109->read(offset);
 }
 
-WRITE16_MEMBER(gradius3_state::k052109_halfword_w)
+void gradius3_state::k052109_halfword_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
-		m_k052109->write(space, offset, data & 0xff);
+		m_k052109->write(offset, data & 0xff);
 
 	/* is this a bug in the game or something else? */
 	if (!ACCESSING_BITS_0_7)
-		m_k052109->write(space, offset, (data >> 8) & 0xff);
+		m_k052109->write(offset, (data >> 8) & 0xff);
 //      logerror("%s half %04x = %04x\n",machine().describe_context(),offset,data);
 }
 
-READ16_MEMBER(gradius3_state::k051937_halfword_r)
-{
-	return m_k051960->k051937_r(space, offset);
-}
-
-WRITE16_MEMBER(gradius3_state::k051937_halfword_w)
-{
-	if (ACCESSING_BITS_0_7)
-		m_k051960->k051937_w(space, offset, data & 0xff);
-}
-
-READ16_MEMBER(gradius3_state::k051960_halfword_r)
-{
-	return m_k051960->k051960_r(space, offset);
-}
-
-WRITE16_MEMBER(gradius3_state::k051960_halfword_w)
-{
-	if (ACCESSING_BITS_0_7)
-		m_k051960->k051960_w(space, offset, data & 0xff);
-}
-
-WRITE16_MEMBER(gradius3_state::cpuA_ctrl_w)
+void gradius3_state::cpuA_ctrl_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_8_15)
 	{
@@ -94,11 +72,11 @@ WRITE16_MEMBER(gradius3_state::cpuA_ctrl_w)
 		m_irqAen = data & 0x20;
 
 		/* other bits unknown */
-	//logerror("%s: write %04x to c0000\n",machine().describe_context(),data);
+		//logerror("%s: write %04x to c0000\n",machine().describe_context(),data);
 	}
 }
 
-WRITE16_MEMBER(gradius3_state::cpuB_irqenable_w)
+void gradius3_state::cpuB_irqenable_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_8_15)
 		m_irqBmask = (data >> 8) & 0x07;
@@ -122,7 +100,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(gradius3_state::gradius3_sub_scanline)
 		m_subcpu->set_input_line(2, HOLD_LINE);
 }
 
-WRITE16_MEMBER(gradius3_state::cpuB_irqtrigger_w)
+void gradius3_state::cpuB_irqtrigger_w(uint16_t data)
 {
 	if (m_irqBmask & 4)
 	{
@@ -133,12 +111,12 @@ WRITE16_MEMBER(gradius3_state::cpuB_irqtrigger_w)
 		logerror("%04x MISSED cpu B irq 4 %02x\n",m_maincpu->pc(),data);
 }
 
-WRITE16_MEMBER(gradius3_state::sound_irq_w)
+void gradius3_state::sound_irq_w(uint16_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff);
+	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
 }
 
-WRITE8_MEMBER(gradius3_state::sound_bank_w)
+void gradius3_state::sound_bank_w(uint8_t data)
 {
 	int bank_A, bank_B;
 
@@ -180,8 +158,8 @@ void gradius3_state::gradius3_map2(address_map &map)
 	map(0x200000, 0x203fff).ram().share("share1");
 	map(0x24c000, 0x253fff).rw(FUNC(gradius3_state::k052109_halfword_r), FUNC(gradius3_state::k052109_halfword_w));
 	map(0x280000, 0x29ffff).ram().w(FUNC(gradius3_state::gradius3_gfxram_w)).share("k052109");
-	map(0x2c0000, 0x2c000f).rw(FUNC(gradius3_state::k051937_halfword_r), FUNC(gradius3_state::k051937_halfword_w));
-	map(0x2c0800, 0x2c0fff).rw(FUNC(gradius3_state::k051960_halfword_r), FUNC(gradius3_state::k051960_halfword_w));
+	map(0x2c0000, 0x2c000f).rw(m_k051960, FUNC(k051960_device::k051937_r), FUNC(k051960_device::k051937_w)).umask16(0x00ff);
+	map(0x2c0800, 0x2c0fff).rw(m_k051960, FUNC(k051960_device::k051960_r), FUNC(k051960_device::k051960_w)).umask16(0x00ff);
 	map(0x400000, 0x5fffff).r(FUNC(gradius3_state::gradius3_gfxrom_r));     /* gfx ROMs are mapped here, and copied to RAM */
 }
 
@@ -255,7 +233,7 @@ static INPUT_PORTS_START( gradius3 )
 INPUT_PORTS_END
 
 
-WRITE8_MEMBER(gradius3_state::volume_callback)
+void gradius3_state::volume_callback(uint8_t data)
 {
 	m_k007232->set_volume(0, (data >> 4) * 0x11, 0);
 	m_k007232->set_volume(1, 0, (data & 0x0f) * 0x11);
@@ -288,13 +266,12 @@ void gradius3_state::gradius3(machine_config &config)
 	M68000(config, m_subcpu, XTAL(10'000'000));
 	m_subcpu->set_addrmap(AS_PROGRAM, &gradius3_state::gradius3_map2);
 	TIMER(config, "scantimer").configure_scanline(FUNC(gradius3_state::gradius3_sub_scanline), "screen", 0, 1);
-	/* 4 is triggered by cpu A, the others are unknown but */
-	/* required for the game to run. */
+	/* 4 is triggered by cpu A, the others are unknown but required for the game to run. */
 
 	Z80(config, m_audiocpu, 3579545);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &gradius3_state::gradius3_s_map);
 
-	config.m_minimum_quantum = attotime::from_hz(6000);
+	config.set_maximum_quantum(attotime::from_hz(6000));
 
 	WATCHDOG_TIMER(config, "watchdog");
 
@@ -311,13 +288,14 @@ void gradius3_state::gradius3(machine_config &config)
 
 	K052109(config, m_k052109, 0);
 	m_k052109->set_palette("palette");
-	m_k052109->set_tile_callback(FUNC(gradius3_state::tile_callback), this);
+	m_k052109->set_screen(nullptr);
+	m_k052109->set_tile_callback(FUNC(gradius3_state::tile_callback));
 	m_k052109->set_char_ram(true);
 
 	K051960(config, m_k051960, 0);
 	m_k051960->set_palette("palette");
-	m_k051960->set_screen_tag("screen");
-	m_k051960->set_sprite_callback(FUNC(gradius3_state::sprite_callback), this);
+	m_k051960->set_screen("screen");
+	m_k051960->set_sprite_callback(FUNC(gradius3_state::sprite_callback));
 	m_k051960->set_plane_order(K051960_PLANEORDER_GRADIUS3);
 
 	/* sound hardware */
@@ -463,8 +441,8 @@ ROM_START( gradius3js )
 	ROM_LOAD( "945l14.j28", 0x0000, 0x0100, CRC(c778c189) SHA1(847eaf379ba075c25911c6f83dd63ff390534f60) )  /* priority encoder (not used) */
 
 	ROM_REGION( 0x80000, "k007232", 0 ) /* 007232 samples */
-	ROM_LOAD( "945_a10a.c14", 0x00000, 0x20000, CRC(ec717414) SHA1(8c63d5fe01d0833529fca91bc80cdbd8a04174c0) )
-	ROM_LOAD( "945_a10b.c16", 0x20000, 0x20000, CRC(709e30e4) SHA1(27fcea720cd2498f1870c9290d30dcb3dd81d5e5) )
+	ROM_LOAD16_BYTE( "945_a10a.c14", 0x00000, 0x20000, CRC(ec717414) SHA1(8c63d5fe01d0833529fca91bc80cdbd8a04174c0) )
+	ROM_LOAD16_BYTE( "945_a10b.c16", 0x00001, 0x20000, CRC(709e30e4) SHA1(27fcea720cd2498f1870c9290d30dcb3dd81d5e5) )
 	ROM_LOAD( "945_l11a.c18", 0x40000, 0x20000, CRC(6043f4eb) SHA1(1c2e9ace1cfdde504b7b6158e3c3f54dc5ae33d4) )
 	ROM_LOAD( "945_l11b.c20", 0x60000, 0x20000, CRC(89ea3baf) SHA1(8edcbaa7969185cfac48c02559826d1b8b081f3f) )
 ROM_END

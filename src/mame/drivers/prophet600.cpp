@@ -96,15 +96,15 @@ private:
 	DECLARE_WRITE_LINE_MEMBER( acia_irq_w );
 	DECLARE_WRITE_LINE_MEMBER( acia_clock_w );
 
-	DECLARE_WRITE8_MEMBER(dac_w);
-	DECLARE_WRITE8_MEMBER(scanrow_w);
-	DECLARE_WRITE8_MEMBER(led_w);
-	DECLARE_READ8_MEMBER(scan_r);
-	DECLARE_WRITE8_MEMBER(potmux_w);
-	DECLARE_READ8_MEMBER(comparitor_r);
-	DECLARE_WRITE8_MEMBER(mask_w);
-	DECLARE_WRITE8_MEMBER(cv_w);
-	DECLARE_WRITE8_MEMBER(gate_w);
+	void dac_w(offs_t offset, uint8_t data);
+	void scanrow_w(uint8_t data);
+	void led_w(uint8_t data);
+	uint8_t scan_r();
+	void potmux_w(uint8_t data);
+	uint8_t comparitor_r();
+	void mask_w(uint8_t data);
+	void cv_w(uint8_t data);
+	void gate_w(uint8_t data);
 
 	void cpu_map(address_map &map);
 	void io_map(address_map &map);
@@ -152,7 +152,7 @@ WRITE_LINE_MEMBER( prophet600_state::acia_clock_w )
 	m_acia->write_rxc(state);
 }
 
-WRITE8_MEMBER( prophet600_state::dac_w )
+void prophet600_state::dac_w(offs_t offset, uint8_t data)
 {
 	if (offset)
 	{
@@ -166,13 +166,13 @@ WRITE8_MEMBER( prophet600_state::dac_w )
 }
 
 // also selects LEDs and keyboard keys to check
-WRITE8_MEMBER(prophet600_state::scanrow_w)
+void prophet600_state::scanrow_w(uint8_t data)
 {
 	m_scanrow = data;
 }
 
 // scanrow 0x10 = LEDs, 0x20 = 7-segment #1, 0x40 = 7-segment #2
-WRITE8_MEMBER(prophet600_state::led_w)
+void prophet600_state::led_w(uint8_t data)
 {
 	if (m_scanrow & 0x10)
 	{
@@ -188,12 +188,12 @@ WRITE8_MEMBER(prophet600_state::led_w)
 	}
 }
 
-READ8_MEMBER(prophet600_state::scan_r)
+uint8_t prophet600_state::scan_r()
 {
 	return 0;
 }
 
-WRITE8_MEMBER(prophet600_state::mask_w)
+void prophet600_state::mask_w(uint8_t data)
 {
 	m_nmi_gate = (data & 0x02) ? true : false;
 	if (m_nmi_gate) // gate is set, comparitor line is pulled up to Vcc
@@ -208,7 +208,7 @@ WRITE8_MEMBER(prophet600_state::mask_w)
 //  printf("8253 gate = %x\n", data & 0x02);
 }
 
-WRITE8_MEMBER(prophet600_state::cv_w)
+void prophet600_state::cv_w(uint8_t data)
 {
 	int cvnum = data & 7;
 
@@ -218,7 +218,7 @@ WRITE8_MEMBER(prophet600_state::cv_w)
 	if (!(cvnum & 0x40)) m_CVs[cvnum+24] = m_dac;
 }
 
-WRITE8_MEMBER(prophet600_state::gate_w)
+void prophet600_state::gate_w(uint8_t data)
 {
 	m_ASaw = (data & 0x01);
 	m_ATri = (data & 0x02);
@@ -234,11 +234,11 @@ WRITE8_MEMBER(prophet600_state::gate_w)
     Glide=12,BPW=13,MVol=14,MTune=15,PitchWheel=16,ModWheel=22,
     Speed,APW,PModFilEnv,LFOFreq,PModOscB,LFOAmt,FreqB,FreqA,FreqBFine
 */
-WRITE8_MEMBER(prophet600_state::potmux_w)
+void prophet600_state::potmux_w(uint8_t data)
 {
 }
 
-READ8_MEMBER(prophet600_state::comparitor_r)
+uint8_t prophet600_state::comparitor_r()
 {
 //  m_comparitor ^= 0x04;
 	return m_comparitor;
@@ -271,10 +271,11 @@ void prophet600_state::machine_start()
 }
 
 // master crystal is 8 MHz, all clocks derived from there
-MACHINE_CONFIG_START(prophet600_state::prophet600)
-	MCFG_DEVICE_ADD(MAINCPU_TAG, Z80, XTAL(8'000'000)/2)
-	MCFG_DEVICE_PROGRAM_MAP(cpu_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+void prophet600_state::prophet600(machine_config &config)
+{
+	Z80(config, m_maincpu, XTAL(8'000'000)/2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &prophet600_state::cpu_map);
+	m_maincpu->set_addrmap(AS_IO, &prophet600_state::io_map);
 
 	config.set_default_layout(layout_prophet600);
 
@@ -289,15 +290,13 @@ MACHINE_CONFIG_START(prophet600_state::prophet600)
 	m_acia->txd_handler().set("mdout", FUNC(midi_port_device::write_txd));
 	m_acia->irq_handler().set(FUNC(prophet600_state::acia_irq_w));
 
-	MCFG_MIDI_PORT_ADD("mdin", midiin_slot, "midiin")
-	MCFG_MIDI_RX_HANDLER(WRITELINE(UART_TAG, acia6850_device, write_rxd))
+	MIDI_PORT(config, "mdin", midiin_slot, "midiin").rxd_handler().set(m_acia, FUNC(acia6850_device::write_rxd));
 
-	MCFG_MIDI_PORT_ADD("mdout", midiout_slot, "midiout")
+	MIDI_PORT(config, "mdout", midiout_slot, "midiout");
 
-	MCFG_DEVICE_ADD("acia_clock", CLOCK, XTAL(8'000'000)/16)  // 500kHz = 16 times the MIDI rate
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, prophet600_state, acia_clock_w))
-
-MACHINE_CONFIG_END
+	clock_device &acia_clock(CLOCK(config, "acia_clock", XTAL(8'000'000)/16));  // 500kHz = 16 times the MIDI rate
+	acia_clock.signal_handler().set(FUNC(prophet600_state::acia_clock_w));
+}
 
 static INPUT_PORTS_START( prophet600 )
 INPUT_PORTS_END

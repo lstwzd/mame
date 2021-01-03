@@ -56,11 +56,13 @@ public:
 
 	void jungleyo(machine_config &config);
 
+	void init_jungleyo();
+
 protected:
 	virtual void video_start() override;
 
 private:
-	/* video-related */
+	// video-related
 	uint32_t screen_update_jungleyo(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	void jungleyo_map(address_map &map);
@@ -120,39 +122,39 @@ static GFXDECODE_START( gfx_jungleyo )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(jungleyo_state::jungleyo)
-
-	MCFG_DEVICE_ADD("maincpu", M68000, 24_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(jungleyo_map)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", jungleyo_state,  irq1_line_hold)
+void jungleyo_state::jungleyo(machine_config &config)
+{
+	M68000(config, m_maincpu, 24_MHz_XTAL / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &jungleyo_state::jungleyo_map);
+	m_maincpu->set_vblank_int("screen", FUNC(jungleyo_state::irq1_line_hold));
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_jungleyo);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(jungleyo_state, screen_update_jungleyo)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0*8, 64*8-1, 0*8, 32*8-1);
+	screen.set_screen_update(FUNC(jungleyo_state::screen_update_jungleyo));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette").set_format(palette_device::xRGB_555, 0x200);
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 24_MHz_XTAL / 20, okim6295_device::PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
-MACHINE_CONFIG_END
+	okim6295_device &oki(OKIM6295(config, "oki", 24_MHz_XTAL / 20, okim6295_device::PIN7_HIGH)); // clock frequency & pin 7 not verified
+	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.47);
+	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.47);
+}
 
 
 ROM_START( jungleyo )
-	ROM_REGION( 0x40000, "maincpu", 0 ) /* 68000 Code */ // encrypted?
-	ROM_LOAD16_BYTE( "jungle_=record=_rom3_vi3.02.u15", 0x00001, 0x20000, CRC(7c9f431e) SHA1(fb3f90c4fe59c938f36b30c5fa3af227031e7d7a) )
-	ROM_LOAD16_BYTE( "jungle_=record=_rom2_vi3.02.u14", 0x00000, 0x20000, CRC(f6a71260) SHA1(8e48cbb9d701ad968540244396820359afe97c28) )
+	ROM_REGION( 0x40000, "maincpu", 0 ) // 68000 code, encrypted
+	ROM_LOAD16_BYTE( "jungle_=record=_rom3_vi3.02.u15", 0x00000, 0x20000, CRC(7c9f431e) SHA1(fb3f90c4fe59c938f36b30c5fa3af227031e7d7a) )
+	ROM_LOAD16_BYTE( "jungle_=record=_rom2_vi3.02.u14", 0x00001, 0x20000, CRC(f6a71260) SHA1(8e48cbb9d701ad968540244396820359afe97c28) )
 
-	ROM_REGION( 0x040000, "oki", 0 ) /* Samples */
+	ROM_REGION( 0x040000, "oki", 0 )
 	ROM_LOAD( "jungle_rom1.u99", 0x00000, 0x40000, CRC(05ef5b85) SHA1(ca7584646271c6adc7880eca5cf43a412340c522) )
 
 	ROM_REGION( 0x80000, "reelgfx", 0 )
@@ -166,4 +168,22 @@ ROM_START( jungleyo )
 ROM_END
 
 
-GAME( 1999, jungleyo, 0, jungleyo, jungleyo, jungleyo_state, empty_init, ROT0, "Yonshi", "Jungle (VI3.02)", MACHINE_NOT_WORKING )
+void jungleyo_state::init_jungleyo() // TODO: just a start, gives correct (?) strings at 0x2000-0x2fff, 0x7000-0x9000 and 0xc000-0xd000 ranges. From 0x10000 onwards needs something different
+{
+	uint16_t *src = (uint16_t *)memregion("maincpu")->base();
+
+	for (int i = 0x00000; i < 0x40000 / 2; i++)
+		src[i] = bitswap<16>(src[i] ^ 0x00ff, 8, 10, 15, 11, 9, 14, 12, 13, 6, 4, 2, 7, 3, 0, 1, 5); // TODO: possibly the bitswap and XOR are applied per byte and not per word, verify when more is discovered
+
+	/*char filename[256];
+	sprintf(filename,"p_decrypted_%s", machine().system().name);
+	FILE *fp = fopen(filename, "w+b");
+	if (fp)
+	{
+	    fwrite(src, 0x40000, 1, fp);
+	    fclose(fp);
+	}*/
+}
+
+
+GAME( 1999, jungleyo, 0, jungleyo, jungleyo, jungleyo_state, init_jungleyo, ROT0, "Yonshi", "Jungle (VI3.02)", MACHINE_NOT_WORKING ) // version 3.02 built on 2001/02/09, there's copyright both for Yonshi and Global in strings

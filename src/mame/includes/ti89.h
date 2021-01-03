@@ -22,6 +22,7 @@ public:
 		, m_maincpu(*this, "maincpu")
 		, m_flash(*this, "flash")
 		, m_rom_base(*this, "flash")
+		, m_ram_base(*this, "nvram")
 		, m_io_bit0(*this, "BIT0")
 		, m_io_bit1(*this, "BIT1")
 		, m_io_bit2(*this, "BIT2")
@@ -49,8 +50,9 @@ private:
 	enum { HW1=1, HW2, HW3, HW4 };
 
 	required_device<cpu_device> m_maincpu;
-	required_device<sharp_unk128mbit_device> m_flash;
+	optional_device<intelfsh16_device> m_flash;
 	required_region_ptr<uint16_t> m_rom_base;
+	required_shared_ptr<uint16_t> m_ram_base;
 	required_ioport m_io_bit0;
 	required_ioport m_io_bit1;
 	required_ioport m_io_bit2;
@@ -62,8 +64,7 @@ private:
 
 	// HW specifications
 	uint8_t m_hw_version;
-	bool m_flash_mem;
-	uint32_t m_initial_pc;
+	bool m_ram_enabled;
 
 	// keyboard
 	uint16_t m_kb_mask;
@@ -89,12 +90,12 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	uint8_t keypad_r();
-	DECLARE_WRITE16_MEMBER( ti68k_io_w );
-	DECLARE_READ16_MEMBER( ti68k_io_r );
-	DECLARE_WRITE16_MEMBER( ti68k_io2_w );
-	DECLARE_READ16_MEMBER( ti68k_io2_r );
-	DECLARE_WRITE16_MEMBER( flash_w );
-	DECLARE_READ16_MEMBER( flash_r );
+	void ti68k_io_w(offs_t offset, uint16_t data);
+	uint16_t ti68k_io_r(offs_t offset);
+	void ti68k_io2_w(offs_t offset, uint16_t data);
+	uint16_t ti68k_io2_r(offs_t offset);
+	uint16_t rom_r(offs_t offset);
+	uint16_t reset_overlay_r(offs_t offset);
 	void ti68k_palette(palette_device &palette) const;
 
 	TIMER_DEVICE_CALLBACK_MEMBER(ti68k_timer_callback);

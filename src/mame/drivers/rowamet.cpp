@@ -28,7 +28,6 @@ ToDO:
 #include "cpu/z80/z80.h"
 #include "machine/timer.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 #include "rowamet.lh"
@@ -48,10 +47,10 @@ public:
 	void rowamet(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(sound_r);
-	DECLARE_WRITE8_MEMBER(mute_w);
-	DECLARE_READ8_MEMBER(io_r);
-	DECLARE_WRITE8_MEMBER(io_w);
+	uint8_t sound_r();
+	void mute_w(uint8_t data);
+	uint8_t io_r(offs_t offset);
+	void io_w(offs_t offset, uint8_t data);
 	TIMER_DEVICE_CALLBACK_MEMBER(timer_a);
 	void rowamet_map(address_map &map);
 	void rowamet_sub_io(address_map &map);
@@ -173,22 +172,22 @@ static INPUT_PORTS_START( rowamet )
 INPUT_PORTS_END
 
 
-READ8_MEMBER( rowamet_state::sound_r )
+uint8_t rowamet_state::sound_r()
 {
 	return m_sndcmd;
 }
 
-WRITE8_MEMBER( rowamet_state::mute_w )
+void rowamet_state::mute_w(uint8_t data)
 {
-	machine().sound().system_enable(data ? 0 : 1);
+	machine().sound().system_mute(data != 0);
 }
 
-READ8_MEMBER( rowamet_state::io_r )
+uint8_t rowamet_state::io_r(offs_t offset)
 {
 	return m_io[offset];
 }
 
-WRITE8_MEMBER( rowamet_state::io_w )
+void rowamet_state::io_w(offs_t offset, uint8_t data)
 {
 	m_io[offset] = data;
 
@@ -222,24 +221,25 @@ TIMER_DEVICE_CALLBACK_MEMBER( rowamet_state::timer_a )
 	m_digits[++digit] = patterns[m_p_ram[m_out_offs++]&15];
 }
 
-MACHINE_CONFIG_START(rowamet_state::rowamet)
+void rowamet_state::rowamet(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 1888888)
-	MCFG_DEVICE_PROGRAM_MAP(rowamet_map)
-	MCFG_DEVICE_ADD("cpu2", Z80, 1888888)
-	MCFG_DEVICE_PROGRAM_MAP(rowamet_sub_map)
-	MCFG_DEVICE_IO_MAP(rowamet_sub_io)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_a", rowamet_state, timer_a, attotime::from_hz(200))
+	Z80(config, m_maincpu, 1888888);
+	m_maincpu->set_addrmap(AS_PROGRAM, &rowamet_state::rowamet_map);
+
+	Z80(config, m_cpu2, 1888888);
+	m_cpu2->set_addrmap(AS_PROGRAM, &rowamet_state::rowamet_sub_map);
+	m_cpu2->set_addrmap(AS_IO, &rowamet_state::rowamet_sub_io);
+
+	TIMER(config, "timer_a").configure_periodic(FUNC(rowamet_state::timer_a), attotime::from_hz(200));
 
 	/* Video */
 	config.set_default_layout(layout_rowamet);
 
 	/* Sound */
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", DAC_8BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // unknown DAC
+}
 
 /*-------------------------------------------------------------------
 / Conan (1983)

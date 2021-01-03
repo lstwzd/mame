@@ -42,7 +42,7 @@
 #define FUNCNAME __PRETTY_FUNCTION__
 #endif
 
-READ16_MEMBER( m68340_cpu_device::m68340_internal_sim_r )
+uint16_t m68340_cpu_device::m68340_internal_sim_r(offs_t offset, uint16_t mem_mask)
 {
 	LOGR("%s\n", FUNCNAME);
 	assert(m_m68340SIM);
@@ -98,7 +98,7 @@ READ16_MEMBER( m68340_cpu_device::m68340_internal_sim_r )
 	return val;
 }
 
-WRITE16_MEMBER( m68340_cpu_device::m68340_internal_sim_w )
+void m68340_cpu_device::m68340_internal_sim_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	LOG("\n%s\n", FUNCNAME);
 	LOGSETUP(" * Reg %02x <- %02x - %s\n", offset * 2, data,
@@ -194,7 +194,7 @@ WRITE16_MEMBER( m68340_cpu_device::m68340_internal_sim_w )
 	}
 }
 
-READ8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_r )
+uint8_t m68340_cpu_device::m68340_internal_sim_ports_r(offs_t offset)
 {
 	LOGR("%s\n", FUNCNAME);
 	offset += 0x10;
@@ -241,6 +241,7 @@ READ8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_r )
 		case m68340_sim::REG_PORTB1:
 			LOGR("- %08x %s %04x (PORTB1 - Port B Data 1)\n", m_ppc, FUNCNAME, offset);
 			// Fallthrough to mirror register
+			[[fallthrough]];
 		case m68340_sim::REG_PORTB:
 			LOGR("- %08x %s %04x (PORTB - Port B Data 0)\n", m_ppc, FUNCNAME, offset);
 			sim.m_portb &= sim.m_ddrb;
@@ -280,7 +281,7 @@ READ8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_r )
 	return val;
 }
 
-WRITE8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_w )
+void m68340_cpu_device::m68340_internal_sim_ports_w(offs_t offset, uint8_t data)
 {
 	LOG("%s", FUNCNAME);
 	offset += 0x10;
@@ -317,6 +318,7 @@ WRITE8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_w )
 		case m68340_sim::REG_PORTB1:
 			LOGDATA("- %08x %04x, %02x (PORTB1 - Port B Data - mirror)\n", m_ppc, offset,data);
 			// Falling through to mirrored register portb
+			[[fallthrough]];
 		case m68340_sim::REG_PORTB:
 			LOGDATA("- %08x %04x, %02x (PORTB - Port B Data)\n", m_ppc, offset,data);
 			sim.m_portb = (data & sim.m_ddrb & sim.m_pparb);
@@ -342,7 +344,7 @@ WRITE8_MEMBER( m68340_cpu_device::m68340_internal_sim_ports_w )
 	}
 }
 
-READ32_MEMBER( m68340_cpu_device::m68340_internal_sim_cs_r )
+uint32_t m68340_cpu_device::m68340_internal_sim_cs_r(offs_t offset, uint32_t mem_mask)
 {
 	LOGR("%s\n", FUNCNAME);
 	offset += m68340_sim::REG_AM_CS0>>2;
@@ -368,7 +370,7 @@ READ32_MEMBER( m68340_cpu_device::m68340_internal_sim_cs_r )
 	return 0x00000000;
 }
 
-WRITE32_MEMBER( m68340_cpu_device::m68340_internal_sim_cs_w )
+void m68340_cpu_device::m68340_internal_sim_cs_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	LOG("%s\n", FUNCNAME);
 	offset += m68340_sim::REG_AM_CS0>>2;
@@ -491,6 +493,12 @@ void m68340_sim::reset()
 	m_pitr= 0x0000; // TODO: read MODCK pin to set the clock modes for watch dog and periodic timer
 	m_swsr= 0x0000;
 	m_pit_irq = false;
+}
+
+void m68340_sim::module_reset()
+{
+	// SYS set in RSR, nothing else happens
+	m_avr_rsr = (m_avr_rsr & 0xff00) | 0x02;
 }
 
 /* do_tick_pit works on whole clock cycles, no flank support */

@@ -62,10 +62,10 @@ public:
 	void init_ti990_4v();
 
 private:
-	DECLARE_READ8_MEMBER( panel_read );
-	DECLARE_WRITE8_MEMBER( panel_write );
-	DECLARE_WRITE8_MEMBER( external_operation );
-	DECLARE_READ8_MEMBER( interrupt_level );
+	uint8_t panel_read(offs_t offset);
+	void panel_write(offs_t offset, uint8_t data);
+	void external_operation(offs_t offset, uint8_t data);
+	uint8_t interrupt_level();
 	DECLARE_WRITE_LINE_MEMBER( fd_interrupt );
 	DECLARE_WRITE_LINE_MEMBER( asrkey_interrupt );
 	DECLARE_WRITE_LINE_MEMBER( vdtkey_interrupt );
@@ -113,15 +113,15 @@ void ti990_4_state::device_timer(emu_timer &timer, device_timer_id id, int param
 	logerror("ti990_4: Released LOAD interrupt\n");
 }
 
-READ8_MEMBER( ti990_4_state::panel_read )
+uint8_t ti990_4_state::panel_read(offs_t offset)
 {
-	if (offset == 1)
-		return 0x48;
+	if (offset == 11 || offset == 14)
+		return 1;
 
 	return 0;
 }
 
-WRITE8_MEMBER( ti990_4_state::panel_write )
+void ti990_4_state::panel_write(offs_t offset, uint8_t data)
 {
 	logerror("ti990_4: writing to panel @CRU %04x: %02x\n", offset<<1, data);
 }
@@ -178,7 +178,7 @@ WRITE_LINE_MEMBER(ti990_4_state::asrkey_interrupt)
 	set_int_line(6, state);
 }
 
-WRITE8_MEMBER( ti990_4_state::external_operation )
+void ti990_4_state::external_operation(offs_t offset, uint8_t data)
 {
 	static char const *const extop[8] = { "inv1", "inv2", "IDLE", "RSET", "inv3", "CKON", "CKOF", "LREX" };
 	switch (offset)
@@ -206,7 +206,7 @@ WRITE8_MEMBER( ti990_4_state::external_operation )
 	}
 }
 
-READ8_MEMBER( ti990_4_state::interrupt_level )
+uint8_t ti990_4_state::interrupt_level()
 {
 	return m_int_level;
 }
@@ -227,47 +227,37 @@ void ti990_4_state::memmap(address_map &map)
 /*
     CRU map
 
-    0x000-0xF7F: user devices
-    0xF80-0xF9F: CRU interrupt + expansion control
-    0xFA0-0xFAF: TILINE coupler interrupt control
-    0xFB0-0xFCF: reserved
-    0xFD0-0xFDF: memory mapping and memory protect
-    0xFE0-0xFEF: internal interrupt control
-    0xFF0-0xFFF: front panel
+    0x0000-0x1EFF: user devices
+    0x1F00-0x1F3F: CRU interrupt + expansion control
+    0x1F40-0x1F5F: TILINE coupler interrupt control
+    0x1F60-0x1F9F: reserved
+    0x1FA0-0x1FBF: memory mapping and memory protect
+    0x1FC0-0x1FDF: internal interrupt control
+    0x1FF0-0x1FFF: front panel
 
     Default user map:
-    0x000-0x00f: 733 ASR (int 6)
-    0x010-0x01f: PROM programmer (wired to int 15, unused)
-    0x020-0x02f: 804 card reader (int 4)
-    0x030-0x03f: line printer (wired to int 14, unused)
-    0x040-0x05f: FD800 floppy controller (int 7)
-    0x060-0x07f: VDT1 (int 3 - wired to int 11, unused)
-    0x080-0x09f: VDT2, or CRU expansion (int ??? - wired to int 10, unused)
-    0x0a0-0x0bf: VDT3 (int ??? - wired to int 9, unused)
+    0x0000-0x001f: 733 ASR (int 6)
+    0x0020-0x003f: PROM programmer (wired to int 15, unused)
+    0x0040-0x005f: 804 card reader (int 4)
+    0x0060-0x007f: line printer (wired to int 14, unused)
+    0x0080-0x00bf: FD800 floppy controller (int 7)
+    0x00c0-0x00ff: VDT1 (int 3 - wired to int 11, unused)
+    0x0100-0x013f: VDT2, or CRU expansion (int ??? - wired to int 10, unused)
+    0x0140-0x017f: VDT3 (int ??? - wired to int 9, unused)
 */
 
 void ti990_4_state::crumap(address_map &map)
 {
-	map(0x00, 0x01).r("asr733", FUNC(asr733_device::cru_r));
-	map(0x00, 0x0f).w("asr733", FUNC(asr733_device::cru_w));
-
-	map(0x08, 0x0b).r(m_fd800, FUNC(fd800_legacy_device::cru_r));
-	map(0x40, 0x5f).w(m_fd800, FUNC(fd800_legacy_device::cru_w));
-
-	map(0x1fe, 0x1ff).r(FUNC(ti990_4_state::panel_read));
-	map(0xff0, 0xfff).w(FUNC(ti990_4_state::panel_write));
+	map(0x0000, 0x001f).rw("asr733", FUNC(asr733_device::cru_r), FUNC(asr733_device::cru_w));
+	map(0x0080, 0x00bf).rw(m_fd800, FUNC(fd800_legacy_device::cru_r), FUNC(fd800_legacy_device::cru_w));
+	map(0x1fe0, 0x1fff).rw(FUNC(ti990_4_state::panel_read), FUNC(ti990_4_state::panel_write));
 }
 
 void ti990_4_state::crumap_v(address_map &map)
 {
-	map(0x10, 0x11).r("vdt911", FUNC(vdt911_device::cru_r));
-	map(0x80, 0x8f).w("vdt911", FUNC(vdt911_device::cru_w));
-
-	map(0x08, 0x0b).r(m_fd800, FUNC(fd800_legacy_device::cru_r));
-	map(0x40, 0x5f).w(m_fd800, FUNC(fd800_legacy_device::cru_w));
-
-	map(0x1fe, 0x1ff).r(FUNC(ti990_4_state::panel_read));
-	map(0xff0, 0xfff).w(FUNC(ti990_4_state::panel_write));
+	map(0x0080, 0x00bf).rw(m_fd800, FUNC(fd800_legacy_device::cru_r), FUNC(fd800_legacy_device::cru_w));
+	map(0x0100, 0x011f).rw("vdt911", FUNC(vdt911_device::cru_r), FUNC(vdt911_device::cru_w));
+	map(0x1fe0, 0x1fff).rw(FUNC(ti990_4_state::panel_read), FUNC(ti990_4_state::panel_write));
 }
 
 
@@ -291,7 +281,8 @@ void ti990_4_state::init_ti990_4()
 	m_nmi_timer = timer_alloc(NMI_TIMER_ID);
 }
 
-MACHINE_CONFIG_START(ti990_4_state::ti990_4)
+void ti990_4_state::ti990_4(machine_config &config)
+{
 	/* basic machine hardware */
 	/* TMS9900 CPU @ 3.0(???) MHz */
 	TMS9900(config, m_maincpu, 3000000);
@@ -311,9 +302,10 @@ MACHINE_CONFIG_START(ti990_4_state::ti990_4)
 	TI99X_FD800(config, "fd800", 0).int_cb().set(FUNC(ti990_4_state::fd_interrupt));
 
 	//  TODO: Add floppy drives
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(ti990_4_state::ti990_4v)
+void ti990_4_state::ti990_4v(machine_config &config)
+{
 	/* basic machine hardware */
 	/* TMS9900 CPU @ 3.0(???) MHz */
 	TMS9900(config, m_maincpu, 3000000);
@@ -331,7 +323,7 @@ MACHINE_CONFIG_START(ti990_4_state::ti990_4v)
 	TI99X_FD800(config, "fd800", 0).int_cb().set(FUNC(ti990_4_state::fd_interrupt));
 
 	//  TODO: Add floppy drives
-MACHINE_CONFIG_END
+}
 
 /*
   ROM loading

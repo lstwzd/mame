@@ -121,23 +121,23 @@ private:
 	uint16_t* m_rom16;
 	uint8_t* m_rom8;
 
-	DECLARE_WRITE16_MEMBER(paloff_w);
-	DECLARE_WRITE16_MEMBER(paldat_w);
+	void paloff_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void paldat_w(uint16_t data);
 
-	DECLARE_WRITE16_MEMBER(port10_w);
+	void port10_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_WRITE16_MEMBER(port20_w);
-	DECLARE_WRITE16_MEMBER(port62_w);
+	void port20_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void port62_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_READ16_MEMBER(port1e_r);
+	uint16_t port1e_r();
 
-	DECLARE_READ16_MEMBER(pic_r);
-	DECLARE_WRITE16_MEMBER(pic_w);
+	uint16_t pic_r(offs_t offset, uint16_t mem_mask = ~0);
+	void pic_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_READ16_MEMBER(blit_start_r);
+	uint16_t blit_start_r();
 
-	DECLARE_READ16_MEMBER(mem_r);
-	DECLARE_WRITE16_MEMBER(mem_w);
+	uint16_t mem_r(offs_t offset);
+	void mem_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	virtual void machine_start() override;
 	virtual void video_start() override;
@@ -186,45 +186,43 @@ void ttchamp_state::video_start()
 uint32_t ttchamp_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	logerror("update\n");
-	int y,x,count;
+	int count;
 
 	static const int xxx=320,yyy=204;
 
 	bitmap.fill(m_palette->black_pen());
-	uint8_t *videoramfg;
-	uint8_t* videorambg;
+	uint8_t const *const videoramfg = (uint8_t*)m_videoram2;
+	uint8_t const *const videorambg = (uint8_t*)m_videoram0;
 
 	count=0;
-	videorambg = (uint8_t*)m_videoram0;
-	videoramfg = (uint8_t*)m_videoram2;
 
-	for (y=0;y<yyy;y++)
+	for (int y=0;y<yyy;y++)
 	{
-		for(x=0;x<xxx;x++)
+		for(int x=0;x<xxx;x++)
 		{
-			bitmap.pix16(y, x) = videorambg[BYTE_XOR_LE(count)]+0x300;
+			bitmap.pix(y, x) = videorambg[BYTE_XOR_LE(count)]+0x300;
 			count++;
 		}
 	}
 
-	/*
+#if 0
 	count=0;
 	videoram = (uint8_t*)m_videoram1;
-	for (y=0;y<yyy;y++)
+	for (int y=0;y<yyy;y++)
 	{
-	    for(x=0;x<xxx;x++)
-	    {
-	        uint8_t pix = videoram[BYTE_XOR_LE(count)];
-	        if (pix) bitmap.pix16(y, x) = pix+0x200;
-	        count++;
-	    }
+		for (int x=0;x<xxx;x++)
+		{
+			uint8_t pix = videoram[BYTE_XOR_LE(count)];
+			if (pix) bitmap.pix(y, x) = pix+0x200;
+			count++;
+		}
 	}
-	*/
+#endif
 
 	count=0;
-	for (y=0;y<yyy;y++)
+	for (int y=0;y<yyy;y++)
 	{
-		for(x=0;x<xxx;x++)
+		for(int x=0;x<xxx;x++)
 		{
 			uint8_t pix = videoramfg[BYTE_XOR_LE(count)];
 			if (pix)
@@ -239,16 +237,16 @@ uint32_t ttchamp_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 				if (pix == 0x01) // blend mode 1
 				{
 					uint8_t pix = videorambg[BYTE_XOR_LE(count)];
-					bitmap.pix16(y, x) = pix + 0x200;
+					bitmap.pix(y, x) = pix + 0x200;
 				}
 				else if (pix == 0x02) // blend mode 2
 				{
 					uint8_t pix = videorambg[BYTE_XOR_LE(count)];
-					bitmap.pix16(y, x) = pix + 0x100;
+					bitmap.pix(y, x) = pix + 0x100;
 				}
 				else
 				{
-					bitmap.pix16(y, x) = pix + 0x000;
+					bitmap.pix(y, x) = pix + 0x000;
 				}
 			}
 			count++;
@@ -271,19 +269,19 @@ uint32_t ttchamp_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 }
 
 
-WRITE16_MEMBER(ttchamp_state::paloff_w)
+void ttchamp_state::paloff_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_paloff);
 }
 
 
-WRITE16_MEMBER(ttchamp_state::paldat_w)
+void ttchamp_state::paldat_w(uint16_t data)
 {
 	// 0x8000 of offset is sometimes set
 	m_palette->set_pen_color(m_paloff & 0x3ff,pal5bit(data>>0),pal5bit(data>>5),pal5bit(data>>10));
 }
 
-READ16_MEMBER(ttchamp_state::pic_r)
+uint16_t ttchamp_state::pic_r(offs_t offset, uint16_t mem_mask)
 {
 //  printf("%06x: read from PIC (%04x)\n", m_maincpu->pc(),mem_mask);
 	if (m_picmodex == picmode::SET_READLATCH)
@@ -298,7 +296,7 @@ READ16_MEMBER(ttchamp_state::pic_r)
 
 }
 
-WRITE16_MEMBER(ttchamp_state::pic_w)
+void ttchamp_state::pic_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 //  printf("%06x: write to PIC %04x (%04x) (%d)\n", m_maincpu->pc(),data,mem_mask, m_picmodex);
 	if (m_picmodex == picmode::IDLE)
@@ -357,7 +355,7 @@ WRITE16_MEMBER(ttchamp_state::pic_w)
 }
 
 
-READ16_MEMBER(ttchamp_state::mem_r)
+uint16_t ttchamp_state::mem_r(offs_t offset)
 {
 	// bits 0xf0 are used too, so this is likely wrong.
 
@@ -389,7 +387,7 @@ READ16_MEMBER(ttchamp_state::mem_r)
 	}
 }
 
-WRITE16_MEMBER(ttchamp_state::mem_w)
+void ttchamp_state::mem_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	// this is very strange, we use the offset (address bits) not data bits to set values..
 	// I get the impression this might actually overlay the entire address range, including RAM and regular VRAM?
@@ -511,20 +509,20 @@ void ttchamp_state::ttchamp_map(address_map &map)
 }
 
 /* Re-use same parameters as before (one-shot) */
-READ16_MEMBER(ttchamp_state::port1e_r)
+uint16_t ttchamp_state::port1e_r()
 {
 	m_spritesinit = 3;
 	return 0xff;
 }
 
-READ16_MEMBER(ttchamp_state::blit_start_r)
+uint16_t ttchamp_state::blit_start_r()
 {
 	m_spritesinit = 1;
 	return 0xff;
 }
 
 /* blitter mode select */
-WRITE16_MEMBER(ttchamp_state::port10_w)
+void ttchamp_state::port10_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	/*
 	 --xx ---- fill enable
@@ -535,14 +533,14 @@ WRITE16_MEMBER(ttchamp_state::port10_w)
 }
 
 /* selects upper bank for the blitter */
-WRITE16_MEMBER(ttchamp_state::port20_w)
+void ttchamp_state::port20_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	//printf("%06x: port20_w %04x %04x\n", m_maincpu->pc(), data, mem_mask);
 	m_rombank = 1;
 }
 
 /* selects lower bank for the blitter */
-WRITE16_MEMBER(ttchamp_state::port62_w)
+void ttchamp_state::port62_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	//printf("%06x: port62_w %04x %04x\n", m_maincpu->pc(), data, mem_mask);
 	m_rombank = 0;
@@ -645,32 +643,30 @@ INTERRUPT_GEN_MEMBER(ttchamp_state::irq)/* right? */
 	device.execute().pulse_input_line(INPUT_LINE_NMI, attotime::zero);
 }
 
-MACHINE_CONFIG_START(ttchamp_state::ttchamp)
+void ttchamp_state::ttchamp(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", V30, 8000000)
-	MCFG_DEVICE_PROGRAM_MAP(ttchamp_map)
-	MCFG_DEVICE_IO_MAP(ttchamp_io)
-	MCFG_DEVICE_VBLANK_INT_DRIVER("screen", ttchamp_state,  irq)
+	V30(config, m_maincpu, 8000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &ttchamp_state::ttchamp_map);
+	m_maincpu->set_addrmap(AS_IO, &ttchamp_state::ttchamp_io);
+	m_maincpu->set_vblank_int("screen", FUNC(ttchamp_state::irq));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(1024,1024)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 0, 200-1)
-	MCFG_SCREEN_UPDATE_DRIVER(ttchamp_state, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
-
-	MCFG_PALETTE_ADD("palette", 0x400)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(1024,1024);
+	screen.set_visarea(0, 320-1, 0, 200-1);
+	screen.set_screen_update(FUNC(ttchamp_state::screen_update));
+	screen.set_palette(m_palette);
+	PALETTE(config, m_palette).set_entries(0x400);
 
 	NVRAM(config, "backram", nvram_device::DEFAULT_ALL_0);
 
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, 8000000/8, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-
-MACHINE_CONFIG_END
+	OKIM6295(config, "oki", 8000000/8, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
 
 ROM_START( ttchamp )
 	ROM_REGION16_LE( 0x200000, "maincpu", 0 )

@@ -40,13 +40,13 @@ public:
 	void init_gts80a();
 
 private:
-	DECLARE_READ8_MEMBER(port1a_r);
-	DECLARE_READ8_MEMBER(port2a_r);
-	DECLARE_WRITE8_MEMBER(port1b_w);
-	DECLARE_WRITE8_MEMBER(port2a_w);
-	DECLARE_WRITE8_MEMBER(port2b_w);
-	DECLARE_WRITE8_MEMBER(port3a_w);
-	DECLARE_WRITE8_MEMBER(port3b_w);
+	uint8_t port1a_r();
+	uint8_t port2a_r();
+	void port1b_w(uint8_t data);
+	void port2a_w(uint8_t data);
+	void port2b_w(uint8_t data);
+	void port3a_w(uint8_t data);
+	void port3b_w(offs_t offset, uint8_t data);
 	void gts80a_map(address_map &map);
 
 	uint8_t m_port2;
@@ -263,7 +263,7 @@ static INPUT_PORTS_START( gts80a )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_CODE(KEYCODE_O)
 INPUT_PORTS_END
 
-READ8_MEMBER( gts80a_state::port1a_r )
+uint8_t gts80a_state::port1a_r()
 {
 	char kbdrow[8];
 	uint8_t data = 0;
@@ -281,19 +281,19 @@ READ8_MEMBER( gts80a_state::port1a_r )
 	return data;
 }
 
-READ8_MEMBER( gts80a_state::port2a_r )
+uint8_t gts80a_state::port2a_r()
 {
 	return m_port2 | 0x80; // slam tilt off
 }
 
 // sw strobes
-WRITE8_MEMBER( gts80a_state::port1b_w )
+void gts80a_state::port1b_w(uint8_t data)
 {
 	m_swrow = data;
 }
 
 // schematic and pinmame say '1' is indicated by m_segment !bits 4,5,6, but it is !bit 7
-WRITE8_MEMBER( gts80a_state::port2a_w )
+void gts80a_state::port2a_w(uint8_t data)
 {
 	m_port2 = data;
 	static const uint8_t patterns[16] = { 0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7c,0x07,0x7f,0x67,0x58,0x4c,0x62,0x69,0x78,0 }; // 7448
@@ -317,23 +317,23 @@ WRITE8_MEMBER( gts80a_state::port2a_w )
 }
 
 //d0-3 bcd data; d4-6 = centre segment; d7 = dipsw enable
-WRITE8_MEMBER( gts80a_state::port2b_w )
+void gts80a_state::port2b_w(uint8_t data)
 {
 	m_segment = data;//printf("%s:%X ",machine().describe_context().c_str(),data);
 }
 
 // solenoids
-WRITE8_MEMBER( gts80a_state::port3a_w )
+void gts80a_state::port3a_w(uint8_t data)
 {
 }
 
 //pb0-3 = sound; pb4-7 = lamprow
-WRITE8_MEMBER( gts80a_state::port3b_w )
+void gts80a_state::port3b_w(offs_t offset, uint8_t data)
 {
 	uint8_t sndcmd = data & 15;
 	m_lamprow = data >> 4;
 	if (m_r0_sound)
-		m_r0_sound->write(space, offset, sndcmd);
+		m_r0_sound->write(offset, sndcmd);
 	if (m_r1_sound)
 		m_r1_sound->write(sndcmd);
 }
@@ -430,10 +430,10 @@ uint32_t caveman_state::screen_update_caveman(screen_device &screen, bitmap_ind1
 		{
 			uint8_t pix = m_vram[count];
 
-			bitmap.pix16(y, x+0) = (pix >> 6)&0x3;
-			bitmap.pix16(y, x+1) = (pix >> 4)&0x3;
-			bitmap.pix16(y, x+2) = (pix >> 2)&0x3;
-			bitmap.pix16(y, x+3) = (pix >> 0)&0x3;
+			bitmap.pix(y, x+0) = (pix >> 6)&0x3;
+			bitmap.pix(y, x+1) = (pix >> 4)&0x3;
+			bitmap.pix(y, x+2) = (pix >> 2)&0x3;
+			bitmap.pix(y, x+3) = (pix >> 0)&0x3;
 
 			count++;
 		}
@@ -453,35 +453,35 @@ void caveman_state::video_map(address_map &map)
 
 void caveman_state::video_io_map(address_map &map)
 {
-//  AM_RANGE(0x000, 0x002) AM_READWRITE() // 8259 irq controller
-//  AM_RANGE(0x100, 0x102) AM_READWRITE() // HD46505
-//  AM_RANGE(0x200, 0x200) AM_READWRITE() // 8212 in, ?? out
-//  AM_RANGE(0x300, 0x300) AM_READWRITE() // soundlatch (command?) in, ?? out
+//  map(0x000, 0x002).rw(FUNC(caveman_state::), FUNC(caveman_state::)); // 8259 irq controller
+//  map(0x100, 0x102).rw(FUNC(caveman_state::), FUNC(caveman_state::)); // HD46505
+//  map(0x200, 0x200).rw(FUNC(caveman_state::), FUNC(caveman_state::)); // 8212 in, ?? out
+//  map(0x300, 0x300).rw(FUNC(caveman_state::), FUNC(caveman_state::)); // soundlatch (command?) in, ?? out
 
-//  AM_RANGE(0x400, 0x400) AM_READ() // joystick inputs
-//  AM_RANGE(0x500, 0x506) AM_WRITE() // palette
+//  map(0x400, 0x400).r(FUNC(caveman_state::)); // joystick inputs
+//  map(0x500, 0x506).w(FUNC(caveman_state::)); // palette
 
 }
 
-MACHINE_CONFIG_START(caveman_state::caveman)
+void caveman_state::caveman(machine_config &config)
+{
 	gts80a_ss(config);
-	MCFG_DEVICE_ADD("video_cpu", I8088, 5000000)
-	MCFG_DEVICE_PROGRAM_MAP(video_map)
-	MCFG_DEVICE_IO_MAP(video_io_map)
+	I8088(config, m_videocpu, 5000000);
+	m_videocpu->set_addrmap(AS_PROGRAM, &caveman_state::video_map);
+	m_videocpu->set_addrmap(AS_IO, &caveman_state::video_io_map);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 0, 248-1)
-	MCFG_SCREEN_UPDATE_DRIVER(caveman_state, screen_update_caveman)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(256, 256);
+	screen.set_visarea(0, 256-1, 0, 248-1);
+	screen.set_screen_update(FUNC(caveman_state::screen_update_caveman));
+	screen.set_palette("palette");
 
-	MCFG_PALETTE_ADD("palette", 16)
+	PALETTE(config, "palette").set_entries(16);
 
 	config.set_default_layout(layout_gts80a_caveman);
-
-MACHINE_CONFIG_END
+}
 
 static INPUT_PORTS_START( caveman )
 	PORT_INCLUDE(gts80a)

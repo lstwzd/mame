@@ -48,8 +48,8 @@ private:
 	optional_shared_ptr<uint32_t> m_mainram;
 	required_device<scn2681_device> m_duart;
 
-	DECLARE_READ32_MEMBER(unk_r);
-	DECLARE_WRITE32_MEMBER(tty_w);
+	u32 unk_r();
+	void tty_w(u32 data);
 
 	inline void ATTR_PRINTF(3,4) verboselog( int n_level, const char *s_fmt, ... );
 
@@ -94,12 +94,12 @@ uint32_t ncd_mips_state::screen_update(screen_device &screen, bitmap_rgb32 &bitm
 	return 0;
 }
 
-READ32_MEMBER(ncd_mips_state::unk_r)
+u32 ncd_mips_state::unk_r()
 {
 	return 0xffffffff;
 }
 
-WRITE32_MEMBER(ncd_mips_state::tty_w)
+void ncd_mips_state::tty_w(u32 data)
 {
 	printf("%c", (data>>16) & 0x7f);
 }
@@ -119,7 +119,7 @@ void ncd_mips_state::hmxpro_map(address_map &map)
 
 WRITE_LINE_MEMBER(ncd_mips_state::duart_irq_handler)
 {
-	//m_maincpu->set_input_line_and_vector(M68K_IRQ_6, state, M68K_INT_ACK_AUTOVECTOR);
+	//m_maincpu->set_input_line(M68K_IRQ_6, state);
 }
 
 void ncd_mips_state::hmxpro(machine_config &config)

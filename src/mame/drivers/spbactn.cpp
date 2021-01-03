@@ -141,7 +141,7 @@ cpu #0 (PC=00001A1A): unmapped memory word write to 00090030 = 00F7 & 00FF
 #include "speaker.h"
 
 
-WRITE16_MEMBER(spbactn_state::main_irq_ack_w)
+void spbactn_state::main_irq_ack_w(uint16_t data)
 {
 	m_maincpu->set_input_line(M68K_IRQ_3, CLEAR_LINE);
 }
@@ -214,10 +214,7 @@ void spbactn_state::spbactnp_map(address_map &map)
 	map(0x90124, 0x90125).w(FUNC(spbactn_state::spbatnp_90124_w)); // bg scroll
 	map(0x9012c, 0x9012d).w(FUNC(spbactn_state::spbatnp_9012c_w)); // bg scroll
 
-
-
 	map(0x90000, 0x900ff).r(FUNC(spbactn_state::temp_read_handler_r)); // temp
-
 }
 
 void spbactn_state::spbactn_sound_map(address_map &map)
@@ -418,16 +415,8 @@ void spbactn_state::spbactn(machine_config &config)
 
 	/* video hardware */
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-#if 0
-	// actual blanking frequencies unknown, but should be close to NTSC
+	// TODO: verify actual blanking frequencies (should be close to NTSC)
 	m_screen->set_raw(XTAL(22'656'000) / 2, 720, 0, 512, 262, 16, 240);
-#else
-	// MCFG_SCREEN_RAW_PARAMS breaks sprites; keeping this in for now
-	m_screen->set_refresh_hz(60);
-	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
-	m_screen->set_size(64*8, 32*8);
-	m_screen->set_visarea(0*8, 64*8-1, 2*8, 30*8-1);
-#endif
 	m_screen->set_screen_update(FUNC(spbactn_state::screen_update_spbactn));
 
 	MCFG_VIDEO_START_OVERRIDE(spbactn_state,spbactn)
@@ -436,7 +425,6 @@ void spbactn_state::spbactn(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_444, 0x2800/2);
 
 	TECMO_SPRITE(config, m_sprgen, 0);
-	m_sprgen->set_gfx_region(2);
 
 	TECMO_MIXER(config, m_mixer, 0);
 	m_mixer->set_mixer_shifts(8,10,4);
@@ -490,7 +478,6 @@ void spbactn_state::spbactnp(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBRG_444, 0x2800/2);
 
 	TECMO_SPRITE(config, m_sprgen, 0);
-	m_sprgen->set_gfx_region(2);
 
 	TECMO_MIXER(config, m_mixer, 0);
 	m_mixer->set_mixer_shifts(12,14,8);

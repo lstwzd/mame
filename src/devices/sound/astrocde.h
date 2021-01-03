@@ -49,7 +49,7 @@ public:
 	// configuration access
 	auto si_cb() { return m_si_callback.bind(); }
 	template <std::size_t Bit> auto so_cb() { return m_so_callback[Bit].bind(); }
-	template <std::size_t Pot> void set_pot_tag(const char *tag) { m_pots[Pot].set_tag(tag); }
+	template <std::size_t Pot> auto pot_cb() { return m_pots[Pot].bind(); }
 
 protected:
 	// device-level overrides
@@ -58,11 +58,11 @@ protected:
 	virtual void device_reset() override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 
 public:
-	DECLARE_WRITE8_MEMBER(write);
-	DECLARE_READ8_MEMBER(read);
+	void write(offs_t offset, uint8_t data);
+	uint8_t read(offs_t offset);
 
 private:
 	void state_save_register();
@@ -89,8 +89,8 @@ private:
 	uint8_t       m_bitswap[256];   /* bitswap table */
 
 	devcb_read8   m_si_callback;
-	devcb_write8  m_so_callback[8];
-	optional_ioport_array<4> m_pots;
+	devcb_write8::array<8> m_so_callback;
+	devcb_read8::array<4> m_pots;
 };
 
 DECLARE_DEVICE_TYPE(ASTROCADE_IO, astrocade_io_device)

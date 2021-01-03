@@ -11,20 +11,10 @@
         * Atari Baseball
         * Atari Soccer
 
-    Known issues:
-        * The down marker sprite is multiplexed so that it will be drawn at the
-          top and bottom of the screen. We fake this feature. Additionally, we
-          draw it at a different location which seems to make more sense.
-
-        * The play which is chosen is drawn in text at the top of the screen;
-          no backdrop/overlay is supported yet. High quality artwork would be
-          appreciated.
-
-        * I'm not good at reading the schematics, so I'm unsure about the
-          exact vblank duration. I'm pretty sure it is one of two values though.
-
-        * The 4-player variation is slightly broken. I'm unsure of the
-          LED multiplexing.
+    TODO:
+        * these are cocktail arcade cabs, should view be rotated?
+        * atarifb play-select LED sometimes remains on, or is this normal?
+        * confirm sprite 'colors' in soccer
 
 ****************************************************************************
 
@@ -118,29 +108,27 @@
 
 /*************************************
  *
- *  Palette generation
+ *  Interrupts
  *
  *************************************/
 
-void atarifb_state::atarifb_palette(palette_device &palette) const
+TIMER_DEVICE_CALLBACK_MEMBER(atarifb_state::interrupt)
 {
-	// chars
-	palette.set_pen_color(0, rgb_t(0xff,0xff,0xff)); // white
-	palette.set_pen_color(1, rgb_t(0x00,0x00,0x00)); // black
+	int scanline = param;
+	m_screen->update_partial(scanline - 1);
 
-	// sprites
-	palette.set_pen_color(2, rgb_t(0x40,0x40,0x40)); // dark grey (?) - used in Soccer only
-	palette.set_pen_color(3, rgb_t(0xff,0xff,0xff)); // white
-	palette.set_pen_color(4, rgb_t(0x40,0x40,0x40)); // dark grey (?) - used in Soccer only
-	palette.set_pen_color(5, rgb_t(0x00,0x00,0x00)); // black
+	// periodic interrupts from _32V
+	// 4 interrupts per frame, including vblank irq
+	if (scanline != 0)
+		m_maincpu->set_input_line(0, ASSERT_LINE);
 
-	// sprite masks
-	palette.set_pen_color(6, rgb_t(0x40,0x40,0x40)); // dark grey (?) - used in Soccer only
-	palette.set_pen_color(7, rgb_t(0x80,0x80,0x80)); // grey
-	palette.set_pen_color(8, rgb_t(0x40,0x40,0x40)); // dark grey (?) - used in Soccer only
-	palette.set_pen_color(9, rgb_t(0x00,0x00,0x00)); // black
-	palette.set_pen_color(10, rgb_t(0x40,0x40,0x40)); // dark grey (?) - used in Soccer only
-	palette.set_pen_color(11, rgb_t(0xff,0xff,0xff)); // white
+	// LED latch is cleared
+	m_led_pwm->clear();
+}
+
+void atarifb_state::intack_w(uint8_t data)
+{
+	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
 
 
@@ -164,7 +152,7 @@ void atarifb_state::atarifb_map(address_map &map)
 	map(0x2001, 0x2001).w(FUNC(atarifb_state::atarifb_out1_w)); /* OUT 1 */
 	map(0x2002, 0x2002).w(FUNC(atarifb_state::atarifb_out2_w)); /* OUT 2 */
 	map(0x2003, 0x2003).w(FUNC(atarifb_state::atarifb_out3_w)); /* OUT 3 */
-	map(0x3000, 0x3000).noprw(); /* Interrupt Acknowledge */
+	map(0x3000, 0x3000).w(FUNC(atarifb_state::intack_w));
 	map(0x4000, 0x4000).r(FUNC(atarifb_state::atarifb_in0_r));
 	map(0x4002, 0x4002).r(FUNC(atarifb_state::atarifb_in2_r));
 	map(0x5000, 0x5000).w("watchdog", FUNC(watchdog_timer_device::reset_w));
@@ -185,7 +173,7 @@ void atarifb_state::atarifb4_map(address_map &map)
 	map(0x2001, 0x2001).w(FUNC(atarifb_state::atarifb4_out1_w)); /* OUT 1 */
 	map(0x2002, 0x2002).w(FUNC(atarifb_state::atarifb_out2_w)); /* OUT 2 */
 	map(0x2003, 0x2003).w(FUNC(atarifb_state::atarifb_out3_w)); /* OUT 3 */
-	map(0x3000, 0x3000).noprw(); /* Interrupt Acknowledge */
+	map(0x3000, 0x3000).w(FUNC(atarifb_state::intack_w));
 	map(0x4000, 0x4000).r(FUNC(atarifb_state::atarifb4_in0_r));
 	map(0x4001, 0x4001).portr("EXTRA");
 	map(0x4002, 0x4002).r(FUNC(atarifb_state::atarifb4_in2_r));
@@ -207,7 +195,7 @@ void atarifb_state::abaseb_map(address_map &map)
 	map(0x2001, 0x2001).w(FUNC(atarifb_state::abaseb_out1_w)); /* OUT 1 */
 	map(0x2002, 0x2002).w(FUNC(atarifb_state::atarifb_out2_w)); /* OUT 2 */
 	map(0x2003, 0x2003).w(FUNC(atarifb_state::atarifb_out3_w)); /* OUT 3 */
-	map(0x3000, 0x3000).noprw(); /* Interrupt Acknowledge */
+	map(0x3000, 0x3000).w(FUNC(atarifb_state::intack_w));
 	map(0x4000, 0x4000).r(FUNC(atarifb_state::atarifb_in0_r));
 	map(0x4002, 0x4002).r(FUNC(atarifb_state::atarifb_in2_r));
 	map(0x5000, 0x5000).w("watchdog", FUNC(watchdog_timer_device::reset_w));
@@ -227,7 +215,7 @@ void atarifb_state::soccer_map(address_map &map)
 	map(0x1000, 0x1000).writeonly().share("scroll_register"); /* OUT 0 */
 	map(0x1001, 0x1001).w(FUNC(atarifb_state::soccer_out1_w)); /* OUT 1 */
 	map(0x1002, 0x1002).w(FUNC(atarifb_state::soccer_out2_w)); /* OUT 2 */
-	map(0x1004, 0x1004).nopw(); /* Interrupt Acknowledge */
+	map(0x1004, 0x1004).w(FUNC(atarifb_state::intack_w));
 	map(0x1005, 0x1005).w("watchdog", FUNC(watchdog_timer_device::reset_w));
 	map(0x1800, 0x1800).r(FUNC(atarifb_state::atarifb4_in0_r));
 	map(0x1801, 0x1801).portr("EXTRA");
@@ -493,16 +481,16 @@ static const gfx_layout spritemasklayout =
 
 
 static GFXDECODE_START( gfx_atarifb )
-	GFXDECODE_ENTRY( "gfx1", 0, charlayout,  0x00, 0x01 ) /* offset into colors, # of colors */
-	GFXDECODE_ENTRY( "gfx2", 0, fieldlayout, 0x02, 0x01 ) /* offset into colors, # of colors */
+	GFXDECODE_ENTRY( "gfx1", 0, charlayout,  0x00, 0x01 )
+	GFXDECODE_ENTRY( "gfx2", 0, fieldlayout, 0x02, 0x02 )
 GFXDECODE_END
 
 
 static GFXDECODE_START( gfx_soccer )
-	GFXDECODE_ENTRY( "gfx1", 0x0000, charlayout,         0x00, 0x01 ) /* offset into colors, # of colors */
-	GFXDECODE_ENTRY( "gfx3", 0x0400, soccer_fieldlayout, 0x06, 0x01 ) /* offset into colors, # of colors */
-	GFXDECODE_ENTRY( "gfx2", 0x0000, spritelayout,       0x02, 0x02 ) /* offset into colors, # of colors */
-	GFXDECODE_ENTRY( "gfx3", 0x0000, spritemasklayout,   0x06, 0x03 ) /* offset into colors, # of colors */
+	GFXDECODE_ENTRY( "gfx1", 0x0000, charlayout,         0x00, 0x01 )
+	GFXDECODE_ENTRY( "gfx3", 0x0400, soccer_fieldlayout, 0x02, 0x01 )
+	GFXDECODE_ENTRY( "gfx2", 0x0000, spritelayout,       0x04, 0x02 )
+	GFXDECODE_ENTRY( "gfx3", 0x0000, spritemasklayout,   0x08, 0x03 )
 GFXDECODE_END
 
 
@@ -517,7 +505,7 @@ void atarifb_state::machine_start()
 {
 	m_leds.resolve();
 
-	save_item(NAME(m_CTRLD));
+	save_item(NAME(m_ctrld));
 	save_item(NAME(m_sign_x_1));
 	save_item(NAME(m_sign_x_2));
 	save_item(NAME(m_sign_x_3));
@@ -538,7 +526,7 @@ void atarifb_state::machine_start()
 
 void atarifb_state::machine_reset()
 {
-	m_CTRLD = 0;
+	m_ctrld = 0;
 	m_sign_x_1 = 0;
 	m_sign_y_1 = 0;
 	m_sign_x_2 = 0;
@@ -557,74 +545,68 @@ void atarifb_state::machine_reset()
 	m_counter_y_in2b = 0;
 }
 
-MACHINE_CONFIG_START(atarifb_state::atarifb)
-
+void atarifb_state::atarifb(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, 750000)
-	MCFG_DEVICE_PROGRAM_MAP(atarifb_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(atarifb_state, irq0_line_hold, 4*60)
+	M6502(config, m_maincpu, 12.096_MHz_XTAL/16);
+	m_maincpu->set_addrmap(AS_PROGRAM, &atarifb_state::atarifb_map);
+	m_maincpu->set_vblank_int("screen", FUNC(atarifb_state::irq0_line_assert)); // overrides irq_timer
+	TIMER(config, "irq_timer").configure_scanline(FUNC(atarifb_state::interrupt), "screen", 0, 64);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2037)   /* 16.3ms * 1/8 = 2037.5. Is it 1/8th or 3/32nds? (1528?) */)
-	MCFG_SCREEN_SIZE(38*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 38*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(atarifb_state, screen_update_atarifb)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(12.096_MHz_XTAL/2, 384, 0, 304, 262, 8, 248);
+	m_screen->set_screen_update(FUNC(atarifb_state::screen_update_atarifb));
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_atarifb)
-	PALETTE(config, m_palette, FUNC(atarifb_state::atarifb_palette), 12);
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_atarifb);
+	PALETTE(config, m_palette, FUNC(atarifb_state::atarifb_palette), 14);
+
+	PWM_DISPLAY(config, m_led_pwm).set_size(3, 4);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-
-	MCFG_DEVICE_ADD("discrete", DISCRETE, atarifb_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.18)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, atarifb_discrete).add_route(ALL_OUTPUTS, "mono", 0.18);
+}
 
 
-MACHINE_CONFIG_START(atarifb_state::atarifb4)
+void atarifb_state::atarifb4(machine_config &config)
+{
 	atarifb(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(atarifb4_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &atarifb_state::atarifb4_map);
+}
 
 
-MACHINE_CONFIG_START(atarifb_state::abaseb)
+void atarifb_state::abaseb(machine_config &config)
+{
 	atarifb(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(abaseb_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &atarifb_state::abaseb_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(atarifb_state, screen_update_abaseb)
+	m_screen->set_screen_update(FUNC(atarifb_state::screen_update_abaseb));
 
 	/* sound hardware */
-	MCFG_DEVICE_REPLACE("discrete", DISCRETE, abaseb_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.24)
-MACHINE_CONFIG_END
+	DISCRETE(config.replace(), m_discrete, abaseb_discrete).add_route(ALL_OUTPUTS, "mono", 0.24);
+}
 
 
-MACHINE_CONFIG_START(atarifb_state::soccer)
+void atarifb_state::soccer(machine_config &config)
+{
 	atarifb(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(soccer_map)
+	m_maincpu->set_addrmap(AS_PROGRAM, &atarifb_state::soccer_map);
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 38*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(atarifb_state, screen_update_soccer)
-	MCFG_GFXDECODE_MODIFY("gfxdecode", gfx_soccer)
-MACHINE_CONFIG_END
+	m_screen->set_screen_update(FUNC(atarifb_state::screen_update_soccer));
+	m_gfxdecode->set_info(gfx_soccer);
+}
 
 
 
@@ -800,7 +782,7 @@ ROM_END
 GAMEL( 1978, atarifb,  0,       atarifb,  atarifb,  atarifb_state, empty_init, ROT0, "Atari", "Atari Football (revision 2)", MACHINE_SUPPORTS_SAVE, layout_atarifb )
 GAMEL( 1978, atarifb1, atarifb, atarifb,  atarifb,  atarifb_state, empty_init, ROT0, "Atari", "Atari Football (revision 1)", MACHINE_SUPPORTS_SAVE, layout_atarifb )
 GAMEL( 1978, atarifb2, atarifb, atarifb,  atarifb,  atarifb_state, empty_init, ROT0, "Atari", "Atari Football II", MACHINE_SUPPORTS_SAVE, layout_atarifb )
-GAMEL( 1979, atarifb4, atarifb, atarifb4, atarifb4, atarifb_state, empty_init, ROT0, "Atari", "Atari Football (4 players)", MACHINE_SUPPORTS_SAVE, layout_atarifb4 )
+GAMEL( 1979, atarifb4, atarifb, atarifb4, atarifb4, atarifb_state, empty_init, ROT0, "Atari", "Atari 4 Player Football", MACHINE_SUPPORTS_SAVE, layout_atarifb4 )
 GAMEL( 1979, abaseb,   0,       abaseb,   abaseb,   atarifb_state, empty_init, ROT0, "Atari", "Atari Baseball (set 1)", MACHINE_SUPPORTS_SAVE, layout_abaseb )
 GAMEL( 1979, abaseb2,  abaseb,  abaseb,   abaseb,   atarifb_state, empty_init, ROT0, "Atari", "Atari Baseball (set 2)", MACHINE_SUPPORTS_SAVE, layout_abaseb )
 GAME(  1980, soccer,   0,       soccer,   soccer,   atarifb_state, empty_init, ROT0, "Atari", "Atari Soccer", MACHINE_SUPPORTS_SAVE )

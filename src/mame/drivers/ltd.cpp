@@ -72,13 +72,13 @@ public:
 	DECLARE_INPUT_CHANGED_MEMBER(ficha);
 
 private:
-	DECLARE_READ8_MEMBER(io_r);
-	DECLARE_WRITE8_MEMBER(io_w);
-	DECLARE_READ8_MEMBER(port1_r);
-	DECLARE_WRITE8_MEMBER(port1_w);
-	DECLARE_READ8_MEMBER(port2_r);
-	DECLARE_WRITE8_MEMBER(port2_w);
-	DECLARE_WRITE8_MEMBER(count_reset_w);
+	uint8_t io_r(offs_t offset);
+	void io_w(offs_t offset, uint8_t data);
+	uint8_t port1_r();
+	void port1_w(uint8_t data);
+	uint8_t port2_r();
+	void port2_w(uint8_t data);
+	void count_reset_w(uint8_t data);
 	TIMER_DEVICE_CALLBACK_MEMBER(timer_r);
 	void ltd3_map(address_map &map);
 	void ltd4_map(address_map &map);
@@ -108,15 +108,13 @@ void ltd_state::ltd3_map(address_map &map)
 
 void ltd_state::ltd4_map(address_map &map)
 {
-	map(0x0000, 0x001f).ram(); // internal to the cpu
-	map(0x0080, 0x00ff).ram();
 	map(0x0100, 0x01ff).ram().share("nvram");
 	map(0x0800, 0x0800).w(FUNC(ltd_state::count_reset_w));
 	map(0x0c00, 0x0c00).w("aysnd_1", FUNC(ay8910_device::reset_w));
 	map(0x1000, 0x1000).w("aysnd_0", FUNC(ay8910_device::address_w));
 	map(0x1400, 0x1400).w("aysnd_0", FUNC(ay8910_device::reset_w));
 	map(0x1800, 0x1800).w("aysnd_1", FUNC(ay8910_device::address_w));
-	//AM_RANGE(0x2800, 0x2800) AM_WRITE(auxlamps_w)
+	//map(0x2800, 0x2800).w(FUNC(ltd_state::auxlamps_w));
 	map(0x3000, 0x3000).w("aysnd_0", FUNC(ay8910_device::data_w));
 	map(0x3800, 0x3800).w("aysnd_1", FUNC(ay8910_device::data_w));
 	map(0xc000, 0xdfff).rom().mirror(0x2000).region("roms", 0);
@@ -250,7 +248,7 @@ INPUT_CHANGED_MEMBER( ltd_state::ficha )
 }
 
 // switches
-READ8_MEMBER( ltd_state::io_r )
+uint8_t ltd_state::io_r(offs_t offset)
 {
 	if (offset==0)
 		return ioport("X0")->read();
@@ -271,12 +269,12 @@ READ8_MEMBER( ltd_state::io_r )
 }
 
 // Lamps only used by Zephy
-WRITE8_MEMBER( ltd_state::io_w )
+void ltd_state::io_w(offs_t offset, uint8_t data)
 {
 	offset >>= 10; // reduces offsets to 1 per bank
 }
 
-READ8_MEMBER( ltd_state:: port1_r )
+uint8_t ltd_state:: port1_r()
 {
 	if (~m_port2 & 0x10)
 	{
@@ -309,7 +307,7 @@ READ8_MEMBER( ltd_state:: port1_r )
 	return 0xff;
 }
 
-WRITE8_MEMBER( ltd_state::port1_w )
+void ltd_state::port1_w(uint8_t data)
 {
 	if (m_port2 & 0x10)
 	{
@@ -350,12 +348,12 @@ WRITE8_MEMBER( ltd_state::port1_w )
 	}
 }
 
-READ8_MEMBER( ltd_state:: port2_r )
+uint8_t ltd_state:: port2_r()
 {
 	return m_port2;
 }
 
-WRITE8_MEMBER( ltd_state::port2_w )
+void ltd_state::port2_w(uint8_t data)
 {
 	if (~m_port2 & data & 0x10)
 		m_counter++;
@@ -363,7 +361,7 @@ WRITE8_MEMBER( ltd_state::port2_w )
 	m_port2 = data;
 }
 
-WRITE8_MEMBER( ltd_state::count_reset_w )
+void ltd_state::count_reset_w(uint8_t data)
 {
 	m_counter = 0;
 }
@@ -523,10 +521,12 @@ TIMER_DEVICE_CALLBACK_MEMBER( ltd_state::timer_r )
 	}
 }
 
-MACHINE_CONFIG_START(ltd_state::ltd3)
+void ltd_state::ltd3(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6802, XTAL(3'579'545))
-	MCFG_DEVICE_PROGRAM_MAP(ltd3_map)
+	m6802_cpu_device &maincpu(M6802(config, m_maincpu, XTAL(3'579'545)));
+	maincpu.set_ram_enable(false); // FIXME: needs standby support
+	maincpu.set_addrmap(AS_PROGRAM, &ltd_state::ltd3_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
@@ -536,10 +536,11 @@ MACHINE_CONFIG_START(ltd_state::ltd3)
 	/* Sound */
 	genpin_audio(config);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_r", ltd_state, timer_r, attotime::from_hz(500))
-MACHINE_CONFIG_END
+	TIMER(config, "timer_r").configure_periodic(FUNC(ltd_state::timer_r), attotime::from_hz(500));
+}
 
-MACHINE_CONFIG_START(ltd_state::ltd4)
+void ltd_state::ltd4(machine_config &config)
+{
 	/* basic machine hardware */
 	m6803_cpu_device &maincpu(M6803(config, "maincpu", XTAL(3'579'545))); // guess, no details available
 	maincpu.set_addrmap(AS_PROGRAM, &ltd_state::ltd4_map);
@@ -559,7 +560,7 @@ MACHINE_CONFIG_START(ltd_state::ltd4)
 	SPEAKER(config, "mono").front_center();
 	AY8910(config, "aysnd_0", XTAL(3'579'545)/2).add_route(ALL_OUTPUTS, "mono", 0.3); /* guess */
 	AY8910(config, "aysnd_1", XTAL(3'579'545)/2).add_route(ALL_OUTPUTS, "mono", 0.3); /* guess */
-MACHINE_CONFIG_END
+}
 
 /*-------------------------------------------------------------------
 / Arizona
@@ -728,7 +729,7 @@ ROM_END
 /-------------------------------------------------------------------*/
 ROM_START(tmacltd4)
 	ROM_REGION(0x2000, "roms", 0)
-	ROM_LOAD("tm4-l.bin", 0x0000, 0x1000, NO_DUMP)
+	ROM_LOAD("tm4-l.bin", 0x0000, 0x1000, CRC(69691662) SHA1(3d86314967075e3f5b168c8d7bf6b26bbbb957bd))
 	ROM_LOAD("tm4-h.bin", 0x1000, 0x1000, CRC(f5f97992) SHA1(ba31f71a600e7061b500e0750f50643503e52a80))
 ROM_END
 

@@ -9,6 +9,7 @@ Witch / Pinball Champ '95 / Keirin Ou
 #ifndef MAME_INCLUDES_WITCH_H
 #define MAME_INCLUDES_WITCH_H
 
+#pragma once
 
 #include "cpu/z80/z80.h"
 #include "machine/i8255.h"
@@ -20,6 +21,7 @@ Witch / Pinball Champ '95 / Keirin Ou
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 #define MAIN_CLOCK        XTAL(12'000'000)
 #define CPU_CLOCK         MAIN_CLOCK / 4
@@ -54,26 +56,25 @@ public:
 
 	void init_witch();
 
-	DECLARE_WRITE8_MEMBER(gfx0_vram_w);
-	DECLARE_WRITE8_MEMBER(gfx0_cram_w);
-	DECLARE_WRITE8_MEMBER(gfx1_vram_w);
-	DECLARE_WRITE8_MEMBER(gfx1_cram_w);
-	DECLARE_READ8_MEMBER(gfx1_vram_r);
-	DECLARE_READ8_MEMBER(gfx1_cram_r);
-	DECLARE_READ8_MEMBER(read_a000);
-	DECLARE_WRITE8_MEMBER(write_a002);
-	DECLARE_WRITE8_MEMBER(write_a006);
-	DECLARE_WRITE8_MEMBER(main_write_a008);
-	DECLARE_WRITE8_MEMBER(sub_write_a008);
-	DECLARE_READ8_MEMBER(prot_read_700x);
-	DECLARE_WRITE8_MEMBER(xscroll_w);
-	DECLARE_WRITE8_MEMBER(yscroll_w);
+	void gfx0_vram_w(offs_t offset, uint8_t data);
+	void gfx0_cram_w(offs_t offset, uint8_t data);
+	void gfx1_vram_w(offs_t offset, uint8_t data);
+	void gfx1_cram_w(offs_t offset, uint8_t data);
+	uint8_t gfx1_vram_r(offs_t offset);
+	uint8_t gfx1_cram_r(offs_t offset);
+	uint8_t read_a000();
+	void write_a002(uint8_t data);
+	void write_a006(uint8_t data);
+	void main_write_a008(uint8_t data);
+	void sub_write_a008(uint8_t data);
+	uint8_t prot_read_700x(offs_t offset);
+	void xscroll_w(uint8_t data);
+	void yscroll_w(uint8_t data);
 
 protected:
 	void common_map(address_map &map);
 
-	tilemap_t *m_gfx0a_tilemap;
-	tilemap_t *m_gfx0b_tilemap;
+	tilemap_t *m_gfx0_tilemap;
 	tilemap_t *m_gfx1_tilemap;
 
 	required_device<cpu_device> m_maincpu;
@@ -97,11 +98,10 @@ protected:
 	uint8_t m_reg_a002;
 	uint8_t m_motor_active;
 
-	TILE_GET_INFO_MEMBER(get_gfx0b_tile_info);
-	TILE_GET_INFO_MEMBER(get_gfx0a_tile_info);
+	TILE_GET_INFO_MEMBER(get_gfx0_tile_info);
 	TILE_GET_INFO_MEMBER(get_gfx1_tile_info);
 	virtual void video_start() override;
-	uint32_t screen_update_witch(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 	virtual void machine_reset() override;
 
@@ -129,8 +129,8 @@ private:
 	void keirinou_main_map(address_map &map);
 	void keirinou_sub_map(address_map &map);
 
-	DECLARE_WRITE8_MEMBER(write_keirinou_a002);
-	DECLARE_WRITE8_MEMBER(palette_w);
+	void write_keirinou_a002(uint8_t data);
+	void palette_w(offs_t offset, uint8_t data);
 	TILE_GET_INFO_MEMBER(get_keirinou_gfx1_tile_info);
 
 	virtual void video_start() override;

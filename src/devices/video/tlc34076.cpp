@@ -56,9 +56,14 @@ void tlc34076_device::device_start()
 {
 	for (int i = 0; i < 3; i++)
 	{
-		m_local_paletteram[i] = std::make_unique<uint8_t[]>(0x100);
+		m_local_paletteram[i] = make_unique_clear<uint8_t[]>(0x100);
 		save_pointer(NAME(m_local_paletteram[i]), 0x100, i);
 	}
+
+	std::fill(std::begin(m_regs), std::end(m_regs), 0);
+	std::fill(std::begin(m_palettedata), std::end(m_palettedata), 0);
+	m_readindex = 0;
+	m_writeindex = 0;
 
 	save_item(NAME(m_regs));
 
@@ -127,7 +132,7 @@ void tlc34076_device::update_pen(uint8_t i)
 //  read - read access
 //-------------------------------------------------
 
-READ8_MEMBER( tlc34076_device::read )
+u8 tlc34076_device::read(offs_t offset)
 {
 	uint8_t result;
 
@@ -161,7 +166,7 @@ READ8_MEMBER( tlc34076_device::read )
 //  write - write access
 //-------------------------------------------------
 
-WRITE8_MEMBER( tlc34076_device::write )
+void tlc34076_device::write(offs_t offset, u8 data)
 {
 //  uint8_t oldval;
 

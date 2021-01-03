@@ -193,12 +193,12 @@ void wpc_dot_state::init_wpc_dot()
 	save_pointer(m_dmdram,"DMD RAM",0x2000);
 }
 
-READ8_MEMBER(wpc_dot_state::ram_r)
+uint8_t wpc_dot_state::ram_r(offs_t offset)
 {
 	return m_ram[offset];
 }
 
-WRITE8_MEMBER(wpc_dot_state::ram_w)
+void wpc_dot_state::ram_w(offs_t offset, uint8_t data)
 {
 	if((!m_wpc->memprotect_active()) || ((offset & m_wpc->get_memprotect_mask()) != m_wpc->get_memprotect_mask()))
 		m_ram[offset] = data;
@@ -206,12 +206,12 @@ WRITE8_MEMBER(wpc_dot_state::ram_w)
 		logerror("WPC: Memory protection violation at 0x%04x (mask=0x%04x)\n",offset,m_wpc->get_memprotect_mask());
 }
 
-WRITE8_MEMBER(wpc_dot_state::wpc_rombank_w)
+void wpc_dot_state::wpc_rombank_w(uint8_t data)
 {
 	m_cpubank->set_entry(data & m_bankmask);
 }
 
-WRITE8_MEMBER(wpc_dot_state::wpc_dmdbank_w)
+void wpc_dot_state::wpc_dmdbank_w(offs_t offset, uint8_t data)
 {
 	uint8_t const bank(offset & 0x07);
 	uint8_t const page(offset >> 4);
@@ -247,44 +247,23 @@ WRITE_LINE_MEMBER(wpc_dot_state::wpc_firq_w)
 	m_maincpu->set_input_line(M6809_FIRQ_LINE,CLEAR_LINE);
 }
 
-READ8_MEMBER(wpc_dot_state::wpc_sound_ctrl_r)
-{
-	return m_wpcsnd->ctrl_r();  // ack FIRQ?
-}
-
-WRITE8_MEMBER(wpc_dot_state::wpc_sound_ctrl_w)
-{
-	m_wpcsnd->ctrl_w(data);
-}
-
-READ8_MEMBER(wpc_dot_state::wpc_sound_data_r)
-{
-	return m_wpcsnd->data_r();
-}
-
-WRITE8_MEMBER(wpc_dot_state::wpc_sound_data_w)
-{
-	m_wpcsnd->data_w(data);
-}
-
 uint32_t wpc_dot_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	uint8_t x,y,bit;
 	uint32_t offset = (m_wpc->get_visible_page() * 0x200);
-	uint32_t col;
 
-	for(y=0;y<32;y++)  // scanline
+	for(uint8_t y=0;y<32;y++)  // scanline
 	{
-		for(x=0;x<128;x+=8)  // column
+		for(uint8_t x=0;x<128;x+=8)  // column
 		{
-			for(bit=0;bit<8;bit++)  // bits
+			for(uint8_t bit=0;bit<8;bit++)  // bits
 			{
 				assert(offset >= 0 && offset < ARRAY_LENGTH(m_dmdram));
+				uint32_t col;
 				if(m_dmdram[offset] & (1<<bit))
 					col = rgb_t(0xff,0xaa,0x00);
 				else
 					col = rgb_t(0x00,0x00,0x00);
-				bitmap.pix32(y,x+bit) = col;
+				bitmap.pix(y,x+bit) = col;
 			}
 			offset++;
 		}
@@ -302,10 +281,10 @@ void wpc_dot_state::wpc_dot(machine_config &config)
 	m_wpc->irq_callback().set(FUNC(wpc_dot_state::wpc_irq_w));
 	m_wpc->firq_callback().set(FUNC(wpc_dot_state::wpc_firq_w));
 	m_wpc->bank_write().set(FUNC(wpc_dot_state::wpc_rombank_w));
-	m_wpc->sound_ctrl_read().set(FUNC(wpc_dot_state::wpc_sound_ctrl_r));
-	m_wpc->sound_ctrl_write().set(FUNC(wpc_dot_state::wpc_sound_ctrl_w));
-	m_wpc->sound_data_read().set(FUNC(wpc_dot_state::wpc_sound_data_r));
-	m_wpc->sound_data_write().set(FUNC(wpc_dot_state::wpc_sound_data_w));
+	m_wpc->sound_ctrl_read().set(m_wpcsnd, FUNC(wpcsnd_device::ctrl_r)); // ack FIRQ?
+	m_wpc->sound_ctrl_write().set(m_wpcsnd, FUNC(wpcsnd_device::ctrl_w));
+	m_wpc->sound_data_read().set(m_wpcsnd, FUNC(wpcsnd_device::data_r));
+	m_wpc->sound_data_write().set(m_wpcsnd, FUNC(wpcsnd_device::data_w));
 	m_wpc->dmdbank_write().set(FUNC(wpc_dot_state::wpc_dmdbank_w));
 
 	SPEAKER(config, "speaker").front_center();
@@ -386,6 +365,25 @@ ROM_START(gi_l6)
 	ROM_REGION(0x10000, "maincpu", ROMREGION_ERASEFF)
 	ROM_REGION(0x40000, "code", 0)
 	ROM_LOAD("gi_l6.u6", 0x00000, 0x40000, CRC(7b73eef2) SHA1(fade23019600d84492d5a0fc6f4f5be52ec319be))
+	ROM_REGION(0x180000, "sound1",0)
+	ROM_LOAD("gi_u14.l2", 0x000000, 0x20000, CRC(0e7a4140) SHA1(c6408794120b5e45a48b35c380333879e1f0be78))
+	ROM_RELOAD( 0x000000 + 0x20000, 0x20000)
+	ROM_RELOAD( 0x000000 + 0x40000, 0x20000)
+	ROM_RELOAD( 0x000000 + 0x60000, 0x20000)
+	ROM_LOAD("gi_u15.l2", 0x080000, 0x20000, CRC(f8241dc9) SHA1(118a65555b9fff6f94e5e8324ed97d6ddec3d82b))
+	ROM_RELOAD( 0x080000 + 0x20000, 0x20000)
+	ROM_RELOAD( 0x080000 + 0x40000, 0x20000)
+	ROM_RELOAD( 0x080000 + 0x60000, 0x20000)
+	ROM_LOAD("gi_u18.l2", 0x100000, 0x20000, CRC(ea53e196) SHA1(5dcf3f44d2d658f6a7b130fa9e48d3cd616b4300))
+	ROM_RELOAD( 0x100000 + 0x20000, 0x20000)
+	ROM_RELOAD( 0x100000 + 0x40000, 0x20000)
+	ROM_RELOAD( 0x100000 + 0x60000, 0x20000)
+ROM_END
+
+ROM_START(gi_l8)
+	ROM_REGION(0x10000, "maincpu", ROMREGION_ERASEFF)
+	ROM_REGION(0x40000, "code", 0)
+	ROM_LOAD("gilligans_l8.u6", 0x00000, 0x40000, CRC(d21d3bf8) SHA1(d41447a35b710297786d35aefe235ebd8b354b29))
 	ROM_REGION(0x180000, "sound1",0)
 	ROM_LOAD("gi_u14.l2", 0x000000, 0x20000, CRC(0e7a4140) SHA1(c6408794120b5e45a48b35c380333879e1f0be78))
 	ROM_RELOAD( 0x000000 + 0x20000, 0x20000)
@@ -665,6 +663,7 @@ GAME(1991,  gi_l9,      0,      wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot
 GAME(1991,  gi_l3,      gi_l9,  wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Bally",        "Gilligan's Island (L-3)",                      MACHINE_IS_SKELETON_MECHANICAL)
 GAME(1991,  gi_l4,      gi_l9,  wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Bally",        "Gilligan's Island (L-4)",                      MACHINE_IS_SKELETON_MECHANICAL)
 GAME(1991,  gi_l6,      gi_l9,  wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Bally",        "Gilligan's Island (L-6)",                      MACHINE_IS_SKELETON_MECHANICAL)
+GAME(1991,  gi_l8,      gi_l9,  wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Bally",        "Gilligan's Island (L-8)",                      MACHINE_IS_SKELETON_MECHANICAL)
 GAME(1992,  hshot_p8,   0,      wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Midway",       "Hot Shot Basketball (P-8)",                    MACHINE_IS_SKELETON_MECHANICAL)
 GAME(1991,  hurr_l2,    0,      wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Williams",     "Hurricane (L-2)",                              MACHINE_IS_SKELETON_MECHANICAL)
 GAME(1991,  pz_f4,      0,      wpc_dot,    wpc_dot, wpc_dot_state, init_wpc_dot, ROT0, "Bally",        "The Party Zone (F-4)",                         MACHINE_IS_SKELETON_MECHANICAL)

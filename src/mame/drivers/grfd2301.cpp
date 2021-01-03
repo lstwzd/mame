@@ -82,21 +82,20 @@ void grfd2301_state::machine_reset()
 
 uint32_t grfd2301_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	uint8_t y,ra,chr,gfx;
-	uint16_t sy=0,ma=0,x;
+	uint16_t sy=0,ma=0;
 
-	for (y = 0; y < 24; y++)
+	for (uint8_t y = 0; y < 24; y++)
 	{
-		for (ra = 0; ra < 10; ra++)
+		for (uint8_t ra = 0; ra < 10; ra++)
 		{
-			uint16_t *p = &bitmap.pix16(sy++);
+			uint16_t *p = &bitmap.pix(sy++);
 
-			for (x = 0; x < 80; x++)
+			for (uint16_t x = 0; x < 80; x++)
 			{
-				gfx = 0;
+				uint8_t gfx = 0;
 				if (ra < 9)
 				{
-					chr = m_p_videoram[x+ma];
+					uint8_t chr = m_p_videoram[x+ma];
 
 					gfx = m_p_chargen[(chr<<4) | ra ];
 				}
@@ -116,23 +115,24 @@ uint32_t grfd2301_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	return 0;
 }
 
-MACHINE_CONFIG_START(grfd2301_state::grfd2301)
+void grfd2301_state::grfd2301(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", Z80, 4000000)
-	MCFG_DEVICE_PROGRAM_MAP(mem_map)
-	MCFG_DEVICE_IO_MAP(io_map)
+	Z80(config, m_maincpu, 4000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &grfd2301_state::mem_map);
+	m_maincpu->set_addrmap(AS_IO, &grfd2301_state::io_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_UPDATE_DRIVER(grfd2301_state, screen_update)
-	MCFG_SCREEN_SIZE(640, 240)
-	MCFG_SCREEN_VISIBLE_AREA(0, 639, 0, 239)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_screen_update(FUNC(grfd2301_state::screen_update));
+	screen.set_size(640, 240);
+	screen.set_visarea_full();
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
 ROM_START( grfd2301 )
 	ROM_REGION( 0x1000, "maincpu", 0 )
@@ -143,4 +143,4 @@ ROM_START( grfd2301 )
 	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
 ROM_END
 
-COMP( 198?, grfd2301, 0, 0, grfd2301, grfd2301, grfd2301_state, empty_init, "Genrad", "Futuredata 2301 Network Processor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+COMP( 198?, grfd2301, 0, 0, grfd2301, grfd2301, grfd2301_state, empty_init, "Genrad", "Futuredata 2301 Network Processor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE )

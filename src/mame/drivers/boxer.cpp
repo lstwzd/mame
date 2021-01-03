@@ -47,14 +47,14 @@ public:
 	void boxer(machine_config &config);
 
 protected:
-	DECLARE_READ8_MEMBER(input_r);
-	DECLARE_READ8_MEMBER(misc_r);
-	DECLARE_WRITE8_MEMBER(bell_w);
-	DECLARE_WRITE8_MEMBER(sound_w);
-	DECLARE_WRITE8_MEMBER(pot_w);
-	DECLARE_WRITE8_MEMBER(irq_reset_w);
-	DECLARE_WRITE8_MEMBER(crowd_w);
-	DECLARE_WRITE8_MEMBER(led_w);
+	uint8_t input_r(offs_t offset);
+	uint8_t misc_r(offs_t offset);
+	void bell_w(uint8_t data);
+	void sound_w(uint8_t data);
+	void pot_w(uint8_t data);
+	void irq_reset_w(uint8_t data);
+	void crowd_w(uint8_t data);
+	void led_w(uint8_t data);
 	void boxer_palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TIMER_CALLBACK_MEMBER(pot_interrupt);
@@ -103,7 +103,7 @@ void boxer_state::device_timer(emu_timer &timer, device_timer_id id, int param, 
 		periodic_callback(ptr, param);
 		break;
 	default:
-		assert_always(false, "Unknown id in boxer_state::device_timer");
+		throw emu_fatalerror("Unknown id in boxer_state::device_timer");
 	}
 }
 
@@ -250,7 +250,7 @@ uint32_t boxer_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
  *
  *************************************/
 
-READ8_MEMBER(boxer_state::input_r)
+uint8_t boxer_state::input_r(offs_t offset)
 {
 	uint8_t val = ioport("IN0")->read();
 
@@ -261,7 +261,7 @@ READ8_MEMBER(boxer_state::input_r)
 }
 
 
-READ8_MEMBER(boxer_state::misc_r)
+uint8_t boxer_state::misc_r(offs_t offset)
 {
 	uint8_t val = 0;
 
@@ -290,17 +290,17 @@ READ8_MEMBER(boxer_state::misc_r)
 
 
 
-WRITE8_MEMBER(boxer_state::bell_w)
+void boxer_state::bell_w(uint8_t data)
 {
 }
 
 
-WRITE8_MEMBER(boxer_state::sound_w)
+void boxer_state::sound_w(uint8_t data)
 {
 }
 
 
-WRITE8_MEMBER(boxer_state::pot_w)
+void boxer_state::pot_w(uint8_t data)
 {
 	/* BIT0 => HPOT1 */
 	/* BIT1 => VPOT1 */
@@ -315,13 +315,13 @@ WRITE8_MEMBER(boxer_state::pot_w)
 }
 
 
-WRITE8_MEMBER(boxer_state::irq_reset_w)
+void boxer_state::irq_reset_w(uint8_t data)
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
 
 
-WRITE8_MEMBER(boxer_state::crowd_w)
+void boxer_state::crowd_w(uint8_t data)
 {
 	/* BIT0 => ATTRACT */
 	/* BIT1 => CROWD-1 */
@@ -332,7 +332,7 @@ WRITE8_MEMBER(boxer_state::crowd_w)
 }
 
 
-WRITE8_MEMBER(boxer_state::led_w)
+void boxer_state::led_w(uint8_t data)
 {
 	m_leds[1] = BIT(~data, 0);
 	m_leds[0] = BIT(~data, 1);
@@ -491,27 +491,27 @@ void boxer_state::machine_reset()
 }
 
 
-MACHINE_CONFIG_START(boxer_state::boxer)
-
+void boxer_state::boxer(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6502, MASTER_CLOCK / 16)
-	MCFG_DEVICE_PROGRAM_MAP(boxer_map)
+	M6502(config, m_maincpu, MASTER_CLOCK / 16);
+	m_maincpu->set_addrmap(AS_PROGRAM, &boxer_state::boxer_map);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_SIZE(256, 262)
-	MCFG_SCREEN_VISIBLE_AREA(8, 247, 0, 239)
-	MCFG_SCREEN_UPDATE_DRIVER(boxer_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_size(256, 262);
+	m_screen->set_visarea(8, 247, 0, 239);
+	m_screen->set_screen_update(FUNC(boxer_state::screen_update));
+	m_screen->set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_boxer)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_boxer);
 	PALETTE(config, m_palette, FUNC(boxer_state::boxer_palette), 4);
 
 	/* sound hardware */
-MACHINE_CONFIG_END
+}
 
 
 /*************************************

@@ -36,7 +36,7 @@ Revisions:
 #include "speaker.h"
 
 
-READ8_MEMBER(aeroboto_state::aeroboto_201_r)
+uint8_t aeroboto_state::aeroboto_201_r()
 {
 	/* if you keep a button pressed during boot, the game will expect this */
 	/* serie of values to be returned from 3004, and display "PASS 201" if it is */
@@ -60,19 +60,19 @@ WRITE_LINE_MEMBER(aeroboto_state::vblank_irq)
 	}
 }
 
-READ8_MEMBER(aeroboto_state::aeroboto_irq_ack_r)
+uint8_t aeroboto_state::aeroboto_irq_ack_r()
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 	return 0xff;
 }
 
-READ8_MEMBER(aeroboto_state::aeroboto_2973_r)
+uint8_t aeroboto_state::aeroboto_2973_r()
 {
 	m_mainram[0x02be] = 0;
 	return 0xff;
 }
 
-WRITE8_MEMBER(aeroboto_state::aeroboto_1a2_w)
+void aeroboto_state::aeroboto_1a2_w(uint8_t data)
 {
 	m_mainram[0x01a2] = data;
 	if (data)
@@ -84,7 +84,7 @@ void aeroboto_state::main_map(address_map &map)
 	map(0x0000, 0x07ff).ram().share("mainram"); // main  RAM
 	map(0x01a2, 0x01a2).w(FUNC(aeroboto_state::aeroboto_1a2_w));           // affects IRQ line (more protection?)
 	map(0x0800, 0x08ff).ram();                             // tile color buffer; copied to 0x2000
-	map(0x0900, 0x09ff).writeonly();                       // a backup of default tile colors
+	map(0x0900, 0x09ff).writeonly().share("colors2");      // a backup of default tile colors
 	map(0x1000, 0x17ff).ram().w(FUNC(aeroboto_state::aeroboto_videoram_w)).share("videoram");     // tile RAM
 	map(0x1800, 0x183f).ram().share("hscroll"); // horizontal scroll regs
 	map(0x1840, 0x27ff).nopw();                    // cleared during custom LSI test
@@ -244,26 +244,26 @@ void aeroboto_state::machine_reset()
 	m_sy = 0;
 }
 
-MACHINE_CONFIG_START(aeroboto_state::formatz)
-
+void aeroboto_state::formatz(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809, XTAL(10'000'000)/2) /* verified on pcb */
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	MC6809(config, m_maincpu, XTAL(10'000'000)/2); /* verified on pcb */
+	m_maincpu->set_addrmap(AS_PROGRAM, &aeroboto_state::main_map);
 
-	MCFG_DEVICE_ADD("audiocpu", MC6809, XTAL(10'000'000)/4) /* verified on pcb */
-	MCFG_DEVICE_PROGRAM_MAP(sound_map)
+	MC6809(config, m_audiocpu, XTAL(10'000'000)/4); /* verified on pcb */
+	m_audiocpu->set_addrmap(AS_PROGRAM, &aeroboto_state::sound_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 31*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(aeroboto_state, screen_update_aeroboto)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, aeroboto_state, vblank_irq))
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(0*8, 31*8-1, 2*8, 30*8-1);
+	screen.set_screen_update(FUNC(aeroboto_state::screen_update_aeroboto));
+	screen.set_palette(m_palette);
+	screen.screen_vblank().set(FUNC(aeroboto_state::vblank_irq));
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_aeroboto)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_aeroboto);
 
 	PALETTE(config, m_palette, palette_device::RGB_444_PROMS, "proms", 256);
 
@@ -279,7 +279,7 @@ MACHINE_CONFIG_START(aeroboto_state::formatz)
 	ay1.add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	AY8910(config, "ay2", XTAL(10'000'000)/16).add_route(ALL_OUTPUTS, "mono", 0.25); /* verified on pcb */
-MACHINE_CONFIG_END
+}
 
 
 

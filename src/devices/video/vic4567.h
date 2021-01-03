@@ -110,20 +110,20 @@ public:
 
 	vic3_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	void set_cpu_tag(const char *tag) { m_cpu.set_tag(tag); }
+	template <typename T> void set_cpu_tag(T &&tag) { m_cpu.set_tag(std::forward<T>(tag)); }
 	void set_vic3_type(vic3_type type) { m_type = type; }
-	template <class Object> devcb_base &set_dma_read_callback(Object &&cb) { return m_dma_read_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_dma_read_color_callback(Object &&cb) { return m_dma_read_color_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_interrupt_callback(Object &&cb) { return m_interrupt_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_port_changed_callback(Object &&cb) { return m_port_changed_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_lightpen_button_callback(Object &&cb) { return m_lightpen_button_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_lightpen_x_callback(Object &&cb) { return m_lightpen_x_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_lightpen_y_callback(Object &&cb) { return m_lightpen_y_cb.set_callback(std::forward<Object>(cb)); }
-	template <class Object> devcb_base &set_c64_mem_r_callback(Object &&cb) { return m_c64_mem_r_cb.set_callback(std::forward<Object>(cb)); }
+	auto dma_read_callback() { return m_dma_read_cb.bind(); }
+	auto dma_read_color_callback() { return m_dma_read_color_cb.bind(); }
+	auto interrupt_callback() { return m_interrupt_cb.bind(); }
+	auto port_changed_callback() { return m_port_changed_cb.bind(); }
+	auto lightpen_button_callback() { return m_lightpen_button_cb.bind(); }
+	auto lightpen_x_callback() { return m_lightpen_x_cb.bind(); }
+	auto lightpen_y_callback() { return m_lightpen_y_cb.bind(); }
+	auto c64_mem_r_callback() { return m_c64_mem_r_cb.bind(); }
 
-	DECLARE_WRITE8_MEMBER(port_w);
-	DECLARE_WRITE8_MEMBER(palette_w);
-	DECLARE_READ8_MEMBER(port_r);
+	void port_w(offs_t offset, uint8_t data);
+	void palette_w(offs_t offset, uint8_t data);
+	uint8_t port_r(offs_t offset);
 
 	void raster_interrupt_gen();
 	uint32_t video_update(bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -197,6 +197,7 @@ private:
 	int m_columns, m_rows;
 
 	/* background/foreground for sprite collision */
+	std::unique_ptr<uint8_t []> m_screendata;
 	uint8_t *m_screenptr[216], m_shift[216];
 
 	/* convert multicolor byte to background/foreground for sprite collision */
@@ -235,36 +236,5 @@ private:
 };
 
 DECLARE_DEVICE_TYPE(VIC3, vic3_device)
-
-
-#define MCFG_VIC3_CPU(tag) \
-	downcast<vic3_device &>(*device).set_cpu_tag(tag);
-
-#define MCFG_VIC3_TYPE(type) \
-	downcast<vic3_device &>(*device).set_vic3_type((vic3_device::vic3_type::type));
-
-#define MCFG_VIC3_DMA_READ_CB(cb) \
-	downcast<vic3_device &>(*device).set_dma_read_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_DMA_READ_COLOR_CB(cb) \
-	downcast<vic3_device &>(*device).set_dma_read_color_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_INTERRUPT_CB(cb) \
-	downcast<vic3_device &>(*device).set_interrupt_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_PORT_CHANGED_CB(cb) \
-	downcast<vic3_device &>(*device).set_port_changed_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_LIGHTPEN_BUTTON_CB(cb) \
-	downcast<vic3_device &>(*device).set_lightpen_button_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_LIGHTPEN_X_CB(cb) \
-	downcast<vic3_device &>(*device).set_lightpen_x_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_LIGHTPEN_Y_CB(cb) \
-	downcast<vic3_device &>(*device).set_lightpen_y_callback((DEVCB_##cb));
-
-#define MCFG_VIC3_C64_MEM_R_CB(cb) \
-	downcast<vic3_device &>(*device).set_c64_mem_r_callback((DEVCB_##cb));
 
 #endif // MAME_VIDEO_VIC4567_H

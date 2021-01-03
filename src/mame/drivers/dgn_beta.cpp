@@ -142,22 +142,6 @@ static constexpr rgb_t dgnbeta_pens[] =
 
 void dgn_beta_state::dgnbeta_map(address_map &map)
 {
-	map(0x0000, 0x0FFF).bankrw("bank1");
-	map(0x1000, 0x1FFF).bankrw("bank2");
-	map(0x2000, 0x2FFF).bankrw("bank3");
-	map(0x3000, 0x3FFF).bankrw("bank4");
-	map(0x4000, 0x4FFF).bankrw("bank5");
-	map(0x5000, 0x5FFF).bankrw("bank6");
-	map(0x6000, 0x6FFF).bankrw("bank7").share("videoram");
-	map(0x7000, 0x7FFF).bankrw("bank8");
-	map(0x8000, 0x8FFF).bankrw("bank9");
-	map(0x9000, 0x9FFF).bankrw("bank10");
-	map(0xA000, 0xAFFF).bankrw("bank11");
-	map(0xB000, 0xBFFF).bankrw("bank12");
-	map(0xC000, 0xCFFF).bankrw("bank13");
-	map(0xD000, 0xDFFF).bankrw("bank14");
-	map(0xE000, 0xEFFF).bankrw("bank15");
-	map(0xF000, 0xFBFF).bankrw("bank16");
 	map(0xfC00, 0xfC1F).noprw();
 	map(0xFC20, 0xFC23).rw(m_pia_0, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0xFC24, 0xFC27).rw(m_pia_1, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
@@ -172,8 +156,6 @@ void dgn_beta_state::dgnbeta_map(address_map &map)
 	map(0xfce4, 0xfdff).noprw();
 	map(0xFE00, 0xFE0F).rw(FUNC(dgn_beta_state::dgn_beta_page_r), FUNC(dgn_beta_state::dgn_beta_page_w));
 	map(0xfe10, 0xfEff).noprw();
-	map(0xFF00, 0xFFFF).bankrw("bank17");
-
 }
 
 
@@ -317,26 +299,27 @@ static void dgnbeta_floppies(device_slot_interface &device)
 	device.option_add("dd", FLOPPY_35_DD);
 }
 
-MACHINE_CONFIG_START(dgn_beta_state::dgnbeta)
+void dgn_beta_state::dgnbeta(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(MAINCPU_TAG, MC6809E, DGNBETA_CPU_SPEED_HZ)        /* 2 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(dgnbeta_map)
-	MCFG_DEVICE_DISASSEMBLE_OVERRIDE(dgn_beta_state, dgnbeta_dasm_override)
+	MC6809E(config, m_maincpu, DGNBETA_CPU_SPEED_HZ);        /* 2 MHz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &dgn_beta_state::dgnbeta_map);
+	m_maincpu->set_dasm_override(FUNC(dgn_beta_state::dgnbeta_dasm_override));
 
 	/* both cpus in the beta share the same address/data buses */
-	MCFG_DEVICE_ADD(DMACPU_TAG, MC6809E, DGNBETA_CPU_SPEED_HZ)        /* 2 MHz */
-	MCFG_DEVICE_PROGRAM_MAP(dgnbeta_map)
+	MC6809E(config, m_dmacpu, DGNBETA_CPU_SPEED_HZ);        /* 2 MHz */
+	m_dmacpu->set_addrmap(AS_PROGRAM, &dgn_beta_state::dgnbeta_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(DGNBETA_FRAMES_PER_SECOND)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(100))
-	MCFG_SCREEN_SIZE(700,550)
-	MCFG_SCREEN_VISIBLE_AREA(0, 699, 0, 549)
-	MCFG_SCREEN_UPDATE_DEVICE( "crtc", hd6845_device, screen_update )
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_AFTER_VBLANK)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(DGNBETA_FRAMES_PER_SECOND);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(100));
+	screen.set_size(700,550);
+	screen.set_visarea(0, 699, 0, 549);
+	screen.set_screen_update("crtc", FUNC(hd6845s_device::screen_update));
+	screen.set_video_attributes(VIDEO_UPDATE_AFTER_VBLANK);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, m_palette, gfx_dgnbeta)
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_dgnbeta);
 	PALETTE(config, m_palette, FUNC(dgn_beta_state::dgn_beta_palette), ARRAY_LENGTH(dgnbeta_pens));
 
 	/* PIA 0 at $FC20-$FC23 I46 */
@@ -373,20 +356,16 @@ MACHINE_CONFIG_START(dgn_beta_state::dgnbeta)
 	m_fdc->intrq_wr_callback().set(FUNC(dgn_beta_state::dgnbeta_fdc_intrq_w));
 	m_fdc->drq_wr_callback().set(FUNC(dgn_beta_state::dgnbeta_fdc_drq_w));
 
-	MCFG_FLOPPY_DRIVE_ADD(FDC_TAG ":0", dgnbeta_floppies, "dd", dgn_beta_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD(FDC_TAG ":1", dgnbeta_floppies, "dd", dgn_beta_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD(FDC_TAG ":2", dgnbeta_floppies, nullptr, dgn_beta_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD(FDC_TAG ":3", dgnbeta_floppies, nullptr, dgn_beta_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
+	FLOPPY_CONNECTOR(config, FDC_TAG ":0", dgnbeta_floppies, "dd", dgn_beta_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, FDC_TAG ":1", dgnbeta_floppies, "dd", dgn_beta_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, FDC_TAG ":2", dgnbeta_floppies, nullptr, dgn_beta_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, FDC_TAG ":3", dgnbeta_floppies, nullptr, dgn_beta_state::floppy_formats).enable_sound(true);
 
-	HD6845(config, m_mc6845, 12.288_MHz_XTAL / 16);    //XTAL is guessed
+	HD6845S(config, m_mc6845, 12.288_MHz_XTAL / 16);    //XTAL is guessed
 	m_mc6845->set_screen("screen");
 	m_mc6845->set_show_border_area(false);
 	m_mc6845->set_char_width(16); /*?*/
-	m_mc6845->set_update_row_callback(FUNC(dgn_beta_state::crtc_update_row), this);
+	m_mc6845->set_update_row_callback(FUNC(dgn_beta_state::crtc_update_row));
 	m_mc6845->out_vsync_callback().set(FUNC(dgn_beta_state::dgnbeta_vsync_changed));
 
 	/* internal ram */
@@ -398,8 +377,8 @@ MACHINE_CONFIG_START(dgn_beta_state::dgnbeta)
 	/* in blocks of 128K up to this maximum.                                                    */
 
 	/* software lists */
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "dgnbeta_flop")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "flop_list").set_original("dgnbeta_flop");
+}
 
 ROM_START(dgnbeta)
 	ROM_REGION(0x4000,MAINCPU_TAG,0)
@@ -417,4 +396,4 @@ ROM_START(dgnbeta)
 ROM_END
 
 //    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT    CLASS           INIT        COMPANY            FULLNAME             FLAGS
-COMP( 1984, dgnbeta, 0,      0,      dgnbeta, dgnbeta, dgn_beta_state, empty_init, "Dragon Data Ltd", "Dragon 128 (Beta)", MACHINE_NO_SOUND )
+COMP( 1984, dgnbeta, 0,      0,      dgnbeta, dgnbeta, dgn_beta_state, empty_init, "Dragon Data Ltd", "Dragon 128 (Beta)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

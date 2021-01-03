@@ -167,7 +167,7 @@ TILE_GET_INFO_MEMBER( bfm_adder2_device::get_tile0_info )
 	flags = ((data & 0x4000)?TILE_FLIPY:0) |
 			((data & 0x2000)?TILE_FLIPX:0);
 
-	SET_TILE_INFO_MEMBER(0, code, color, flags);
+	tileinfo.set(0, code, color, flags);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -190,7 +190,7 @@ TILE_GET_INFO_MEMBER( bfm_adder2_device::get_tile1_info )
 	flags = ((data & 0x4000)?TILE_FLIPY:0) |
 			((data & 0x2000)?TILE_FLIPX:0);
 
-	SET_TILE_INFO_MEMBER(0, code, color, flags);
+	tileinfo.set(0, code, color, flags);
 }
 
 // video initialisation ///////////////////////////////////////////////////
@@ -233,9 +233,9 @@ void bfm_adder2_device::device_start()
 	save_item(NAME(m_adder_ram));
 	save_item(NAME(m_screen_ram));
 
-	m_tilemap0 = &machine().tilemap().create(*this, tilemap_get_info_delegate(FUNC(bfm_adder2_device::get_tile0_info),this), TILEMAP_SCAN_ROWS,  8, 8, 50, 35);
+	m_tilemap0 = &machine().tilemap().create(*this, tilemap_get_info_delegate(*this, FUNC(bfm_adder2_device::get_tile0_info)), TILEMAP_SCAN_ROWS,  8, 8, 50, 35);
 
-	m_tilemap1 = &machine().tilemap().create(*this, tilemap_get_info_delegate(FUNC(bfm_adder2_device::get_tile1_info),this), TILEMAP_SCAN_ROWS,  8, 8, 50, 35);
+	m_tilemap1 = &machine().tilemap().create(*this, tilemap_get_info_delegate(*this, FUNC(bfm_adder2_device::get_tile1_info)), TILEMAP_SCAN_ROWS,  8, 8, 50, 35);
 
 	palette().set_pen_color(0,rgb_t(0x00,0x00,0x00));
 	palette().set_pen_color(1,rgb_t(0x00,0x00,0xFF));
@@ -281,14 +281,14 @@ WRITE_LINE_MEMBER(bfm_adder2_device::adder2_vbl_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::screen_ram_r )
+uint8_t bfm_adder2_device::screen_ram_r(offs_t offset)
 {
 	return m_screen_page_reg & SL_ACCESS ? m_screen_ram[1][offset]:m_screen_ram[0][offset];
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::screen_ram_w )
+void bfm_adder2_device::screen_ram_w(offs_t offset, uint8_t data)
 {
 	int dirty_off = (offset>>7)*50 + ((offset & 0x7F)>>1);
 
@@ -320,28 +320,28 @@ WRITE8_MEMBER( bfm_adder2_device::screen_ram_w )
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::normal_ram_r )
+uint8_t bfm_adder2_device::normal_ram_r(offs_t offset)
 {
 	return m_adder_ram[offset];
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::normal_ram_w )
+void bfm_adder2_device::normal_ram_w(offs_t offset, uint8_t data)
 {
 	m_adder_ram[offset] = data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_rom_page_w )
+void bfm_adder2_device::adder2_rom_page_w(uint8_t data)
 {
 	membank("bank2")->set_entry(data&0x03);
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_c001_w )
+void bfm_adder2_device::adder2_c001_w(uint8_t data)
 {
 	logerror("c101 = %02X\n",data);
 
@@ -350,14 +350,14 @@ WRITE8_MEMBER( bfm_adder2_device::adder2_c001_w )
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_screen_page_w )
+void bfm_adder2_device::adder2_screen_page_w(uint8_t data)
 {
 	m_screen_page_reg = data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::adder2_vbl_ctrl_r )
+uint8_t bfm_adder2_device::adder2_vbl_ctrl_r()
 {
 	m_vbl_triggered = false;    // clear VBL start IRQ
 
@@ -366,14 +366,14 @@ READ8_MEMBER( bfm_adder2_device::adder2_vbl_ctrl_r )
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_vbl_ctrl_w )
+void bfm_adder2_device::adder2_vbl_ctrl_w(uint8_t data)
 {
 	m_c101 = data;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::adder2_uart_ctrl_r )
+uint8_t bfm_adder2_device::adder2_uart_ctrl_r()
 {
 	int status = 0;
 
@@ -385,7 +385,7 @@ READ8_MEMBER( bfm_adder2_device::adder2_uart_ctrl_r )
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_uart_ctrl_w )
+void bfm_adder2_device::adder2_uart_ctrl_w(uint8_t data)
 {
 	m_data_from_sc2 = false;    // data available for adder from sc2
 	m_sc2data       = 0;        // data
@@ -397,7 +397,7 @@ WRITE8_MEMBER( bfm_adder2_device::adder2_uart_ctrl_w )
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::adder2_uart_rx_r )
+uint8_t bfm_adder2_device::adder2_uart_rx_r()
 {
 	int data = m_sc2data;
 	m_data_from_sc2 = false;    // clr flag, data from scorpion2 board available
@@ -409,7 +409,7 @@ READ8_MEMBER( bfm_adder2_device::adder2_uart_rx_r )
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER( bfm_adder2_device::adder2_uart_tx_w )
+void bfm_adder2_device::adder2_uart_tx_w(uint8_t data)
 {
 	m_data_to_sc2 = true;       // set flag, data from adder available
 	m_adder2_data = data;       // store data
@@ -419,7 +419,7 @@ WRITE8_MEMBER( bfm_adder2_device::adder2_uart_tx_w )
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER( bfm_adder2_device::adder2_irq_r )
+uint8_t bfm_adder2_device::adder2_irq_r()
 {
 	int status = 0;
 
@@ -432,7 +432,7 @@ READ8_MEMBER( bfm_adder2_device::adder2_irq_r )
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_adder2_device::vid_uart_tx_w)
+void bfm_adder2_device::vid_uart_tx_w(uint8_t data)
 {
 	m_data_from_sc2  = true;    // set flag, data from scorpion2 board available
 	m_sc2data        = data;    // store data
@@ -446,13 +446,13 @@ WRITE8_MEMBER(bfm_adder2_device::vid_uart_tx_w)
 
 ///////////////////////////////////////////////////////////////////////////
 
-WRITE8_MEMBER(bfm_adder2_device::vid_uart_ctrl_w)
+void bfm_adder2_device::vid_uart_ctrl_w(uint8_t data)
 {
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_adder2_device::vid_uart_rx_r)
+uint8_t bfm_adder2_device::vid_uart_rx_r()
 {
 	uint8_t data = m_adder2_data;
 	m_data_to_sc2 = false;   // clr flag, data from adder available
@@ -464,7 +464,7 @@ READ8_MEMBER(bfm_adder2_device::vid_uart_rx_r)
 
 ///////////////////////////////////////////////////////////////////////////
 
-READ8_MEMBER(bfm_adder2_device::vid_uart_ctrl_r)
+uint8_t bfm_adder2_device::vid_uart_ctrl_r()
 {
 	int status = 0;
 
@@ -549,17 +549,18 @@ void bfm_adder2_device::adder2_memmap(address_map &map)
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(bfm_adder2_device::device_add_mconfig)
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_SIZE( 400, 280)
-	MCFG_SCREEN_VISIBLE_AREA(  0, 400-1, 0, 280-1)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_PALETTE("palette")
-	MCFG_SCREEN_UPDATE_DEVICE(DEVICE_SELF, bfm_adder2_device, update_screen)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, bfm_adder2_device, adder2_vbl_w))      // board has a VBL IRQ
+void bfm_adder2_device::device_add_mconfig(machine_config &config)
+{
+	M6809(config, m_cpu, ADDER_CLOCK/4);  // adder2 board 6809 CPU at 2 Mhz
+	m_cpu->set_addrmap(AS_PROGRAM, &bfm_adder2_device::adder2_memmap);             // setup adder2 board memorymap
 
-	MCFG_PALETTE_ADD("palette", 16)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_size(400, 280);
+	screen.set_visarea(0, 400-1, 0, 280-1);
+	screen.set_refresh_hz(50);
+	screen.set_palette("palette");
+	screen.set_screen_update(FUNC(bfm_adder2_device::update_screen));
+	screen.screen_vblank().set(FUNC(bfm_adder2_device::adder2_vbl_w));      // board has a VBL IRQ
 
-	MCFG_DEVICE_ADD("adder2", M6809, ADDER_CLOCK/4 )  // adder2 board 6809 CPU at 2 Mhz
-	MCFG_DEVICE_PROGRAM_MAP(adder2_memmap)             // setup adder2 board memorymap
-MACHINE_CONFIG_END
+	PALETTE(config, "palette").set_entries(16);
+}

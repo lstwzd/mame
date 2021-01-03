@@ -28,7 +28,7 @@ public:
 	void slicer(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(sio_out_w);
+	void sio_out_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(drive_size_w);
 	template<unsigned int drive> DECLARE_WRITE_LINE_MEMBER(drive_sel_w);
 
@@ -39,7 +39,7 @@ private:
 	required_device<scsi_port_device> m_sasi;
 };
 
-WRITE8_MEMBER(slicer_state::sio_out_w)
+void slicer_state::sio_out_w(uint8_t data)
 {
 	floppy_image_device *floppy;
 	int state = (data & 0x80) ? 0 : 1;
@@ -86,10 +86,10 @@ void slicer_state::slicer_io(address_map &map)
 	map(0x0080, 0x00ff).rw("duart", FUNC(scn2681_device::read), FUNC(scn2681_device::write)).umask16(0x00ff); //PCS1
 	map(0x0100, 0x010f).mirror(0x0070).w("drivelatch", FUNC(ls259_device::write_d0)).umask16(0x00ff); //PCS2
 	// TODO: 0x180 sets ack
-	map(0x0180, 0x0180).r("sasi_data_in", FUNC(input_buffer_device::bus_r)).w("sasi_data_out", FUNC(output_latch_device::bus_w)).umask16(0x00ff); //PCS3
-	map(0x0181, 0x0181).r("sasi_ctrl_in", FUNC(input_buffer_device::bus_r));
-	map(0x0184, 0x0184).r("sasi_data_in", FUNC(input_buffer_device::bus_r)).w("sasi_data_out", FUNC(output_latch_device::bus_w)).umask16(0x00ff);
-	map(0x0185, 0x0185).r("sasi_ctrl_in", FUNC(input_buffer_device::bus_r));
+	map(0x0180, 0x0180).r("sasi_data_in", FUNC(input_buffer_device::read)).w("sasi_data_out", FUNC(output_latch_device::write)).umask16(0x00ff); //PCS3
+	map(0x0181, 0x0181).r("sasi_ctrl_in", FUNC(input_buffer_device::read));
+	map(0x0184, 0x0184).r("sasi_data_in", FUNC(input_buffer_device::read)).w("sasi_data_out", FUNC(output_latch_device::write)).umask16(0x00ff);
+	map(0x0185, 0x0185).r("sasi_ctrl_in", FUNC(input_buffer_device::read));
 }
 
 static void slicer_floppies(device_slot_interface &device)
@@ -98,16 +98,17 @@ static void slicer_floppies(device_slot_interface &device)
 	device.option_add("8dsdd", FLOPPY_8_DSDD);
 }
 
-MACHINE_CONFIG_START(slicer_state::slicer)
-	MCFG_DEVICE_ADD("maincpu", I80186, 16_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(slicer_map)
-	MCFG_DEVICE_IO_MAP(slicer_io)
+void slicer_state::slicer(machine_config &config)
+{
+	i80186_cpu_device &maincpu(I80186(config, "maincpu", 16_MHz_XTAL)); // 8 MHz clock output
+	maincpu.set_addrmap(AS_PROGRAM, &slicer_state::slicer_map);
+	maincpu.set_addrmap(AS_IO, &slicer_state::slicer_io);
 
-	MCFG_DEVICE_ADD("duart", SCN2681, 3.6864_MHz_XTAL)
-	MCFG_MC68681_IRQ_CALLBACK(WRITELINE("maincpu", i80186_cpu_device, int0_w))
-	MCFG_MC68681_A_TX_CALLBACK(WRITELINE("rs232_1", rs232_port_device, write_txd))
-	MCFG_MC68681_B_TX_CALLBACK(WRITELINE("rs232_2", rs232_port_device, write_txd))
-	MCFG_MC68681_OUTPORT_CALLBACK(WRITE8(*this, slicer_state, sio_out_w))
+	scn2681_device &duart(SCN2681(config, "duart", 3.6864_MHz_XTAL));
+	duart.irq_cb().set("maincpu", FUNC(i80186_cpu_device::int0_w));
+	duart.a_tx_cb().set("rs232_1", FUNC(rs232_port_device::write_txd));
+	duart.b_tx_cb().set("rs232_2", FUNC(rs232_port_device::write_txd));
+	duart.outport_cb().set(FUNC(slicer_state::sio_out_w));
 
 	rs232_port_device &rs232_1(RS232_PORT(config, "rs232_1", default_rs232_devices, "terminal"));
 	rs232_1.rxd_handler().set("duart", FUNC(scn2681_device::rx_a_w));
@@ -117,10 +118,10 @@ MACHINE_CONFIG_START(slicer_state::slicer)
 	FD1797(config, m_fdc, 16_MHz_XTAL / 2 / 8);
 	m_fdc->intrq_wr_callback().set("maincpu", FUNC(i80186_cpu_device::int1_w));
 	m_fdc->drq_wr_callback().set("maincpu", FUNC(i80186_cpu_device::drq0_w));
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", slicer_floppies, "525dd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:2", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:3", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, "fdc:0", slicer_floppies, "525dd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:1", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:2", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:3", slicer_floppies, nullptr, floppy_image_device::default_floppy_formats);
 
 	ls259_device &drivelatch(LS259(config, "drivelatch")); // U29
 	drivelatch.q_out_cb<0>().set("sasi", FUNC(scsi_port_device::write_sel));
@@ -132,21 +133,22 @@ MACHINE_CONFIG_START(slicer_state::slicer)
 	drivelatch.q_out_cb<6>().set(FUNC(slicer_state::drive_size_w));
 	drivelatch.q_out_cb<7>().set("fdc", FUNC(fd1797_device::dden_w));
 
-	MCFG_DEVICE_ADD("sasi", SCSI_PORT, 0)
-	MCFG_SCSI_DATA_INPUT_BUFFER("sasi_data_in")
-	MCFG_SCSI_BSY_HANDLER(WRITELINE("sasi_ctrl_in", input_buffer_device, write_bit3))
-	MCFG_SCSI_MSG_HANDLER(WRITELINE("sasi_ctrl_in", input_buffer_device, write_bit4))
-	MCFG_SCSI_CD_HANDLER(WRITELINE("sasi_ctrl_in", input_buffer_device, write_bit5))
-	MCFG_SCSI_REQ_HANDLER(WRITELINE("sasi_ctrl_in", input_buffer_device, write_bit6))
-	MCFG_SCSI_IO_HANDLER(WRITELINE("sasi_ctrl_in", input_buffer_device, write_bit7))
+	SCSI_PORT(config, m_sasi, 0);
+	m_sasi->set_data_input_buffer("sasi_data_in");
+	m_sasi->bsy_handler().set("sasi_ctrl_in", FUNC(input_buffer_device::write_bit3));
+	m_sasi->msg_handler().set("sasi_ctrl_in", FUNC(input_buffer_device::write_bit4));
+	m_sasi->cd_handler().set("sasi_ctrl_in", FUNC(input_buffer_device::write_bit5));
+	m_sasi->req_handler().set("sasi_ctrl_in", FUNC(input_buffer_device::write_bit6));
+	m_sasi->io_handler().set("sasi_ctrl_in", FUNC(input_buffer_device::write_bit7));
 
-	MCFG_SCSI_OUTPUT_LATCH_ADD("sasi_data_out", "sasi")
-	MCFG_DEVICE_ADD("sasi_data_in", INPUT_BUFFER, 0)
-	MCFG_DEVICE_ADD("sasi_ctrl_in", INPUT_BUFFER, 0)
-MACHINE_CONFIG_END
+	output_latch_device &sasi_data_out(OUTPUT_LATCH(config, "sasi_data_out"));
+	m_sasi->set_output_latch(sasi_data_out);
+	INPUT_BUFFER(config, "sasi_data_in");
+	INPUT_BUFFER(config, "sasi_ctrl_in");
+}
 
 ROM_START( slicer )
-	ROM_REGION(0x8001, "bios", 0)
+	ROM_REGION16_LE(0x8001, "bios", 0)
 	// built from sources, reset.asm adds an extra byte
 	ROM_LOAD("epbios.bin", 0x0000, 0x8001, CRC(96fe9dd4) SHA1(5fc43454fe7d51f2ae97aef822155dcd28eb7f23))
 

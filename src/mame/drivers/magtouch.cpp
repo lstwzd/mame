@@ -92,6 +92,7 @@ public:
 		: pcat_base_state(mconfig, type, tag)
 		, m_isabus(*this, "isa")
 		, m_rombank(*this, "rombank")
+		, m_shadow(*this, "shadow")
 		, m_in0(*this, "IN0")
 	{ }
 
@@ -100,12 +101,14 @@ public:
 private:
 	required_device<isa8_device> m_isabus;
 	required_memory_bank m_rombank;
+	required_shared_ptr<uint32_t> m_shadow;
 	required_ioport m_in0;
 
-	DECLARE_READ8_MEMBER(magtouch_io_r);
-	DECLARE_WRITE8_MEMBER(magtouch_io_w);
-	DECLARE_WRITE8_MEMBER(dma8237_1_dack_w);
+	uint8_t magtouch_io_r(offs_t offset);
+	void magtouch_io_w(offs_t offset, uint8_t data);
+	void dma8237_1_dack_w(uint8_t data);
 	virtual void machine_start() override;
+	virtual void machine_reset() override;
 	static void magtouch_sb_conf(device_t *device);
 	void magtouch_io(address_map &map);
 	void magtouch_map(address_map &map);
@@ -117,7 +120,7 @@ private:
  *
  *************************************/
 
-READ8_MEMBER(magtouch_state::magtouch_io_r)
+uint8_t magtouch_state::magtouch_io_r(offs_t offset)
 {
 	switch(offset)
 	{
@@ -128,7 +131,7 @@ READ8_MEMBER(magtouch_state::magtouch_io_r)
 	}
 }
 
-WRITE8_MEMBER(magtouch_state::magtouch_io_w)
+void magtouch_state::magtouch_io_w(offs_t offset, uint8_t data)
 {
 	switch(offset)
 	{
@@ -145,7 +148,7 @@ void magtouch_state::magtouch_map(address_map &map)
 	map(0x000c0000, 0x000c7fff).rom().region("video_bios", 0);
 	map(0x000d0000, 0x000d1fff).ram().share("nvram");
 	map(0x000d8000, 0x000dffff).bankr("rombank");
-	map(0x000f0000, 0x000fffff).ram().region("bios", 0);
+	map(0x000f0000, 0x000fffff).ram().share(m_shadow);
 	map(0xffff0000, 0xffffffff).rom().region("bios", 0);
 }
 
@@ -169,13 +172,19 @@ static INPUT_PORTS_START( magtouch )
 INPUT_PORTS_END
 
 //TODO: use atmb device
-WRITE8_MEMBER( magtouch_state::dma8237_1_dack_w ){ m_isabus->dack_w(1, data); }
+void magtouch_state::dma8237_1_dack_w(uint8_t data) { m_isabus->dack_w(1, data); }
 
 void magtouch_state::machine_start()
 {
 	m_rombank->configure_entries(0, 0x80, memregion("game_prg")->base(), 0x8000 );
 	m_rombank->set_entry(0);
 	subdevice<nvram_device>("nvram")->set_base(memshare("nvram")->ptr(), 0x2000);
+}
+
+void magtouch_state::machine_reset()
+{
+	// Rom shadow is not handled, well, at all
+	memcpy(m_shadow, memregion("bios")->base(), 0x10000);
 }
 
 static void magtouch_isa8_cards(device_slot_interface &device)
@@ -189,20 +198,20 @@ DEVICE_INPUT_DEFAULTS_END
 
 void magtouch_state::magtouch_sb_conf(device_t *device)
 {
-	device = device->subdevice("pc_joy");
-	MCFG_DEVICE_SLOT_INTERFACE(pc_joysticks, nullptr, true) // remove joystick
+	device->subdevice<pc_joy_device>("pc_joy")->set_default_option(nullptr); // remove joystick
 }
 
-MACHINE_CONFIG_START(magtouch_state::magtouch)
+void magtouch_state::magtouch(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I386, 14318180*2)   /* I386 ?? Mhz */
-	MCFG_DEVICE_PROGRAM_MAP(magtouch_map)
-	MCFG_DEVICE_IO_MAP(magtouch_io)
-	MCFG_DEVICE_IRQ_ACKNOWLEDGE_DEVICE("pic8259_1", pic8259_device, inta_cb)
+	I386(config, m_maincpu, 14318180*2);   /* I386 ?? Mhz */
+	m_maincpu->set_addrmap(AS_PROGRAM, &magtouch_state::magtouch_map);
+	m_maincpu->set_addrmap(AS_IO, &magtouch_state::magtouch_io);
+	m_maincpu->set_irq_acknowledge_callback("pic8259_1", FUNC(pic8259_device::inta_cb));
 
 	/* video hardware */
 	pcvideo_trident_vga(config);
-	MCFG_DEVICE_REPLACE("vga", TVGA9000_VGA, 0)
+	TVGA9000_VGA(config.replace(), "vga", 0);
 
 	pcat_common(config);
 
@@ -210,14 +219,15 @@ MACHINE_CONFIG_START(magtouch_state::magtouch)
 	uart.out_tx_callback().set("microtouch", FUNC(microtouch_device::rx));
 	uart.out_int_callback().set("pic8259_1", FUNC(pic8259_device::ir4_w));
 
-	MCFG_MICROTOUCH_ADD( "microtouch", 9600, WRITELINE("ns16450_0", ins8250_uart_device, rx_w) )
+	MICROTOUCH(config, "microtouch", 9600).stx().set("ns16450_0", FUNC(ins8250_uart_device::rx_w));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	m_dma8237_1->out_iow_callback<1>().set(FUNC(magtouch_state::dma8237_1_dack_w));
 
 	ISA8(config, m_isabus, 0);
-	m_isabus->set_cputag("maincpu");
+	m_isabus->set_memspace("maincpu", AS_PROGRAM);
+	m_isabus->set_iospace("maincpu", AS_IO);
 	m_isabus->irq2_callback().set("pic8259_2", FUNC(pic8259_device::ir2_w));
 	m_isabus->irq3_callback().set("pic8259_1", FUNC(pic8259_device::ir3_w));
 	//m_isabus->irq4_callback().set("pic8259_1", FUNC(pic8259_device::ir4_w));
@@ -229,17 +239,17 @@ MACHINE_CONFIG_START(magtouch_state::magtouch)
 	m_isabus->drq3_callback().set("dma8237_1", FUNC(am9517a_device::dreq3_w));
 
 	// FIXME: determine ISA bus clock
-	MCFG_DEVICE_ADD("isa1", ISA8_SLOT, 0, "isa", magtouch_isa8_cards, "sb15", true)
-	MCFG_SLOT_OPTION_DEVICE_INPUT_DEFAULTS("sb15", magtouch_sb_def)
-	MCFG_SLOT_OPTION_MACHINE_CONFIG("sb15", magtouch_sb_conf)
-MACHINE_CONFIG_END
+	isa8_slot_device &isa1(ISA8_SLOT(config, "isa1", 0, m_isabus, magtouch_isa8_cards, "sb15", true));
+	isa1.set_option_device_input_defaults("sb15", DEVICE_INPUT_DEFAULTS_NAME(magtouch_sb_def));
+	isa1.set_option_machine_config("sb15", magtouch_sb_conf);
+}
 
 
 ROM_START(magtouch)
 	ROM_REGION32_LE(0x10000, "bios", 0) /* motherboard bios */
 	ROM_LOAD("mtouch.u13", 0x00000, 0x10000, CRC(e74fb144) SHA1(abc99e84832c30606374da542fd94f0fbc8cbaa6) )
 
-	ROM_REGION(0x08000, "video_bios", 0)
+	ROM_REGION32_LE(0x08000, "video_bios", 0)
 	//this is a phoenix standard vga only bios from 1991 despite the notes above saying the machine has a trident svga adapter
 	//ROM_LOAD16_BYTE("vga1-bios-ver-b-1.00-07.u8",     0x00000, 0x04000, CRC(a40551d6) SHA1(db38190f06e4af2c2d59ae310e65883bb16cd3d6))
 	//ROM_CONTINUE(                                     0x00001, 0x04000 )

@@ -201,6 +201,7 @@ enum {
 	MIPS3_PAGEMASK,
 	MIPS3_WIRED,
 	MIPS3_BADVADDR,
+	MIPS3_LLADDR,
 	MIPS3_R0H,
 	MIPS3_R1H,
 	MIPS3_R2H,
@@ -237,6 +238,9 @@ enum {
 
 #define MIPS3_MAX_FASTRAM       3
 #define MIPS3_MAX_HOTSPOTS      16
+
+/* COP1 CCR register */
+#define COP1_FCR31              (m_core->ccr[1][31])
 
 /***************************************************************************
 INTERRUPT CONSTANTS
@@ -297,6 +301,7 @@ public:
 
 	void set_icache_size(size_t icache_size) { c_icache_size = icache_size; }
 	void set_dcache_size(size_t dcache_size) { c_dcache_size = dcache_size; }
+	void set_secondary_cache_line_size(uint8_t secondary_cache_line_size) { c_secondary_cache_line_size = secondary_cache_line_size; }
 	void set_system_clock(uint32_t system_clock) { c_system_clock = system_clock; }
 
 	TIMER_CALLBACK_MEMBER(compare_int_callback);
@@ -305,7 +310,6 @@ public:
 	void clear_fastram(uint32_t select_start);
 	void mips3drc_set_options(uint32_t options);
 	void mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cycles);
-	void burn_cycles(int32_t cycles);
 
 protected:
 	// device-level overrides
@@ -314,12 +318,11 @@ protected:
 	virtual void device_stop() override;
 
 	// device_execute_interface overrides
-	virtual uint32_t execute_min_cycles() const override { return 1; }
-	virtual uint32_t execute_max_cycles() const override { return 40; }
-	virtual uint32_t execute_input_lines() const override { return 6; }
+	virtual uint32_t execute_min_cycles() const noexcept override { return 1; }
+	virtual uint32_t execute_max_cycles() const noexcept override { return 40; }
+	virtual uint32_t execute_input_lines() const noexcept override { return 6; }
 	virtual void execute_run() override;
 	virtual void execute_set_input(int inputnum, int state) override;
-	virtual void execute_burn(int32_t cycles) override { m_totalcycles += cycles; }
 
 	// device_memory_interface overrides
 	virtual space_config_vector memory_space_config() const override;
@@ -327,6 +330,7 @@ protected:
 
 	// device_state_interface overrides
 	virtual void state_export(const device_state_entry &entry) override;
+	virtual void state_import(const device_state_entry &entry) override;
 	virtual void state_string_export(const device_state_entry &entry, std::string &str) const override;
 
 	// device_disasm_interface overrides
@@ -395,6 +399,11 @@ protected:
 	uint8_t *m_icache;
 
 	address_space_config m_program_config;
+	memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache m_cache32le;
+	memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache m_cache64le;
+	memory_access<32, 2, 0, ENDIANNESS_BIG>::cache m_cache32be;
+	memory_access<32, 3, 0, ENDIANNESS_BIG>::cache m_cache64be;
+
 	mips3_flavor    m_flavor;
 
 	/* internal stuff */
@@ -427,6 +436,7 @@ protected:
 	uint32_t        c_system_clock;
 	uint32_t        m_cpu_clock;
 	emu_timer *     m_compare_int_timer;
+	uint32_t        m_tlb_seed;
 
 	/* derived info based on flavor */
 	uint32_t        m_pfnmask;
@@ -436,11 +446,13 @@ protected:
 	bool            m_bigendian;
 	uint32_t        m_byte_xor;
 	uint32_t        m_word_xor;
+	uint32_t        m_dword_xor;
 	data_accessors  m_memory;
 
 	/* cache memory */
 	size_t          c_icache_size;
 	size_t          c_dcache_size;
+	uint8_t         c_secondary_cache_line_size;
 
 	/* MMU */
 	mips3_tlb_entry m_tlb[MIPS3_MAX_TLB_ENTRIES];
@@ -504,7 +516,6 @@ protected:
 	}               m_hotspot[MIPS3_MAX_HOTSPOTS];
 	bool            m_isdrc;
 
-
 	void generate_exception(int exception, int backup);
 	void generate_tlb_exception(int exception, offs_t address);
 	virtual void check_irqs();
@@ -522,6 +533,7 @@ private:
 	uint32_t compute_config_register();
 	uint32_t compute_prid_register();
 
+	uint32_t generate_tlb_index();
 	void tlb_map_entry(int tlbindex);
 	void tlb_write_common(int tlbindex);
 
@@ -588,6 +600,7 @@ public:
 	void func_printf_exception();
 	void func_printf_debug();
 	void func_printf_probe();
+	void func_debug_break();
 	void func_unimplemented();
 private:
 	/* internal compiler state */
@@ -961,11 +974,11 @@ COMPILER-SPECIFIC OPTIONS
 #define MIPS3DRC_STRICT_COP0        0x0002          /* validate all COP0 instructions */
 #define MIPS3DRC_STRICT_COP1        0x0004          /* validate all COP1 instructions */
 #define MIPS3DRC_STRICT_COP2        0x0008          /* validate all COP2 instructions */
-#define MIPS3DRC_FLUSH_PC           0x0010          /* flush the PC value before each memory access */
+#define MIPS3DRC_DISABLE_INTRABLOCK 0x0010          /* disable intrablock branching */
 #define MIPS3DRC_CHECK_OVERFLOWS    0x0020          /* actually check overflows on add/sub instructions */
 #define MIPS3DRC_ACCURATE_DIVZERO   0x0040          /* load correct values into HI/LO on integer divide-by-zero */
 
-#define MIPS3DRC_COMPATIBLE_OPTIONS (MIPS3DRC_STRICT_VERIFY | MIPS3DRC_STRICT_COP1 | MIPS3DRC_STRICT_COP0 | MIPS3DRC_STRICT_COP2 | MIPS3DRC_FLUSH_PC)
+#define MIPS3DRC_COMPATIBLE_OPTIONS (MIPS3DRC_STRICT_VERIFY | MIPS3DRC_STRICT_COP1 | MIPS3DRC_STRICT_COP0 | MIPS3DRC_STRICT_COP2)
 #define MIPS3DRC_FASTEST_OPTIONS    (0)
 
 

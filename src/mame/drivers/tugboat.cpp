@@ -42,8 +42,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_screen(*this, "screen"),
-		m_palette(*this, "palette"),
-		m_ram(*this, "ram")
+		m_palette(*this, "palette")
 	{ }
 
 	void tugboat(machine_config &config);
@@ -66,7 +65,7 @@ private:
 	required_device<screen_device> m_screen;
 	required_device<palette_device> m_palette;
 
-	required_shared_ptr<uint8_t> m_ram;
+	memory_access<16, 0, 0, ENDIANNESS_LITTLE>::specific m_program;
 
 	uint8_t m_hd46505_0_reg[18];
 	uint8_t m_hd46505_1_reg[18];
@@ -75,11 +74,11 @@ private:
 	int m_ctrl;
 	emu_timer *m_interrupt_timer;
 
-	DECLARE_WRITE8_MEMBER(hd46505_0_w);
-	DECLARE_WRITE8_MEMBER(hd46505_1_w);
-	DECLARE_WRITE8_MEMBER(score_w);
-	DECLARE_READ8_MEMBER(input_r);
-	DECLARE_WRITE8_MEMBER(ctrl_w);
+	void hd46505_0_w(offs_t offset, uint8_t data);
+	void hd46505_1_w(offs_t offset, uint8_t data);
+	void score_w(offs_t offset, uint8_t data);
+	uint8_t input_r();
+	void ctrl_w(uint8_t data);
 
 	void tugboat_palette(palette_device &palette) const;
 
@@ -93,6 +92,7 @@ private:
 void tugboat_state::machine_start()
 {
 	m_interrupt_timer = timer_alloc(TIMER_INTERRUPT);
+	m_maincpu->space(AS_PROGRAM).specific(m_program);
 
 	save_item(NAME(m_hd46505_0_reg));
 	save_item(NAME(m_hd46505_1_reg));
@@ -125,24 +125,24 @@ void tugboat_state::tugboat_palette(palette_device &palette) const
 
 
 
-/* see mc6845.c. That file is only a placeholder, I process the writes here
+/* see mc6845.cpp. That file is only a placeholder, I process the writes here
    because I need the start_addr register to handle scrolling */
-WRITE8_MEMBER(tugboat_state::hd46505_0_w)
+void tugboat_state::hd46505_0_w(offs_t offset, uint8_t data)
 {
 	if (offset == 0) m_reg0 = data & 0x0f;
 	else if (m_reg0 < 18) m_hd46505_0_reg[m_reg0] = data;
 }
-WRITE8_MEMBER(tugboat_state::hd46505_1_w)
+void tugboat_state::hd46505_1_w(offs_t offset, uint8_t data)
 {
 	if (offset == 0) m_reg1 = data & 0x0f;
 	else if (m_reg1 < 18) m_hd46505_1_reg[m_reg1] = data;
 }
 
 
-WRITE8_MEMBER(tugboat_state::score_w)
+void tugboat_state::score_w(offs_t offset, uint8_t data)
 {
-		if (offset>=0x8) m_ram[0x291d + 32*offset + 32*(1-8)] = data ^ 0x0f;
-		if (offset<0x8 ) m_ram[0x291d + 32*offset + 32*9] = data ^ 0x0f;
+	if (offset>=0x8) m_program.write_byte(0x291d + 32*offset + 32*(1-8), data ^ 0x0f);
+	if (offset<0x8 ) m_program.write_byte(0x291d + 32*offset + 32*9,     data ^ 0x0f);
 }
 
 void tugboat_state::draw_tilemap(bitmap_ind16 &bitmap, const rectangle &cliprect,
@@ -152,8 +152,8 @@ void tugboat_state::draw_tilemap(bitmap_ind16 &bitmap, const rectangle &cliprect
 	{
 		for (int x = 0; x < 32; x++)
 		{
-			int attr = m_ram[addr + 0x400];
-			int code = ((attr & 0x01) << 8) | m_ram[addr];
+			int attr = m_program.read_byte(addr + 0x400);
+			int code = ((attr & 0x01) << 8) | m_program.read_byte(addr);
 			int color = (attr & 0x3c) >> 2;
 
 			int rgn, transpen;
@@ -193,7 +193,7 @@ uint32_t tugboat_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 
 
 
-READ8_MEMBER(tugboat_state::input_r)
+uint8_t tugboat_state::input_r()
 {
 	if (~m_ctrl & 0x80)
 		return ioport("IN0")->read();
@@ -207,7 +207,7 @@ READ8_MEMBER(tugboat_state::input_r)
 		return ioport("IN4")->read();
 }
 
-WRITE8_MEMBER(tugboat_state::ctrl_w)
+void tugboat_state::ctrl_w(uint8_t data)
 {
 	m_ctrl = data;
 }
@@ -221,7 +221,7 @@ void tugboat_state::device_timer(emu_timer &timer, device_timer_id id, int param
 		m_interrupt_timer->adjust(m_screen->frame_period());
 		break;
 	default:
-		assert_always(false, "Unknown id in tugboat_state::device_timer");
+		throw emu_fatalerror("Unknown id in tugboat_state::device_timer");
 	}
 }
 
@@ -234,13 +234,13 @@ void tugboat_state::machine_reset()
 void tugboat_state::main_map(address_map &map)
 {
 	map.global_mask(0x7fff);
-	map(0x0000, 0x01ff).ram().share("ram");
+	map(0x0000, 0x01ff).ram();
 	map(0x1060, 0x1061).w("aysnd", FUNC(ay8910_device::address_data_w));
 	map(0x10a0, 0x10a1).w(FUNC(tugboat_state::hd46505_0_w));  /* scrolling is performed changing the start_addr register (0C/0D) */
 	map(0x10c0, 0x10c1).w(FUNC(tugboat_state::hd46505_1_w));
 	map(0x11e4, 0x11e7).rw("pia0", FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0x11e8, 0x11eb).rw("pia1", FUNC(pia6821_device::read), FUNC(pia6821_device::write));
-	//AM_RANGE(0x1700, 0x1fff) AM_RAM
+	//map(0x1700, 0x1fff).ram();
 	map(0x18e0, 0x18ef).w(FUNC(tugboat_state::score_w));
 	map(0x2000, 0x2fff).ram(); /* tilemap RAM */
 	map(0x4000, 0x7fff).rom();
@@ -359,9 +359,10 @@ static GFXDECODE_START( gfx_tugboat )
 GFXDECODE_END
 
 
-MACHINE_CONFIG_START(tugboat_state::tugboat)
-	MCFG_DEVICE_ADD("maincpu", M6502, 2000000) /* 2 MHz ???? */
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+void tugboat_state::tugboat(machine_config &config)
+{
+	M6502(config, m_maincpu, 2000000); /* 2 MHz ???? */
+	m_maincpu->set_addrmap(AS_PROGRAM, &tugboat_state::main_map);
 
 	pia6821_device &pia0(PIA6821(config, "pia0", 0));
 	pia0.readpa_handler().set(FUNC(tugboat_state::input_r));
@@ -370,13 +371,13 @@ MACHINE_CONFIG_START(tugboat_state::tugboat)
 	pia1.readpa_handler().set_ioport("DSW");
 	pia1.writepb_handler().set(FUNC(tugboat_state::ctrl_w));
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_SIZE(32*8,32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8,31*8-1,2*8,30*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(tugboat_state, screen_update)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(INPUTLINE("maincpu", INPUT_LINE_NMI))
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_size(32*8,32*8);
+	m_screen->set_visarea(1*8,31*8-1,2*8,30*8-1);
+	m_screen->set_screen_update(FUNC(tugboat_state::screen_update));
+	m_screen->set_palette(m_palette);
+	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_tugboat);
 	PALETTE(config, m_palette, FUNC(tugboat_state::tugboat_palette), 256);
@@ -385,7 +386,7 @@ MACHINE_CONFIG_START(tugboat_state::tugboat)
 	SPEAKER(config, "mono").front_center();
 
 	AY8912(config, "aysnd", XTAL(10'000'000)/8).add_route(ALL_OUTPUTS, "mono", 0.35);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( tugboat )

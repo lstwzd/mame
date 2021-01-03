@@ -105,7 +105,7 @@ vic20_final_expansion_3_device::vic20_final_expansion_3_device(const machine_con
 	device_t(mconfig, VIC20_FE3, tag, owner, clock),
 	device_vic20_expansion_card_interface(mconfig, *this),
 	m_flash_rom(*this, AM29F040_TAG),
-	m_ram(*this, "sram"), m_reg1(0), m_reg2(0), m_lockbit(0)
+	m_ram(*this, "sram", 0x80000, ENDIANNESS_LITTLE), m_reg1(0), m_reg2(0), m_lockbit(0)
 {
 }
 
@@ -116,8 +116,6 @@ vic20_final_expansion_3_device::vic20_final_expansion_3_device(const machine_con
 
 void vic20_final_expansion_3_device::device_start()
 {
-	m_ram.allocate(0x80000);
-
 	// state saving
 	save_item(NAME(m_reg1));
 	save_item(NAME(m_reg2));
@@ -140,7 +138,7 @@ void vic20_final_expansion_3_device::device_reset()
 //  vic20_cd_r - cartridge data read
 //-------------------------------------------------
 
-uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
+uint8_t vic20_final_expansion_3_device::vic20_cd_r(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
 {
 	switch (m_reg1 & REG1_MODE_MASK)
 	{
@@ -148,7 +146,7 @@ uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t 
 		// read from ROM
 		if (!blk5)
 		{
-			data = m_flash_rom->read(space, get_address(0, 3, offset));
+			data = m_flash_rom->read(get_address(0, 3, offset));
 
 			m_lockbit = 1;
 		}
@@ -170,19 +168,19 @@ uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t 
 		// read from ROM
 		if (!blk1 && !BLK1_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 0, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 0, offset));
 		}
 		if (!blk2 && !BLK2_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 1, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 1, offset));
 		}
 		if (!blk3 && !BLK3_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 2, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 2, offset));
 		}
 		if (!blk5 && !BLK5_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 3, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 3, offset));
 		}
 
 		// read from registers
@@ -298,19 +296,19 @@ uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t 
 		// read from ROM bank 0 or RAM bank 1
 		if (!blk1 && !BLK1_HIDDEN)
 		{
-			data = (m_reg1 & REG1_BLK1) ? m_flash_rom->read(space, get_address(0, 0, offset)) : m_ram[get_address(1, 0, offset)];
+			data = (m_reg1 & REG1_BLK1) ? m_flash_rom->read(get_address(0, 0, offset)) : m_ram[get_address(1, 0, offset)];
 		}
 		if (!blk2 && !BLK2_HIDDEN)
 		{
-			data = (m_reg1 & REG1_BLK2) ? m_flash_rom->read(space, get_address(0, 1, offset)) : m_ram[get_address(1, 1, offset)];
+			data = (m_reg1 & REG1_BLK2) ? m_flash_rom->read(get_address(0, 1, offset)) : m_ram[get_address(1, 1, offset)];
 		}
 		if (!blk3 && !BLK3_HIDDEN)
 		{
-			data = (m_reg1 & REG1_BLK3) ? m_flash_rom->read(space, get_address(0, 2, offset)) : m_ram[get_address(1, 2, offset)];
+			data = (m_reg1 & REG1_BLK3) ? m_flash_rom->read(get_address(0, 2, offset)) : m_ram[get_address(1, 2, offset)];
 		}
 		if (!blk5 && !BLK5_HIDDEN)
 		{
-			data = (m_reg1 & REG1_BLK5) ? m_flash_rom->read(space, get_address(0, 3, offset)) : m_ram[get_address(1, 3, offset)];
+			data = (m_reg1 & REG1_BLK5) ? m_flash_rom->read(get_address(0, 3, offset)) : m_ram[get_address(1, 3, offset)];
 		}
 
 		// read from registers
@@ -330,19 +328,19 @@ uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t 
 		// read from ROM
 		if (!blk1 && !BLK1_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 0, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 0, offset));
 		}
 		if (!blk2 && !BLK2_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 1, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 1, offset));
 		}
 		if (!blk3 && !BLK3_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 2, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 2, offset));
 		}
 		if (!blk5 && !BLK5_HIDDEN)
 		{
-			data = m_flash_rom->read(space, get_address(REG1_BANK, 3, offset));
+			data = m_flash_rom->read(get_address(REG1_BANK, 3, offset));
 		}
 
 		// read from registers
@@ -361,7 +359,7 @@ uint8_t vic20_final_expansion_3_device::vic20_cd_r(address_space &space, offs_t 
 //  vic20_cd_w - cartridge data write
 //-------------------------------------------------
 
-void vic20_final_expansion_3_device::vic20_cd_w(address_space &space, offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
+void vic20_final_expansion_3_device::vic20_cd_w(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3)
 {
 	switch (m_reg1 & REG1_MODE_MASK)
 	{
@@ -551,19 +549,19 @@ void vic20_final_expansion_3_device::vic20_cd_w(address_space &space, offs_t off
 		// write to ROM
 		if (!blk1 && !BLK1_HIDDEN)
 		{
-			m_flash_rom->write(space, get_address(REG1_BANK, 0, offset), data);
+			m_flash_rom->write(get_address(REG1_BANK, 0, offset), data);
 		}
 		if (!blk2 && !BLK2_HIDDEN)
 		{
-			m_flash_rom->write(space, get_address(REG1_BANK, 1, offset), data);
+			m_flash_rom->write(get_address(REG1_BANK, 1, offset), data);
 		}
 		if (!blk3 && !BLK3_HIDDEN)
 		{
-			m_flash_rom->write(space, get_address(REG1_BANK, 2, offset), data);
+			m_flash_rom->write(get_address(REG1_BANK, 2, offset), data);
 		}
 		if (!blk5 && !BLK5_HIDDEN)
 		{
-			m_flash_rom->write(space, get_address(REG1_BANK, 3, offset), data);
+			m_flash_rom->write(get_address(REG1_BANK, 3, offset), data);
 		}
 
 		// write to registers

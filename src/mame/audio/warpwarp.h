@@ -18,16 +18,16 @@ public:
 	};
 
 
-	DECLARE_WRITE8_MEMBER( sound_w );
-	DECLARE_WRITE8_MEMBER( music1_w );
-	DECLARE_WRITE8_MEMBER( music2_w );
+	void sound_w(u8 data);
+	void music1_w(u8 data);
+	void music2_w(u8 data);
 
 protected:
 	// device-level overrides
 	virtual void device_start() override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, stream_sample_t **inputs, stream_sample_t **outputs, int samples) override;
+	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 

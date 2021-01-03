@@ -114,7 +114,7 @@ ql_trump_card_device::ql_trump_card_device(const machine_config &mconfig, device
 	m_floppy0(*this, WD1772_TAG":0"),
 	m_floppy1(*this, WD1772_TAG":1"),
 	m_rom(*this, "rom"),
-	m_ram(*this, "ram"),
+	m_ram(*this, "ram", ram_size, ENDIANNESS_BIG),
 	m_ram_size(ram_size),
 	m_rom_en(false)
 {
@@ -142,9 +142,6 @@ ql_trump_card_768k_device::ql_trump_card_768k_device(const machine_config &mconf
 
 void ql_trump_card_device::device_start()
 {
-	// allocate memory
-	m_ram.allocate(m_ram_size);
-
 	// state saving
 	save_item(NAME(m_rom_en));
 }
@@ -167,7 +164,7 @@ void ql_trump_card_device::device_reset()
 //  read -
 //-------------------------------------------------
 
-uint8_t ql_trump_card_device::read(address_space &space, offs_t offset, uint8_t data)
+uint8_t ql_trump_card_device::read(offs_t offset, uint8_t data)
 {
 	if (offset >= 0xc000 && offset < 0x10000)
 	{
@@ -220,7 +217,7 @@ uint8_t ql_trump_card_device::read(address_space &space, offs_t offset, uint8_t 
 //  write -
 //-------------------------------------------------
 
-void ql_trump_card_device::write(address_space &space, offs_t offset, uint8_t data)
+void ql_trump_card_device::write(offs_t offset, uint8_t data)
 {
 	if (offset >= 0x1c000 && offset <= 0x1c003)
 	{

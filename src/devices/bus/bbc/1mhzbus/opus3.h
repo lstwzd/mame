@@ -39,23 +39,18 @@ protected:
 	virtual void device_add_mconfig(machine_config &config) override;
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
-	virtual DECLARE_READ8_MEMBER(fred_r) override;
-	virtual DECLARE_WRITE8_MEMBER(fred_w) override;
-	virtual DECLARE_READ8_MEMBER(jim_r) override;
-	virtual DECLARE_WRITE8_MEMBER(jim_w) override;
+	virtual uint8_t fred_r(offs_t offset) override;
+	virtual void fred_w(offs_t offset, uint8_t data) override;
+	virtual uint8_t jim_r(offs_t offset) override;
+	virtual void jim_w(offs_t offset, uint8_t data) override;
 
 private:
 	DECLARE_FLOPPY_FORMATS(floppy_formats);
 
-	DECLARE_WRITE_LINE_MEMBER(fdc_drq_w);
-
 	required_device<ram_device> m_ramdisk;
 	required_device<wd1770_device> m_fdc;
-	required_device<floppy_connector> m_floppy0;
-	optional_device<floppy_connector> m_floppy1;
+	required_device_array<floppy_connector, 2> m_floppy;
 
-	int m_fdc_ie;
-	int m_fdc_drq;
 	uint16_t m_ramdisk_page;
 };
 

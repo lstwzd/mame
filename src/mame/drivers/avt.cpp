@@ -427,6 +427,7 @@
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
 
 #define MASTER_CLOCK    XTAL(16'000'000)          /* unknown */
@@ -456,16 +457,16 @@ protected:
 	virtual void video_start() override;
 
 private:
-	DECLARE_WRITE8_MEMBER(avt_6845_address_w);
-	DECLARE_WRITE8_MEMBER(avt_6845_data_w);
-	DECLARE_READ8_MEMBER( avt_6845_data_r );
-	DECLARE_WRITE8_MEMBER(avt_videoram_w);
-	DECLARE_WRITE8_MEMBER(avt_colorram_w);
+	void avt_6845_address_w(uint8_t data);
+	void avt_6845_data_w(uint8_t data);
+	uint8_t avt_6845_data_r();
+	void avt_videoram_w(offs_t offset, uint8_t data);
+	void avt_colorram_w(offs_t offset, uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(avtnfl_w);
 	DECLARE_WRITE_LINE_MEMBER(avtbingo_w);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	void avt_palette(palette_device &palette) const;
-	uint32_t screen_update_avt(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update_avt(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void avt_map(address_map &map);
 	void avt_portmap(address_map &map);
@@ -505,14 +506,14 @@ private:
 *********************************************/
 
 
-WRITE8_MEMBER( avt_state::avt_videoram_w )
+void avt_state::avt_videoram_w(offs_t offset, uint8_t data)
 {
 	m_videoram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
 }
 
 
-WRITE8_MEMBER( avt_state::avt_colorram_w )
+void avt_state::avt_colorram_w(offs_t offset, uint8_t data)
 {
 	m_colorram[offset] = data;
 	m_bg_tilemap->mark_tile_dirty(offset);
@@ -530,17 +531,17 @@ TILE_GET_INFO_MEMBER(avt_state::get_bg_tile_info)
 	int code = m_videoram[tile_index] | ((attr & 1) << 8);
 	int color = (attr & 0xf0)>>4;
 
-	SET_TILE_INFO_MEMBER(0, code, color, 0);
+	tileinfo.set(0, code, color, 0);
 }
 
 
 void avt_state::video_start()
 {
-	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(avt_state::get_bg_tile_info),this), TILEMAP_SCAN_ROWS, 8, 8, 28, 32);
+	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(avt_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8, 8, 28, 32);
 }
 
 
-uint32_t avt_state::screen_update_avt(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t avt_state::screen_update_avt(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	int x,y;
 	int count;
@@ -568,12 +569,12 @@ uint32_t avt_state::screen_update_avt(screen_device &screen, bitmap_ind16 &bitma
 void avt_state::avt_palette(palette_device &palette) const
 {
 	/*  prom bits
-		7654 3210
-		---- ---x   Intensity?.
-		---- --x-   Red component.
-		---- -x--   Green component.
-		---- x---   Blue component.
-		xxxx ----   Unused.
+	    7654 3210
+	    ---- ---x   Intensity?.
+	    ---- --x-   Red component.
+	    ---- -x--   Green component.
+	    ---- x---   Blue component.
+	    xxxx ----   Unused.
 	*/
 
 	/* 0000BGRI */
@@ -614,29 +615,29 @@ void avt_state::avt_palette(palette_device &palette) const
 *            Read / Write Handlers            *
 **********************************************/
 
-//WRITE8_MEMBER(avt_state::debug_w)
+//void avt_state::debug_w(uint8_t data)
 //{
 //  popmessage("written : %02X", data);
 //}
 
 // [:crtc] M6845: Mode Control 10 is not supported!!!
 
-WRITE8_MEMBER( avt_state::avt_6845_address_w )
+void avt_state::avt_6845_address_w(uint8_t data)
 {
 	m_crtc_index = data;
-	m_crtc->address_w(space, offset, data);
+	m_crtc->address_w(data);
 }
 
-WRITE8_MEMBER( avt_state::avt_6845_data_w )
+void avt_state::avt_6845_data_w(uint8_t data)
 {
 	m_crtc_vreg[m_crtc_index] = data;
-	m_crtc->register_w(space, offset, data);
+	m_crtc->register_w(data);
 }
 
-READ8_MEMBER( avt_state::avt_6845_data_r )
+uint8_t avt_state::avt_6845_data_r()
 {
 	//m_crtc_vreg[m_crtc_index] = data;
-	return m_crtc->register_r(space, offset);
+	return m_crtc->register_r();
 }
 
 /*********************************************
@@ -648,7 +649,7 @@ void avt_state::avt_map(address_map &map)
 {
 	map(0x0000, 0x5fff).rom();
 	map(0x6000, 0x7fff).ram();
-	map(0x8000, 0x9fff).ram(); // AM_SHARE("nvram")
+	map(0x8000, 0x9fff).ram(); // .share("nvram");
 	map(0xa000, 0xa7ff).ram().w(FUNC(avt_state::avt_videoram_w)).share("videoram");
 	map(0xc000, 0xc7ff).ram().w(FUNC(avt_state::avt_colorram_w)).share("colorram");
 }
@@ -956,7 +957,8 @@ WRITE_LINE_MEMBER( avt_state::avtbingo_w )
 		m_pio0->port_b_write(ioport("IN0")->read());
 }
 
-MACHINE_CONFIG_START(avt_state::avt)
+void avt_state::avt(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, CPU_CLOCK); /* guess */
 	m_maincpu->set_daisy_config(daisy_chain);
@@ -964,13 +966,12 @@ MACHINE_CONFIG_START(avt_state::avt)
 	m_maincpu->set_addrmap(AS_IO, &avt_state::avt_portmap);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)  /* 240x224 (through CRTC) */
-	MCFG_SCREEN_UPDATE_DRIVER(avt_state, screen_update_avt)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea_full();  /* 240x224 (through CRTC) */
+	screen.set_screen_update(FUNC(avt_state::screen_update_avt));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_avt);
 	PALETTE(config, m_palette, FUNC(avt_state::avt_palette), 8*16);
@@ -1004,7 +1005,7 @@ MACHINE_CONFIG_START(avt_state::avt)
 	// PORT A d0-d7 = TP13,TP12,TP11,TP10,TP8,TP7,TP5,TP3
 	// PORT B d0-d7 = "Player2", DCOM, CCOM, BCOM, ACOM, LOCKOUT/TP6, TP4, 50/60HZ (held high, jumper on JP13 grounds it)
 	// DCOM,CCOM,BCOM,ACOM appear to be muxes
-MACHINE_CONFIG_END
+}
 
 // Leave avtnfl as it was until more is learnt.
 WRITE_LINE_MEMBER( avt_state::avtnfl_w )

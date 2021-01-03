@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "ataintf.h"
+#include "bus/ata/ataintf.h"
 
 class ide_controller_device : public abstract_ata_interface_device
 {
@@ -46,10 +46,10 @@ public:
 	void write_cs0(offs_t offset, uint16_t data, uint16_t mem_mask = 0xffff);
 	void write_cs1(offs_t offset, uint16_t data, uint16_t mem_mask = 0xffff);
 
-	DECLARE_READ16_MEMBER(cs0_r) { return read_cs0(offset, mem_mask); }
-	DECLARE_READ16_MEMBER(cs1_r) { return read_cs1(offset, mem_mask); }
-	DECLARE_WRITE16_MEMBER(cs0_w) { write_cs0(offset, data, mem_mask); }
-	DECLARE_WRITE16_MEMBER(cs1_w) { write_cs1(offset, data, mem_mask); }
+	uint16_t cs0_r(offs_t offset, uint16_t mem_mask = ~0) { return read_cs0(offset, mem_mask); }
+	uint16_t cs1_r(offs_t offset, uint16_t mem_mask = ~0) { return read_cs1(offset, mem_mask); }
+	void cs0_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0) { write_cs0(offset, data, mem_mask); }
+	void cs1_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0) { write_cs1(offset, data, mem_mask); }
 
 protected:
 	ide_controller_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
@@ -89,10 +89,10 @@ public:
 	void write_cs0(offs_t offset, uint32_t data, uint32_t mem_mask = 0xffffffff);
 	void write_cs1(offs_t offset, uint32_t data, uint32_t mem_mask = 0xffffffff);
 
-	DECLARE_READ32_MEMBER(cs0_r) { return read_cs0(offset, mem_mask); }
-	DECLARE_READ32_MEMBER(cs1_r) { return read_cs1(offset, mem_mask); }
-	DECLARE_WRITE32_MEMBER(cs0_w) { write_cs0(offset, data, mem_mask); }
-	DECLARE_WRITE32_MEMBER(cs1_w) { write_cs1(offset, data, mem_mask); }
+	uint32_t cs0_r(offs_t offset, uint32_t mem_mask = ~0) { return read_cs0(offset, mem_mask); }
+	uint32_t cs1_r(offs_t offset, uint32_t mem_mask = ~0) { return read_cs1(offset, mem_mask); }
+	void cs0_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0) { write_cs0(offset, data, mem_mask); }
+	void cs1_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0) { write_cs1(offset, data, mem_mask); }
 
 protected:
 	ide_controller_32_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
@@ -105,7 +105,7 @@ class bus_master_ide_controller_device : public ide_controller_32_device
 {
 public:
 	bus_master_ide_controller_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
-	void set_bus_master_space(const char *bmcpu, uint32_t bmspace) { m_bmcpu = bmcpu; m_bmspace = bmspace; }
+	template <typename T> void set_bus_master_space(T &&bmtag, int bmspace) { m_dma_space.set_tag(std::forward<T>(bmtag), bmspace); }
 
 	template <typename T> bus_master_ide_controller_device &master(T &&opts, const char *dflt = nullptr, bool fixed = false)
 	{
@@ -128,8 +128,8 @@ public:
 		return *this;
 	}
 
-	DECLARE_READ32_MEMBER( bmdma_r );
-	DECLARE_WRITE32_MEMBER( bmdma_w );
+	uint32_t bmdma_r(offs_t offset, uint32_t mem_mask = ~0);
+	void bmdma_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 protected:
 	virtual void device_start() override;
@@ -140,9 +140,7 @@ protected:
 private:
 	void execute_dma();
 
-	const char *m_bmcpu;
-	uint32_t m_bmspace;
-	address_space *m_dma_space;
+	required_address_space m_dma_space;
 	uint8_t m_dma_address_xor;
 
 	offs_t m_dma_address;

@@ -5,27 +5,27 @@
 //  window.h - Win32 window handling
 //
 //============================================================
+#ifndef MAME_OSD_WINDOWS_WINDOW_H
+#define MAME_OSD_WINDOWS_WINDOW_H
 
-#ifndef __WIN_WINDOW__
-#define __WIN_WINDOW__
+#pragma once
+
+#include "render.h"
+
+#include "modules/osdwindow.h"
+#include "modules/lib/osdlib.h"
+
+#include <chrono>
+#include <list>
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 // standard windows headers
 #include <windows.h>
 #include <windowsx.h>
 #include <mmsystem.h>
-
-#include <chrono>
-#include <mutex>
-#include <memory>
-#include <list>
-
-#include "render.h"
-
-#include "modules/osdwindow.h"
-
-//============================================================
-//  PARAMETERS
-//============================================================
 
 
 //============================================================
@@ -42,6 +42,14 @@
 //  TYPE DEFINITIONS
 //============================================================
 
+enum class win_window_focus
+{
+	NONE,       // neither this window nor this thread have focus
+	THREAD,     // a window in this thread has focus
+	WINDOW      // this window has focus directly
+};
+
+
 class win_window_info  : public osd_window_t<HWND>
 {
 public:
@@ -51,6 +59,8 @@ public:
 
 	virtual render_target *target() override { return m_target; }
 	int fullscreen() const override { return m_fullscreen; }
+	bool attached_mode() const { return m_attached_mode; }
+	win_window_focus focus() const;
 
 	void update() override;
 
@@ -112,17 +122,18 @@ public:
 	// rendering info
 	std::mutex          m_render_lock;
 	render_target *     m_target;
-	int                 m_targetview;
+	unsigned            m_targetview;
 	int                 m_targetorient;
 	render_layer_config m_targetlayerconfig;
+	u32                 m_targetvismask;
 
 	// input info
-	std::chrono::system_clock::time_point  m_lastclicktime;
+	std::chrono::steady_clock::time_point  m_lastclicktime;
 	int                                    m_lastclickx;
 	int                                    m_lastclicky;
 
 private:
-	void draw_video_contents(HDC dc, int update);
+	void draw_video_contents(HDC dc, bool update);
 	int complete_create();
 	void set_starting_view(int index, const char *defview, const char *view);
 	int wnd_extra_width();
@@ -144,6 +155,7 @@ private:
 #endif
 
 	running_machine &   m_machine;
+	bool                m_attached_mode;
 };
 
 struct osd_draw_callbacks
@@ -157,7 +169,7 @@ struct osd_draw_callbacks
 //  PROTOTYPES
 //============================================================
 
-BOOL winwindow_has_focus(void);
+bool winwindow_has_focus(void);
 void winwindow_update_cursor_state(running_machine &machine);
 
 extern LRESULT CALLBACK winwindow_video_window_proc_ui(HWND wnd, UINT message, WPARAM wparam, LPARAM lparam);
@@ -194,4 +206,4 @@ static inline int rect_height(const RECT *rect)
 	return rect->bottom - rect->top;
 }
 
-#endif
+#endif // MAME_OSD_WINDOWS_WINDOW_H

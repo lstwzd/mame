@@ -35,6 +35,9 @@ void sb2m600_state::video_start()
 	if (m_color_ram)
 		for (uint16_t addr = 0; addr < OSI630_COLORRAM_SIZE; addr++)
 			m_color_ram[addr] = machine().rand() & 0x0f;
+
+	m_32 = 0;
+	m_coloren = 0;
 }
 
 /* Video Update */
@@ -65,7 +68,7 @@ uint32_t sb2m600_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 						color = (color ^ BIT(colorram_data, 0)) ? (((colorram_data >> 1) & 0x07) + 2) : 0;
 					}
 
-					bitmap.pix16(y, x++) = color;
+					bitmap.pix(y, x++) = color;
 
 					charrom_data <<= 1;
 				}
@@ -98,8 +101,8 @@ uint32_t sb2m600_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 						color = (color ^ BIT(colorram_data, 0)) ? (((colorram_data >> 1) & 0x07) + 2) : 0;
 					}
 
-					bitmap.pix16(y, x++) = color;
-					bitmap.pix16(y, x++) = color;
+					bitmap.pix(y, x++) = color;
+					bitmap.pix(y, x++) = color;
 
 					charrom_data <<= 1;
 				}
@@ -128,7 +131,7 @@ uint32_t uk101_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 
 			for (int bit = 0; bit < 8; bit++)
 			{
-				bitmap.pix16(y, x) = BIT(charrom_data, 7);
+				bitmap.pix(y, x) = BIT(charrom_data, 7);
 				x++;
 				charrom_data <<= 1;
 			}
@@ -140,35 +143,38 @@ uint32_t uk101_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 
 /* Machine Drivers */
 
-MACHINE_CONFIG_START(sb2m600_state::osi600_video)
-	MCFG_SCREEN_ADD(SCREEN_TAG, RASTER)
-	MCFG_SCREEN_REFRESH_RATE(X1/256/256) // 60 Hz
-	MCFG_SCREEN_UPDATE_DRIVER(sb2m600_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0, 32*8-1)
-	MCFG_SCREEN_PALETTE("palette")
+void sb2m600_state::osi600_video(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, SCREEN_TAG, SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(X1/256/256); // 60 Hz
+	screen.set_screen_update(FUNC(sb2m600_state::screen_update));
+	screen.set_size(64*8, 32*8);
+	screen.set_visarea(0*8, 64*8-1, 0, 32*8-1);
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(uk101_state::uk101_video)
-	MCFG_SCREEN_ADD(SCREEN_TAG, RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_UPDATE_DRIVER(uk101_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 16*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 64*8-1, 0, 16*16-1)
-	MCFG_SCREEN_PALETTE("palette")
+void uk101_state::uk101_video(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, SCREEN_TAG, SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_screen_update(FUNC(uk101_state::screen_update));
+	screen.set_size(64*8, 16*16);
+	screen.set_visarea(0, 64*8-1, 0, 16*16-1);
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
-MACHINE_CONFIG_END
+}
 
-MACHINE_CONFIG_START(sb2m600_state::osi630_video)
-	MCFG_SCREEN_ADD(SCREEN_TAG, RASTER)
-	MCFG_SCREEN_REFRESH_RATE(X1/256/256) // 60 Hz
-	MCFG_SCREEN_UPDATE_DRIVER(sb2m600_state, screen_update)
-	MCFG_SCREEN_SIZE(64*8, 16*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 64*8-1, 0, 16*16-1)
-	MCFG_SCREEN_PALETTE("palette")
+void sb2m600_state::osi630_video(machine_config &config)
+{
+	screen_device &screen(SCREEN(config, SCREEN_TAG, SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(X1/256/256); // 60 Hz
+	screen.set_screen_update(FUNC(sb2m600_state::screen_update));
+	screen.set_size(64*8, 16*16);
+	screen.set_visarea(0, 64*8-1, 0, 16*16-1);
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(sb2m600_state::osi630_palette), 8+2);
-MACHINE_CONFIG_END
+}

@@ -39,6 +39,8 @@
 #include "speaker.h"
 
 
+namespace {
+
 #define SCREEN_TAG      "screen"
 #define Z80_TAG         "u13"
 #define AY8910_TAG      "u21"
@@ -66,7 +68,8 @@ public:
 		m_y(*this, "Y%u", 0),
 		m_joy(*this, "JOY%u", 0),
 		m_modifiers(*this, "MODIFIERS"),
-		m_joykeymap(*this, "JOYKEYMAP%u", 0)
+		m_joykeymap(*this, "JOYKEYMAP%u", 0),
+		m_banks(*this, "bank%u", 1U)
 	{ }
 
 	void mc1000(machine_config &config);
@@ -85,22 +88,23 @@ private:
 	required_ioport_array<2> m_joy;
 	required_ioport m_modifiers;
 	required_ioport_array<2> m_joykeymap;
+	required_memory_bank_array<5> m_banks;
 
 	std::unique_ptr<uint8_t[]> m_banked_ram;
 
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
-	DECLARE_READ8_MEMBER( printer_r );
-	DECLARE_WRITE8_MEMBER( printer_w );
-	DECLARE_WRITE8_MEMBER( mc6845_ctrl_w );
-	DECLARE_WRITE8_MEMBER( mc6847_attr_w );
+	uint8_t printer_r();
+	void printer_w(uint8_t data);
+	void mc6845_ctrl_w(uint8_t data);
+	void mc6847_attr_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER( fs_w );
 	DECLARE_WRITE_LINE_MEMBER( hs_w );
-	DECLARE_READ8_MEMBER( videoram_r );
-	DECLARE_WRITE8_MEMBER( keylatch_w );
-	DECLARE_READ8_MEMBER( keydata_r );
-	DECLARE_READ8_MEMBER( rom_banking_r );
+	uint8_t videoram_r(offs_t offset);
+	void keylatch_w(uint8_t data);
+	uint8_t keydata_r();
+	uint8_t rom_banking_r(offs_t offset);
 
 	void bankswitch();
 
@@ -109,8 +113,8 @@ private:
 
 	/* memory state */
 	int m_rom0000;
-	int m_mc6845_bank;
-	int m_mc6847_bank;
+	uint8_t m_mc6845_bank;
+	uint8_t m_mc6847_bank;
 
 	/* keyboard state */
 	int m_keylatch;
@@ -137,12 +141,12 @@ void mc1000_state::bankswitch()
 	address_space &program = m_maincpu->space(AS_PROGRAM);
 
 	/* MC6845 video RAM */
-	membank("bank2")->set_entry(m_mc6845_bank);
+	m_banks[1]->set_entry(m_mc6845_bank);
 
 	/* extended RAM */
 	if (m_ram->size() > 16*1024)
 	{
-		program.install_readwrite_bank(0x4000, 0x7fff, "bank3");
+		program.install_readwrite_bank(0x4000, 0x7fff, m_banks[2]);
 	}
 	else
 	{
@@ -154,7 +158,7 @@ void mc1000_state::bankswitch()
 	{
 		if (m_ram->size() > 16*1024)
 		{
-			program.install_readwrite_bank(0x8000, 0x97ff, "bank4");
+			program.install_readwrite_bank(0x8000, 0x97ff, m_banks[3]);
 		}
 		else
 		{
@@ -163,15 +167,15 @@ void mc1000_state::bankswitch()
 	}
 	else
 	{
-		program.install_readwrite_bank(0x8000, 0x97ff, "bank4");
+		program.install_readwrite_bank(0x8000, 0x97ff, m_banks[3]);
 	}
 
-	membank("bank4")->set_entry(m_mc6847_bank);
+	m_banks[3]->set_entry(m_mc6847_bank);
 
 	/* extended RAM */
 	if (m_ram->size() > 16*1024)
 	{
-		program.install_readwrite_bank(0x9800, 0xbfff, "bank5");
+		program.install_readwrite_bank(0x9800, 0xbfff, m_banks[4]);
 	}
 	else
 	{
@@ -186,24 +190,24 @@ WRITE_LINE_MEMBER( mc1000_state::write_centronics_busy )
 	m_centronics_busy = state;
 }
 
-READ8_MEMBER( mc1000_state::printer_r )
+uint8_t mc1000_state::printer_r()
 {
 	return m_centronics_busy;
 }
 
-WRITE8_MEMBER( mc1000_state::printer_w )
+void mc1000_state::printer_w(uint8_t data)
 {
 	m_centronics->write_strobe(BIT(data, 0));
 }
 
-WRITE8_MEMBER( mc1000_state::mc6845_ctrl_w )
+void mc1000_state::mc6845_ctrl_w(uint8_t data)
 {
 	m_mc6845_bank = BIT(data, 0);
 
 	bankswitch();
 }
 
-WRITE8_MEMBER( mc1000_state::mc6847_attr_w )
+void mc1000_state::mc6847_attr_w(uint8_t data)
 {
 	/*
 
@@ -260,7 +264,7 @@ void mc1000_state::mc1000_io(address_map &map)
 {
 	map.global_mask(0xff);
 	map(0x04, 0x04).rw(FUNC(mc1000_state::printer_r), FUNC(mc1000_state::printer_w));
-	map(0x05, 0x05).w("cent_data_out", FUNC(output_latch_device::bus_w));
+	map(0x05, 0x05).w("cent_data_out", FUNC(output_latch_device::write));
 //  map(0x10, 0x10).w(m_crtc, FUNC(mc6845_device::address_w));
 //  map(0x11, 0x11).rw(m_crtc, FUNC(mc6845_device::register_r), FUNC(mc6845_device::register_w));
 	map(0x12, 0x12).w(FUNC(mc1000_state::mc6845_ctrl_w));
@@ -389,7 +393,7 @@ WRITE_LINE_MEMBER( mc1000_state::hs_w )
 	m_hsync = state;
 }
 
-READ8_MEMBER( mc1000_state::videoram_r )
+uint8_t mc1000_state::videoram_r(offs_t offset)
 {
 	if (offset == ~0) return 0xff;
 
@@ -400,14 +404,14 @@ READ8_MEMBER( mc1000_state::videoram_r )
 
 /* AY-3-8910 Interface */
 
-WRITE8_MEMBER( mc1000_state::keylatch_w )
+void mc1000_state::keylatch_w(uint8_t data)
 {
 	m_keylatch = data;
 
 	m_cassette->output(BIT(data, 7) ? -1.0 : +1.0);
 }
 
-READ8_MEMBER( mc1000_state::keydata_r )
+uint8_t mc1000_state::keydata_r()
 {
 	uint8_t data = 0xff;
 
@@ -439,9 +443,9 @@ READ8_MEMBER( mc1000_state::keydata_r )
 }
 
 
-READ8_MEMBER( mc1000_state::rom_banking_r )
+uint8_t mc1000_state::rom_banking_r(offs_t offset)
 {
-	membank("bank1")->set_entry(0);
+	m_banks[0]->set_entry(0);
 	m_rom0000 = 0;
 	return m_rom->base()[offset];
 }
@@ -453,25 +457,27 @@ void mc1000_state::machine_start()
 	/* setup memory banking */
 	m_banked_ram = make_unique_clear<uint8_t[]>(0xc000);
 
-	membank("bank1")->configure_entry(0, m_banked_ram.get());
-	membank("bank1")->configure_entry(1, m_rom->base());
-	membank("bank1")->set_entry(1);
+	m_banks[0]->configure_entry(0, m_banked_ram.get());
+	m_banks[0]->configure_entry(1, m_rom->base());
+	m_banks[0]->set_entry(1);
 
 	m_rom0000 = 1;
+	m_mc6845_bank = 0;
+	m_mc6847_bank = 0;
 
-	membank("bank2")->configure_entry(0, m_banked_ram.get() + 0x2000);
-	membank("bank2")->configure_entry(1, m_mc6845_video_ram);
-	membank("bank2")->set_entry(0);
+	m_banks[1]->configure_entry(0, m_banked_ram.get() + 0x2000);
+	m_banks[1]->configure_entry(1, m_mc6845_video_ram);
+	m_banks[1]->set_entry(0);
 
-	membank("bank3")->configure_entry(0, m_banked_ram.get() + 0x4000);
-	membank("bank3")->set_entry(0);
+	m_banks[2]->configure_entry(0, m_banked_ram.get() + 0x4000);
+	m_banks[2]->set_entry(0);
 
-	membank("bank4")->configure_entry(0, m_mc6847_video_ram);
-	membank("bank4")->configure_entry(1, m_banked_ram.get() + 0x8000);
-	membank("bank4")->set_entry(0);
+	m_banks[3]->configure_entry(0, m_mc6847_video_ram);
+	m_banks[3]->configure_entry(1, m_banked_ram.get() + 0x8000);
+	m_banks[3]->set_entry(0);
 
-	membank("bank5")->configure_entry(0, m_banked_ram.get() + 0x9800);
-	membank("bank5")->set_entry(0);
+	m_banks[4]->configure_entry(0, m_banked_ram.get() + 0x9800);
+	m_banks[4]->set_entry(0);
 
 	bankswitch();
 
@@ -487,7 +493,7 @@ void mc1000_state::machine_start()
 
 void mc1000_state::machine_reset()
 {
-	membank("bank1")->set_entry(1);
+	m_banks[0]->set_entry(1);
 
 	m_rom0000 = 1;
 }
@@ -541,29 +547,32 @@ TIMER_DEVICE_CALLBACK_MEMBER(mc1000_state::ne555_tick)
 	m_maincpu->set_input_line(INPUT_LINE_IRQ0, param);
 }
 
-MACHINE_CONFIG_START(mc1000_state::mc1000)
-
+void mc1000_state::mc1000(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD(Z80_TAG, Z80, 3579545)
-	MCFG_DEVICE_PROGRAM_MAP(mc1000_mem)
-	MCFG_DEVICE_OPCODES_MAP(mc1000_banking_mem)
-	MCFG_DEVICE_IO_MAP(mc1000_io)
+	Z80(config, m_maincpu, 3579545);
+	m_maincpu->set_addrmap(AS_PROGRAM, &mc1000_state::mc1000_mem);
+	m_maincpu->set_addrmap(AS_OPCODES, &mc1000_state::mc1000_banking_mem);
+	m_maincpu->set_addrmap(AS_IO, &mc1000_state::mc1000_io);
 
 	/* timers */
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("ne555clear", mc1000_state, ne555_tick, attotime::from_hz(MC1000_NE555_FREQ))
-	MCFG_TIMER_PARAM(CLEAR_LINE)
+	timer_device &ne555clear(TIMER(config, "ne555clear"));
+	ne555clear.configure_periodic(FUNC(mc1000_state::ne555_tick), attotime::from_hz(MC1000_NE555_FREQ));
+	ne555clear.config_param(CLEAR_LINE);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("ne555assert", mc1000_state, ne555_tick, attotime::from_hz(MC1000_NE555_FREQ))
-	MCFG_TIMER_START_DELAY(attotime::from_hz(MC1000_NE555_FREQ * 100 / MC1000_NE555_DUTY_CYCLE))
-	MCFG_TIMER_PARAM(ASSERT_LINE)
+	timer_device &ne555assert(TIMER(config, "ne555assert"));
+	ne555assert.configure_periodic(FUNC(mc1000_state::ne555_tick), attotime::from_hz(MC1000_NE555_FREQ));
+	ne555assert.set_start_delay(attotime::from_hz(MC1000_NE555_FREQ * 100 / MC1000_NE555_DUTY_CYCLE));
+	ne555assert.config_param(ASSERT_LINE);
 
 	/* video hardware */
-	MCFG_SCREEN_MC6847_PAL_ADD(SCREEN_TAG, MC6847_TAG)
+	SCREEN(config, SCREEN_TAG, SCREEN_TYPE_RASTER);
 
-	MCFG_DEVICE_ADD(MC6847_TAG, MC6847_NTSC, XTAL(3'579'545))
-	MCFG_MC6847_HSYNC_CALLBACK(WRITELINE(*this, mc1000_state, hs_w))
-	MCFG_MC6847_FSYNC_CALLBACK(WRITELINE(*this, mc1000_state, fs_w))
-	MCFG_MC6847_INPUT_CALLBACK(READ8(*this, mc1000_state, videoram_r))
+	MC6847_NTSC(config, m_vdg, XTAL(3'579'545));
+	m_vdg->hsync_wr_callback().set(FUNC(mc1000_state::hs_w));
+	m_vdg->fsync_wr_callback().set(FUNC(mc1000_state::fs_w));
+	m_vdg->input_callback().set(FUNC(mc1000_state::videoram_r));
+	m_vdg->set_screen(SCREEN_TAG);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -575,20 +584,22 @@ MACHINE_CONFIG_START(mc1000_state::mc1000)
 	ay8910.add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	/* devices */
-	MCFG_CASSETTE_ADD("cassette")
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED)
-	MCFG_CASSETTE_INTERFACE("mc1000_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "mono", 0.05);
+	m_cassette->set_interface("mc1000_cass");
 
-	MCFG_SOFTWARE_LIST_ADD("cass_list", "mc1000_cass")
+	SOFTWARE_LIST(config, "cass_list").set_original("mc1000_cass");
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, mc1000_state, write_centronics_busy))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(mc1000_state::write_centronics_busy));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", CENTRONICS_TAG)
+	output_latch_device &latch(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(latch);
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("16K").set_extra_options("48K");
-MACHINE_CONFIG_END
+}
 
 /* ROMs */
 
@@ -597,6 +608,8 @@ ROM_START( mc1000 )
 	ROM_LOAD( "mc1000.ic17", 0x0000, 0x2000, CRC(8e78d80d) SHA1(9480270e67a5db2e7de8bc5c8b9e0bb210d4142b) )
 	ROM_LOAD( "mc1000.ic12", 0x2000, 0x2000, CRC(750c95f0) SHA1(fd766f5ea4481ef7fd4df92cf7d8397cc2b5a6c4) )
 ROM_END
+
+} // Anonymous namespace
 
 
 /* System Drivers */

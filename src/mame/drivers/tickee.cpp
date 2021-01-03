@@ -75,16 +75,16 @@ private:
 	uint8_t m_gunx[2];
 	void get_crosshair_xy(int player, int &x, int &y);
 
-	DECLARE_WRITE16_MEMBER(rapidfir_transparent_w);
-	DECLARE_READ16_MEMBER(rapidfir_transparent_r);
-	DECLARE_WRITE16_MEMBER(tickee_control_w);
-	DECLARE_READ16_MEMBER(ffff_r);
-	DECLARE_READ16_MEMBER(rapidfir_gun1_r);
-	DECLARE_READ16_MEMBER(rapidfir_gun2_r);
-	DECLARE_READ16_MEMBER(ff7f_r);
-	DECLARE_WRITE16_MEMBER(ff7f_w);
-	DECLARE_WRITE16_MEMBER(rapidfir_control_w);
-	DECLARE_WRITE16_MEMBER(sound_bank_w);
+	void rapidfir_transparent_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t rapidfir_transparent_r(offs_t offset);
+	void tickee_control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t ffff_r();
+	uint16_t rapidfir_gun1_r();
+	uint16_t rapidfir_gun2_r();
+	uint16_t ff7f_r();
+	void ff7f_w(uint16_t data);
+	void rapidfir_control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_MACHINE_RESET(tickee);
 	DECLARE_VIDEO_START(tickee);
 	DECLARE_MACHINE_RESET(rapidfir);
@@ -147,7 +147,7 @@ void tickee_state::device_timer(emu_timer &timer, device_timer_id id, int param,
 		setup_gun_interrupts(ptr, param);
 		break;
 	default:
-		assert_always(false, "Unknown id in tickee_state::device_timer");
+		throw emu_fatalerror("Unknown id in tickee_state::device_timer");
 	}
 }
 
@@ -220,21 +220,20 @@ VIDEO_START_MEMBER(tickee_state,tickee)
 
 TMS340X0_SCANLINE_RGB32_CB_MEMBER(tickee_state::scanline_update)
 {
-	uint16_t *src = &m_vram[(params->rowaddr << 8) & 0x3ff00];
-	uint32_t *dest = &bitmap.pix32(scanline);
-	const pen_t *pens = m_tlc34076->pens();
+	uint16_t const *const src = &m_vram[(params->rowaddr << 8) & 0x3ff00];
+	uint32_t *const dest = &bitmap.pix(scanline);
+	pen_t const *const pens = m_tlc34076->pens();
 	int coladdr = params->coladdr << 1;
-	int x;
 
 	/* blank palette: fill with pen 255 */
 	if (m_control[2])
 	{
-		for (x = params->heblnk; x < params->hsblnk; x++)
+		for (int x = params->heblnk; x < params->hsblnk; x++)
 			dest[x] = pens[0xff];
 	}
 	else
 		/* copy the non-blanked portions of this scanline */
-		for (x = params->heblnk; x < params->hsblnk; x += 2)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2)
 		{
 			uint16_t pixels = src[coladdr++ & 0xff];
 			dest[x + 0] = pens[pixels & 0xff];
@@ -245,16 +244,15 @@ TMS340X0_SCANLINE_RGB32_CB_MEMBER(tickee_state::scanline_update)
 
 TMS340X0_SCANLINE_RGB32_CB_MEMBER(tickee_state::rapidfir_scanline_update)
 {
-	uint16_t *src = &m_vram[(params->rowaddr << 8) & 0x3ff00];
-	uint32_t *dest = &bitmap.pix32(scanline);
+	uint16_t const *const src = &m_vram[(params->rowaddr << 8) & 0x3ff00];
+	uint32_t *const dest = &bitmap.pix(scanline);
 	const pen_t *pens = m_tlc34076->pens();
 	int coladdr = params->coladdr << 1;
-	int x;
 
 	if (m_palette_bank)
 	{
 		/* blank palette: fill with pen 255 */
-		for (x = params->heblnk; x < params->hsblnk; x += 2)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2)
 		{
 			dest[x + 0] = pens[0xff];
 			dest[x + 1] = pens[0xff];
@@ -263,7 +261,7 @@ TMS340X0_SCANLINE_RGB32_CB_MEMBER(tickee_state::rapidfir_scanline_update)
 	else
 	{
 		/* copy the non-blanked portions of this scanline */
-		for (x = params->heblnk; x < params->hsblnk; x += 2)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2)
 		{
 			uint16_t pixels = src[coladdr++ & 0xff];
 			dest[x + 0] = pens[pixels & 0xff];
@@ -298,7 +296,7 @@ MACHINE_RESET_MEMBER(tickee_state,rapidfir)
  *
  *************************************/
 
-WRITE16_MEMBER(tickee_state::rapidfir_transparent_w)
+void tickee_state::rapidfir_transparent_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (!(data & 0xff00)) mem_mask &= 0x00ff;
 	if (!(data & 0x00ff)) mem_mask &= 0xff00;
@@ -306,7 +304,7 @@ WRITE16_MEMBER(tickee_state::rapidfir_transparent_w)
 }
 
 
-READ16_MEMBER(tickee_state::rapidfir_transparent_r)
+uint16_t tickee_state::rapidfir_transparent_r(offs_t offset)
 {
 	return m_vram[offset];
 }
@@ -333,7 +331,7 @@ TMS340X0_FROM_SHIFTREG_CB_MEMBER(tickee_state::rapidfir_from_shiftreg)
  *
  *************************************/
 
-WRITE16_MEMBER(tickee_state::tickee_control_w)
+void tickee_state::tickee_control_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	uint16_t olddata = m_control[offset];
 
@@ -364,36 +362,36 @@ WRITE16_MEMBER(tickee_state::tickee_control_w)
  *
  *************************************/
 
-READ16_MEMBER(tickee_state::ffff_r)
+uint16_t tickee_state::ffff_r()
 {
 	return 0xffff;
 }
 
 
-READ16_MEMBER(tickee_state::rapidfir_gun1_r)
+uint16_t tickee_state::rapidfir_gun1_r()
 {
 	return m_gunx[0];
 }
 
 
-READ16_MEMBER(tickee_state::rapidfir_gun2_r)
+uint16_t tickee_state::rapidfir_gun2_r()
 {
 	return m_gunx[1];
 }
 
 
-READ16_MEMBER(tickee_state::ff7f_r)
+uint16_t tickee_state::ff7f_r()
 {
 	/* Ticket dispenser status? */
 	return 0xff7f;
 }
 
-WRITE16_MEMBER(tickee_state::ff7f_w)
+void tickee_state::ff7f_w(uint16_t data)
 {
 	/* Ticket dispenser output? */
 }
 
-WRITE16_MEMBER(tickee_state::rapidfir_control_w)
+void tickee_state::rapidfir_control_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	/* other bits like control on tickee? */
 	if (ACCESSING_BITS_0_7)
@@ -408,7 +406,7 @@ WRITE16_MEMBER(tickee_state::rapidfir_control_w)
  *
  *************************************/
 
-WRITE16_MEMBER(tickee_state::sound_bank_w)
+void tickee_state::sound_bank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	switch (data & 0xff)
 	{
@@ -454,7 +452,6 @@ void tickee_state::tickee_map(address_map &map)
 	map(0x04200100, 0x0420011f).w("ym2", FUNC(ay8910_device::address_data_w)).umask16(0x00ff);
 	map(0x04400000, 0x0440007f).w(FUNC(tickee_state::tickee_control_w)).share("control");
 	map(0x04400040, 0x0440004f).portr("IN2");
-	map(0xc0000000, 0xc00001ff).rw(m_maincpu, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 	map(0xc0000240, 0xc000025f).nopw();        /* seems to be a bug in their code */
 	map(0xff000000, 0xffffffff).rom().region("user1", 0);
 }
@@ -472,7 +469,6 @@ void tickee_state::ghoshunt_map(address_map &map)
 	map(0x04300100, 0x0430010f).r("ym2", FUNC(ay8910_device::data_r)).umask16(0x00ff);
 	map(0x04300100, 0x0430011f).w("ym2", FUNC(ay8910_device::address_data_w)).umask16(0x00ff);
 	map(0x04500000, 0x0450007f).w(FUNC(tickee_state::tickee_control_w)).share("control");
-	map(0xc0000000, 0xc00001ff).rw(m_maincpu, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 	map(0xc0000240, 0xc000025f).nopw();        /* seems to be a bug in their code */
 	map(0xff000000, 0xffffffff).rom().region("user1", 0);
 }
@@ -489,7 +485,6 @@ void tickee_state::mouseatk_map(address_map &map)
 	map(0x04200100, 0x0420010f).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write)).umask16(0x00ff);
 	map(0x04400000, 0x0440007f).w(FUNC(tickee_state::tickee_control_w)).share("control");
 	map(0x04400040, 0x0440004f).portr("IN2"); // ?
-	map(0xc0000000, 0xc00001ff).rw(m_maincpu, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 	map(0xc0000240, 0xc000025f).nopw();        /* seems to be a bug in their code */
 	map(0xff000000, 0xffffffff).rom().region("user1", 0);
 }
@@ -500,7 +495,6 @@ void tickee_state::rapidfir_map(address_map &map)
 {
 	map(0x00000000, 0x007fffff).ram().share("vram");
 	map(0x02000000, 0x027fffff).rw(FUNC(tickee_state::rapidfir_transparent_r), FUNC(tickee_state::rapidfir_transparent_w));
-	map(0xc0000000, 0xc00001ff).rw(m_maincpu, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 	map(0xfc000000, 0xfc00000f).r(FUNC(tickee_state::rapidfir_gun1_r));
 	map(0xfc000100, 0xfc00010f).r(FUNC(tickee_state::rapidfir_gun2_r));
 	map(0xfc000400, 0xfc00040f).r(FUNC(tickee_state::ffff_r));
@@ -758,8 +752,8 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(tickee_state::tickee)
-
+void tickee_state::tickee(machine_config &config)
+{
 	/* basic machine hardware */
 	TMS34010(config, m_maincpu, XTAL(40'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &tickee_state::tickee_map);
@@ -771,17 +765,17 @@ MACHINE_CONFIG_START(tickee_state::tickee)
 	MCFG_MACHINE_RESET_OVERRIDE(tickee_state,tickee)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_1);
 
-	MCFG_TICKET_DISPENSER_ADD("ticket1", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH)
-	MCFG_TICKET_DISPENSER_ADD("ticket2", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH)
+	TICKET_DISPENSER(config, m_ticket[0], attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH);
+	TICKET_DISPENSER(config, m_ticket[1], attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH);
 
 	/* video hardware */
-	MCFG_TLC34076_ADD("tlc34076", TLC34076_6_BIT)
+	TLC34076(config, m_tlc34076, tlc34076_device::TLC34076_6_BIT);
 
 	MCFG_VIDEO_START_OVERRIDE(tickee_state,tickee)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200)
-	MCFG_SCREEN_UPDATE_DEVICE("maincpu", tms34010_device, tms340x0_rgb32)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200);
+	m_screen->set_screen_update("maincpu", FUNC(tms34010_device::tms340x0_rgb32));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -795,20 +789,20 @@ MACHINE_CONFIG_START(tickee_state::tickee)
 	ym2.port_a_read_callback().set_ioport("IN0");
 	ym2.port_b_read_callback().set_ioport("IN2");
 	ym2.add_route(ALL_OUTPUTS, "mono", 0.50);
-MACHINE_CONFIG_END
+}
 
 
-MACHINE_CONFIG_START(tickee_state::ghoshunt)
+void tickee_state::ghoshunt(machine_config &config)
+{
 	tickee(config);
 
 	/* basic machine hardware */
-	MCFG_DEVICE_MODIFY("maincpu")
-	MCFG_DEVICE_PROGRAM_MAP(ghoshunt_map)
-MACHINE_CONFIG_END
+	m_maincpu->set_addrmap(AS_PROGRAM, &tickee_state::ghoshunt_map);
+}
 
 
-MACHINE_CONFIG_START(tickee_state::rapidfir)
-
+void tickee_state::rapidfir(machine_config &config)
+{
 	/* basic machine hardware */
 	TMS34010(config, m_maincpu, XTAL(50'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &tickee_state::rapidfir_map);
@@ -825,24 +819,23 @@ MACHINE_CONFIG_START(tickee_state::rapidfir)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	MCFG_TLC34076_ADD("tlc34076", TLC34076_6_BIT)
+	TLC34076(config, m_tlc34076, tlc34076_device::TLC34076_6_BIT);
 
 	MCFG_VIDEO_START_OVERRIDE(tickee_state,tickee)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200)
-	MCFG_SCREEN_UPDATE_DEVICE("maincpu", tms34010_device, tms340x0_rgb32)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200);
+	m_screen->set_screen_update("maincpu", FUNC(tms34010_device::tms340x0_rgb32));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, OKI_CLOCK, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, OKI_CLOCK, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.00);
+}
 
 
-MACHINE_CONFIG_START(tickee_state::mouseatk)
-
+void tickee_state::mouseatk(machine_config &config)
+{
 	/* basic machine hardware */
 	TMS34010(config, m_maincpu, XTAL(40'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &tickee_state::mouseatk_map);
@@ -854,15 +847,15 @@ MACHINE_CONFIG_START(tickee_state::mouseatk)
 	MCFG_MACHINE_RESET_OVERRIDE(tickee_state,tickee)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_1);
 
-	MCFG_TICKET_DISPENSER_ADD("ticket1", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH)
-	MCFG_TICKET_DISPENSER_ADD("ticket2", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH)
+	TICKET_DISPENSER(config, m_ticket[0], attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH);
+	TICKET_DISPENSER(config, m_ticket[1], attotime::from_msec(100), TICKET_MOTOR_ACTIVE_LOW, TICKET_STATUS_ACTIVE_HIGH);
 
 	/* video hardware */
-	MCFG_TLC34076_ADD("tlc34076", TLC34076_6_BIT)
+	TLC34076(config, m_tlc34076, tlc34076_device::TLC34076_6_BIT);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200)
-	MCFG_SCREEN_UPDATE_DEVICE("maincpu", tms34010_device, tms340x0_rgb32)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(VIDEO_CLOCK/2, 444, 0, 320, 233, 0, 200);
+	m_screen->set_screen_update("maincpu", FUNC(tms34010_device::tms340x0_rgb32));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
@@ -872,9 +865,8 @@ MACHINE_CONFIG_START(tickee_state::mouseatk)
 	ym.port_b_read_callback().set_ioport("IN1");
 	ym.add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, OKI_CLOCK, okim6295_device::PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, OKI_CLOCK, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "mono", 1.00);
+}
 
 
 /*************************************

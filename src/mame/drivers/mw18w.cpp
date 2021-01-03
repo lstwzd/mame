@@ -38,11 +38,11 @@ public:
 	DECLARE_CUSTOM_INPUT_MEMBER(mw18w_sensors_r);
 
 private:
-	DECLARE_WRITE8_MEMBER(mw18w_sound0_w);
-	DECLARE_WRITE8_MEMBER(mw18w_sound1_w);
-	DECLARE_WRITE8_MEMBER(mw18w_lamps_w);
-	DECLARE_WRITE8_MEMBER(mw18w_led_display_w);
-	DECLARE_WRITE8_MEMBER(mw18w_irq0_clear_w);
+	void mw18w_sound0_w(uint8_t data);
+	void mw18w_sound1_w(uint8_t data);
+	void mw18w_lamps_w(uint8_t data);
+	void mw18w_led_display_w(uint8_t data);
+	void mw18w_irq0_clear_w(uint8_t data);
 	void mw18w_map(address_map &map);
 	void mw18w_portmap(address_map &map);
 
@@ -59,7 +59,7 @@ private:
 
 ***************************************************************************/
 
-WRITE8_MEMBER(mw18w_state::mw18w_sound0_w)
+void mw18w_state::mw18w_sound0_w(uint8_t data)
 {
 	// d0: coin counter
 	// d1: "summer"
@@ -71,7 +71,7 @@ WRITE8_MEMBER(mw18w_state::mw18w_sound0_w)
 	machine().bookkeeping().coin_counter_w(0, data & 1);
 }
 
-WRITE8_MEMBER(mw18w_state::mw18w_sound1_w)
+void mw18w_state::mw18w_sound1_w(uint8_t data)
 {
 	// d0-d5: engine sound
 	// d6: bell sound
@@ -80,7 +80,7 @@ WRITE8_MEMBER(mw18w_state::mw18w_sound1_w)
 	m_lamps[80] = BIT(data, 7);
 }
 
-WRITE8_MEMBER(mw18w_state::mw18w_lamps_w)
+void mw18w_state::mw18w_lamps_w(uint8_t data)
 {
 	// d0-3, d7: selected rows
 	int rows = (data & 0xf) | (data >> 3 & 0x10);
@@ -147,7 +147,7 @@ WRITE8_MEMBER(mw18w_state::mw18w_lamps_w)
 	*/
 }
 
-WRITE8_MEMBER(mw18w_state::mw18w_led_display_w)
+void mw18w_state::mw18w_led_display_w(uint8_t data)
 {
 	// d0-3: 7448 (BCD to LED segment)
 	const uint8_t _7448_map[16] =
@@ -158,7 +158,7 @@ WRITE8_MEMBER(mw18w_state::mw18w_led_display_w)
 	m_digits[data >> 4] = _7448_map[data & 0xf];
 }
 
-WRITE8_MEMBER(mw18w_state::mw18w_irq0_clear_w)
+void mw18w_state::mw18w_irq0_clear_w(uint8_t data)
 {
 	m_maincpu->set_input_line(0, CLEAR_LINE);
 }
@@ -219,7 +219,7 @@ static INPUT_PORTS_START( mw18w )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN ) // left/right sw.
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, mw18w_state, mw18w_sensors_r, nullptr)
+	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(mw18w_state, mw18w_sensors_r)
 
 	PORT_START("IN1")
 	PORT_BIT( 0x1f, 0x00, IPT_PEDAL ) PORT_REMAP_TABLE(mw18w_controller_table + 0x20) PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_NAME("Gas Pedal")
@@ -279,13 +279,13 @@ INPUT_PORTS_END
 
 ***************************************************************************/
 
-MACHINE_CONFIG_START(mw18w_state::mw18w)
-
+void mw18w_state::mw18w(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, XTAL(19'968'000)/8)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(mw18w_state, irq0_line_assert, 960.516) // 555 IC
-	MCFG_DEVICE_PROGRAM_MAP(mw18w_map)
-	MCFG_DEVICE_IO_MAP(mw18w_portmap)
+	Z80(config, m_maincpu, XTAL(19'968'000)/8);
+	m_maincpu->set_periodic_int(FUNC(mw18w_state::irq0_line_assert), attotime::from_hz(960.516)); // 555 IC
+	m_maincpu->set_addrmap(AS_PROGRAM, &mw18w_state::mw18w_map);
+	m_maincpu->set_addrmap(AS_IO, &mw18w_state::mw18w_portmap);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
@@ -293,7 +293,7 @@ MACHINE_CONFIG_START(mw18w_state::mw18w)
 
 	/* sound hardware */
 	//...
-MACHINE_CONFIG_END
+}
 
 
 

@@ -15,8 +15,8 @@ class tap_990_device : public device_t
 public:
 	tap_990_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	DECLARE_READ16_MEMBER( read );
-	DECLARE_WRITE16_MEMBER( write );
+	uint16_t read(offs_t offset);
+	void write(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	void set_tape(int id, device_image_interface *img, bool bot, bool eot, bool wp)
 	{
@@ -26,6 +26,7 @@ public:
 		m_tape[id].wp = wp;
 	}
 
+	template <typename T> void set_memory_space(T &&tag, int spacenum) { m_memory_space.set_tag(std::forward<T>(tag), spacenum); }
 	auto int_cb() { return m_int_line.bind(); }
 
 protected:
@@ -53,6 +54,8 @@ private:
 	void    cmd_rewind_and_offline();
 	void    read_transport_status();
 	void    execute_command();
+
+	required_address_space m_memory_space;
 
 	devcb_write_line m_int_line;
 

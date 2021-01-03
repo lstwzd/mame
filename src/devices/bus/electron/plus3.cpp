@@ -27,14 +27,14 @@ DEFINE_DEVICE_TYPE(ELECTRON_PLUS3, electron_plus3_device, "electron_plus3", "Aco
 
 
 //-------------------------------------------------
-//  MACHINE_DRIVER( plus3 )
+//  FLOPPY_FORMATS( plus3 )
 //-------------------------------------------------
 
 FLOPPY_FORMATS_MEMBER(electron_plus3_device::floppy_formats)
 	FLOPPY_ACORN_SSD_FORMAT,
 	FLOPPY_ACORN_DSD_FORMAT,
 	FLOPPY_ACORN_ADFS_OLD_FORMAT
-FLOPPY_FORMATS_END0
+FLOPPY_FORMATS_END
 
 void electron_floppies(device_slot_interface &device)
 {
@@ -42,6 +42,10 @@ void electron_floppies(device_slot_interface &device)
 	device.option_add("525qd",   FLOPPY_525_QD);
 }
 
+
+//-------------------------------------------------
+//  ROM( plus3 )
+//-------------------------------------------------
 
 ROM_START( plus3 )
 	// Bank 4 Disc
@@ -65,15 +69,20 @@ ROM_END
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(electron_plus3_device::device_add_mconfig)
+void electron_plus3_device::device_add_mconfig(machine_config &config)
+{
 	/* fdc */
-	WD1770(config, m_fdc, 16_MHz_XTAL / 2);
-	FLOPPY_CONNECTOR(config, m_floppy0, electron_floppies, "35dd", floppy_formats, true).enable_sound(true);
-	FLOPPY_CONNECTOR(config, m_floppy1, electron_floppies, nullptr, floppy_formats).enable_sound(true);
+	WD1770(config, m_fdc, DERIVED_CLOCK(1, 2));
+	FLOPPY_CONNECTOR(config, m_floppy0, electron_floppies, "35dd", floppy_formats).set_fixed(true);
+	m_floppy0->enable_sound(true);
+	FLOPPY_CONNECTOR(config, m_floppy1, electron_floppies, nullptr, floppy_formats);
+	m_floppy1->enable_sound(true);
 
 	/* pass-through */
-	MCFG_ELECTRON_PASSTHRU_EXPANSION_SLOT_ADD(nullptr)
-MACHINE_CONFIG_END
+	ELECTRON_EXPANSION_SLOT(config, m_exp, DERIVED_CLOCK(1, 1), electron_expansion_devices, nullptr);
+	m_exp->irq_handler().set(DEVICE_SELF_OWNER, FUNC(electron_expansion_slot_device::irq_w));
+	m_exp->nmi_handler().set(DEVICE_SELF_OWNER, FUNC(electron_expansion_slot_device::nmi_w));
+}
 
 const tiny_rom_entry *electron_plus3_device::device_rom_region() const
 {
@@ -112,8 +121,10 @@ void electron_plus3_device::device_start()
 //  expbus_r - expansion data read
 //-------------------------------------------------
 
-uint8_t electron_plus3_device::expbus_r(address_space &space, offs_t offset, uint8_t data)
+uint8_t electron_plus3_device::expbus_r(offs_t offset)
 {
+	uint8_t data = 0xff;
+
 	if (offset >= 0x8000 && offset < 0xc000)
 	{
 		if (m_romsel == 4)
@@ -130,7 +141,7 @@ uint8_t electron_plus3_device::expbus_r(address_space &space, offs_t offset, uin
 		data = m_fdc->read(offset & 0x03);
 	}
 
-	data &= m_exp->expbus_r(space, offset, data);
+	data &= m_exp->expbus_r(offset);
 
 	return data;
 }
@@ -139,13 +150,13 @@ uint8_t electron_plus3_device::expbus_r(address_space &space, offs_t offset, uin
 //  expbus_w - expansion data write
 //-------------------------------------------------
 
-void electron_plus3_device::expbus_w(address_space &space, offs_t offset, uint8_t data)
+void electron_plus3_device::expbus_w(offs_t offset, uint8_t data)
 {
-	m_exp->expbus_w(space, offset, data);
+	m_exp->expbus_w(offset, data);
 
 	if (offset == 0xfcc0)
 	{
-		wd1770_status_w(space, offset, data);
+		wd1770_status_w(data);
 	}
 	else if (offset >= 0xfcc4 && offset < 0xfcc8)
 	{
@@ -162,7 +173,7 @@ void electron_plus3_device::expbus_w(address_space &space, offs_t offset, uint8_
 //  IMPLEMENTATION
 //**************************************************************************
 
-WRITE8_MEMBER(electron_plus3_device::wd1770_status_w)
+void electron_plus3_device::wd1770_status_w(uint8_t data)
 {
 	floppy_image_device *floppy = nullptr;
 
@@ -181,5 +192,5 @@ WRITE8_MEMBER(electron_plus3_device::wd1770_status_w)
 	m_fdc->dden_w(BIT(data, 3));
 
 	// bit 5: reset
-	if (!BIT(data, 5)) m_fdc->soft_reset();
+	m_fdc->mr_w(BIT(data, 5));
 }

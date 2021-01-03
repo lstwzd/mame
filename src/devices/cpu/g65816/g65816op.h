@@ -1428,7 +1428,8 @@
 #undef OP_WDM
 #define OP_WDM()                                                            \
 			CLK(CLK_OP + CLK_IMPLIED);                                      \
-			REGISTER_PC++
+			SRC = OPER_8_IMM();                                             \
+			m_wdm_w(SRC);
 
 /* G65816  Exchange accum high and low bytes */
 #undef OP_XBA
@@ -1853,7 +1854,7 @@ TABLE_FUNCTION(void, set_line, (int line, int state))
 			return;
 	}
 
-	LINE_IRQ=1;
+	LINE_IRQ=1; // FIXME: this can't be right!
 }
 
 

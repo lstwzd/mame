@@ -40,9 +40,9 @@ public:
 
 private:
 
-	DECLARE_READ8_MEMBER(ff_r);
-	DECLARE_WRITE8_MEMBER(cru_w);
-	DECLARE_WRITE8_MEMBER(oe_w);
+	uint8_t ff_r();
+	void cru_w(offs_t offset, uint8_t data);
+	void oe_w(uint8_t data);
 	void nsm_io_map(address_map &map);
 	void nsm_map(address_map &map);
 
@@ -65,31 +65,31 @@ void nsm_state::nsm_map(address_map &map)
 void nsm_state::nsm_io_map(address_map &map)
 {
 	// 00-71 selected by IC600 (74LS151)
-	map(0x0000, 0x0001).r(FUNC(nsm_state::ff_r)); // 5v supply
-	map(0x0010, 0x0011).nopr(); // antenna
-	map(0x0020, 0x0021).nopr(); // reset circuit
-	map(0x0030, 0x0031).r(FUNC(nsm_state::ff_r)); // service plug
-	map(0x0040, 0x0041).r(FUNC(nsm_state::ff_r)); // service plug
-	map(0x0050, 0x0051).r(FUNC(nsm_state::ff_r)); // test of internal battery
-	map(0x0060, 0x0061).r(FUNC(nsm_state::ff_r)); // sum of analog outputs of ay2
-	//AM_RANGE(0x0070, 0x0071) AM_READNOP // serial data in
-	map(0x0f70, 0x0f7d).nopw();
-	map(0x0fe4, 0x0fff).nopr();
-	map(0x7fb0, 0x7fbf).w(FUNC(nsm_state::cru_w));
-	map(0x7fd0, 0x7fd1).w(FUNC(nsm_state::oe_w));
+	map(0x0000, 0x001f).r(FUNC(nsm_state::ff_r)); // 5v supply
+	map(0x0100, 0x011f).nopr(); // antenna
+	map(0x0200, 0x021f).nopr(); // reset circuit
+	map(0x0300, 0x031f).r(FUNC(nsm_state::ff_r)); // service plug
+	map(0x0400, 0x041f).r(FUNC(nsm_state::ff_r)); // service plug
+	map(0x0500, 0x051f).r(FUNC(nsm_state::ff_r)); // test of internal battery
+	map(0x0600, 0x061f).r(FUNC(nsm_state::ff_r)); // sum of analog outputs of ay2
+	//map(0x0700, 0x071f).nopr(); // serial data in
+	map(0x1ee0, 0x1efb).nopw();
+	map(0xfe40, 0xffff).nopr();
+	map(0xff60, 0xff7f).w(FUNC(nsm_state::cru_w));
+	map(0xffa0, 0xffa3).w(FUNC(nsm_state::oe_w));
 }
 
 static INPUT_PORTS_START( nsm )
 INPUT_PORTS_END
 
-READ8_MEMBER( nsm_state::ff_r ) { return 1; }
+uint8_t nsm_state::ff_r() { return 1; }
 
-WRITE8_MEMBER( nsm_state::oe_w )
+void nsm_state::oe_w(uint8_t data)
 {
 	m_cru_count = 9;
 }
 
-WRITE8_MEMBER( nsm_state::cru_w )
+void nsm_state::cru_w(offs_t offset, uint8_t data)
 {
 	offset &= 7;
 	if (!offset)
@@ -146,6 +146,12 @@ void nsm_state::nsm(machine_config &config)
 /*-------------------------------------------------------------------
 / Cosmic Flash (1985)
 /-------------------------------------------------------------------*/
+ROM_START(cosflnsm)
+	ROM_REGION(0x10000, "maincpu", 0)
+	ROM_LOAD("ic602.bin", 0x0000, 0x2000, CRC(1ce79cd7) SHA1(d5caf6d4323cc43a9c4379b51630190bf5799202))
+	ROM_LOAD("ic603.bin", 0x2000, 0x2000, CRC(538de9f8) SHA1(c64942ffa600a2a7a37b986e1a346d351d0b65eb))
+	ROM_LOAD("ic604.bin", 0x4000, 0x2000, CRC(4b52e5d7) SHA1(1547bb7a06ff0bdf55c635b2f4e57b7d93a191ee))
+ROM_END
 
 /*-------------------------------------------------------------------
 / Hot Fire Birds (1985)
@@ -164,5 +170,13 @@ ROM_END
 /*-------------------------------------------------------------------
 / The Games (1985)
 /-------------------------------------------------------------------*/
+ROM_START(gamesnsm)
+	ROM_REGION(0x10000, "maincpu", 0)
+	ROM_LOAD("151595-602.bin", 0x0000, 0x2000, CRC(18f3e309) SHA1(f587d40ddf128f4e040e660c054e98cbebad99c7))
+	ROM_LOAD("151596-603.bin", 0x2000, 0x2000, CRC(fdf1b48b) SHA1(fd63ef5e49aa4b84b10972e118bd54219d680d36))
+	ROM_LOAD("151597-604.bin", 0x4000, 0x2000, CRC(5c8a3547) SHA1(843a56012227a61ff068bc1e14baf090d4a95fe1))
+ROM_END
 
-GAME(1985,  firebird,  0,  nsm,  nsm, nsm_state, empty_init, ROT0, "NSM", "Hot Fire Birds", MACHINE_NOT_WORKING | MACHINE_MECHANICAL)
+GAME(1985,  cosflnsm,  0,  nsm,  nsm, nsm_state, empty_init, ROT0, "NSM", "Cosmic Flash (NSM)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL)
+GAME(1985,  firebird,  0,  nsm,  nsm, nsm_state, empty_init, ROT0, "NSM", "Hot Fire Birds",     MACHINE_NOT_WORKING | MACHINE_MECHANICAL)
+GAME(1985,  gamesnsm,  0,  nsm,  nsm, nsm_state, empty_init, ROT0, "NSM", "The Games (NSM)",    MACHINE_NOT_WORKING | MACHINE_MECHANICAL)

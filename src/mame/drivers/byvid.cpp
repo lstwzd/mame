@@ -45,7 +45,6 @@ ToDo (granny):
 #include "machine/timer.h"
 #include "sound/beep.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "video/tms9928a.h"
 #include "speaker.h"
 
@@ -76,26 +75,26 @@ public:
 		, m_io_x4(*this, "X4")
 	{ }
 
-	DECLARE_READ8_MEMBER(sound_data_r);
-	DECLARE_WRITE8_MEMBER(sound_data_w);
-	DECLARE_READ8_MEMBER(m6803_port2_r);
-	DECLARE_WRITE8_MEMBER(m6803_port2_w);
+	uint8_t sound_data_r();
+	void sound_data_w(uint8_t data);
+	uint8_t m6803_port2_r();
+	void m6803_port2_w(uint8_t data);
 	DECLARE_INPUT_CHANGED_MEMBER(video_test);
 	DECLARE_INPUT_CHANGED_MEMBER(sound_test);
 	DECLARE_INPUT_CHANGED_MEMBER(activity_test);
 	DECLARE_INPUT_CHANGED_MEMBER(self_test);
-	DECLARE_READ8_MEMBER(u7_a_r);
-	DECLARE_WRITE8_MEMBER(u7_a_w);
-	DECLARE_READ8_MEMBER(u7_b_r);
-	DECLARE_WRITE8_MEMBER(u7_b_w);
-	DECLARE_READ8_MEMBER(u10_a_r);
-	DECLARE_WRITE8_MEMBER(u10_a_w);
-	DECLARE_READ8_MEMBER(u10_b_r);
-	DECLARE_WRITE8_MEMBER(u10_b_w);
-	DECLARE_READ8_MEMBER(u11_a_r);
-	DECLARE_WRITE8_MEMBER(u11_a_w);
-	DECLARE_READ8_MEMBER(u11_b_r);
-	DECLARE_WRITE8_MEMBER(u11_b_w);
+	uint8_t u7_a_r();
+	void u7_a_w(uint8_t data);
+	uint8_t u7_b_r();
+	void u7_b_w(uint8_t data);
+	uint8_t u10_a_r();
+	void u10_a_w(uint8_t data);
+	uint8_t u10_b_r();
+	void u10_b_w(uint8_t data);
+	uint8_t u11_a_r();
+	void u11_a_w(uint8_t data);
+	uint8_t u11_b_r();
+	void u11_b_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(u7_ca2_w);
 	DECLARE_WRITE_LINE_MEMBER(u10_ca2_w);
 	DECLARE_WRITE_LINE_MEMBER(u11_ca2_w);
@@ -104,7 +103,7 @@ public:
 	DECLARE_WRITE_LINE_MEMBER(u11_cb2_w);
 	TIMER_DEVICE_CALLBACK_MEMBER(u10_timer);
 	TIMER_DEVICE_CALLBACK_MEMBER(u11_timer);
-	DECLARE_WRITE8_MEMBER(granny_crtc_w);
+	void granny_crtc_w(offs_t offset, uint8_t data);
 	uint32_t screen_update_granny(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void babypac(machine_config &config);
 	void granny(machine_config &config);
@@ -166,8 +165,7 @@ void by133_state::video_map(address_map &map)
 { // U8 Vidiot
 	map(0x0000, 0x1fff).rw(FUNC(by133_state::sound_data_r), FUNC(by133_state::sound_data_w));
 	map(0x2000, 0x2003).mirror(0x0ffc).rw(m_pia_u7, FUNC(pia6821_device::read), FUNC(pia6821_device::write)); // PIA U7 Vidiot
-	map(0x4000, 0x4000).mirror(0x0ffe).rw(m_crtc, FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x4001, 0x4001).mirror(0x0ffe).rw(m_crtc, FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
+	map(0x4000, 0x4001).mirror(0x0ffe).rw(m_crtc, FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
 	map(0x6000, 0x63ff).mirror(0x1c00).ram();
 	map(0x8000, 0xffff).rom();
 }
@@ -175,10 +173,8 @@ void by133_state::video_map(address_map &map)
 void by133_state::granny_map(address_map &map)
 {
 	map(0x0000, 0x0001).rw(FUNC(by133_state::sound_data_r), FUNC(by133_state::sound_data_w));
-	map(0x0002, 0x0002).rw(m_crtc, FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x0003, 0x0003).rw(m_crtc, FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
-	map(0x0004, 0x0004).rw(m_crtc2, FUNC(tms9928a_device::vram_r), FUNC(tms9928a_device::vram_w));
-	map(0x0005, 0x0005).rw(m_crtc2, FUNC(tms9928a_device::register_r), FUNC(tms9928a_device::register_w));
+	map(0x0002, 0x0003).rw(m_crtc, FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
+	map(0x0004, 0x0005).rw(m_crtc2, FUNC(tms9928a_device::read), FUNC(tms9928a_device::write));
 	map(0x0006, 0x0007).w(FUNC(by133_state::granny_crtc_w)); // can write to both at once
 	map(0x0008, 0x000b).rw(m_pia_u7, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0x2000, 0x27ff).ram();
@@ -534,37 +530,29 @@ static INPUT_PORTS_START( granny )
 INPUT_PORTS_END
 
 
-WRITE8_MEMBER( by133_state::granny_crtc_w )
+void by133_state::granny_crtc_w(offs_t offset, uint8_t data)
 {
-	if (offset)
-	{
-		m_crtc->register_write(data);
-		m_crtc2->register_write(data);
-	}
-	else
-	{
-		m_crtc->vram_write(data);
-		m_crtc2->vram_write(data);
-	}
+	m_crtc->write(offset, data);
+	m_crtc2->write(offset, data);
 }
 
-READ8_MEMBER( by133_state::sound_data_r )
+uint8_t by133_state::sound_data_r()
 {
 	return m_mpu_to_vid;
 }
 
-WRITE8_MEMBER( by133_state::sound_data_w )
+void by133_state::sound_data_w(uint8_t data)
 {
 	m_vid_to_mpu = data;
 }
 
-READ8_MEMBER( by133_state::m6803_port2_r )
+uint8_t by133_state::m6803_port2_r()
 {
 	//machine().scheduler().synchronize();
 	return (m_u7_b << 1) | 0;
 }
 
-WRITE8_MEMBER( by133_state::m6803_port2_w )
+void by133_state::m6803_port2_w(uint8_t data)
 {
 	//m_u7_b = data >> 1;
 	m_beep->set_clock(600);
@@ -604,17 +592,17 @@ WRITE_LINE_MEMBER( by133_state::u11_cb2_w )
 	// solenoid-sound selector
 }
 
-READ8_MEMBER( by133_state::u7_a_r )
+uint8_t by133_state::u7_a_r()
 {
 	return m_u7_a;
 }
 
-WRITE8_MEMBER( by133_state::u7_a_w )
+void by133_state::u7_a_w(uint8_t data)
 {
 	m_u7_a = data;
 }
 
-READ8_MEMBER( by133_state::u7_b_r )
+uint8_t by133_state::u7_b_r()
 {
 	if (BIT(m_u7_a, 7)) // bits 6 and 7 work; pinmame uses 7
 		m_u7_b |= m_io_joy->read();
@@ -625,25 +613,25 @@ READ8_MEMBER( by133_state::u7_b_r )
 	return m_u7_b;
 }
 
-WRITE8_MEMBER( by133_state::u7_b_w )
+void by133_state::u7_b_w(uint8_t data)
 {
 	//machine().scheduler().synchronize();
 	m_u7_b = data;
 }
 
-READ8_MEMBER( by133_state::u10_a_r )
+uint8_t by133_state::u10_a_r()
 {
 	return m_u10_a;
 }
 
-WRITE8_MEMBER( by133_state::u10_a_w )
+void by133_state::u10_a_w(uint8_t data)
 {
 	m_u10_a = data;
 	if (BIT(m_u11_a, 2) == 0)
 		m_mpu_to_vid = data ^ 0x0f;
 }
 
-READ8_MEMBER( by133_state::u10_b_r )
+uint8_t by133_state::u10_b_r()
 {
 	if (BIT(m_u11_a, 3) == 0)
 		return ~m_u7_a & 0x03;
@@ -683,29 +671,29 @@ READ8_MEMBER( by133_state::u10_b_r )
 	return data;
 }
 
-WRITE8_MEMBER( by133_state::u10_b_w )
+void by133_state::u10_b_w(uint8_t data)
 {
 	m_u10_b = data;
 }
 
-READ8_MEMBER( by133_state::u11_a_r )
+uint8_t by133_state::u11_a_r()
 {
 	return m_u11_a;
 }
 
-WRITE8_MEMBER( by133_state::u11_a_w )
+void by133_state::u11_a_w(uint8_t data)
 {
 	m_u11_a = data;
 	m_pia_u7->ca1_w(BIT(data, 1));
 	m_pia_u7->ca2_w(BIT(data, 2));
 }
 
-READ8_MEMBER( by133_state::u11_b_r )
+uint8_t by133_state::u11_b_r()
 {
 	return m_u11_b;
 }
 
-WRITE8_MEMBER( by133_state::u11_b_w )
+void by133_state::u11_b_w(uint8_t data)
 {
 	m_u11_b = data;
 }
@@ -746,13 +734,14 @@ uint32_t by133_state::screen_update_granny(screen_device &screen, bitmap_rgb32 &
 	return 0;
 }
 
-MACHINE_CONFIG_START(by133_state::babypac)
+void by133_state::babypac(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6800, XTAL(3'579'545)/4) // no xtal, just 2 chips
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	M6800(config, m_maincpu, XTAL(3'579'545)/4); // no xtal, just 2 chips
+	m_maincpu->set_addrmap(AS_PROGRAM, &by133_state::main_map);
 
-	MCFG_DEVICE_ADD("videocpu", MC6809, XTAL(3'579'545))
-	MCFG_DEVICE_PROGRAM_MAP(video_map)
+	MC6809(config, m_videocpu, XTAL(3'579'545));
+	m_videocpu->set_addrmap(AS_PROGRAM, &by133_state::video_map);
 
 	M6803(config, m_audiocpu, XTAL(3'579'545));
 	m_audiocpu->set_addrmap(AS_PROGRAM, &by133_state::sound_map);
@@ -781,7 +770,7 @@ MACHINE_CONFIG_START(by133_state::babypac)
 	m_pia_u10->cb2_handler().set(FUNC(by133_state::u10_cb2_w));
 	m_pia_u10->irqa_handler().set_inputline("maincpu", M6800_IRQ_LINE);
 	m_pia_u10->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("babypac1", by133_state, u10_timer, attotime::from_hz(120)) // mains freq*2
+	TIMER(config, "babypac1").configure_periodic(FUNC(by133_state::u10_timer), attotime::from_hz(120)); // mains freq*2
 
 	PIA6821(config, m_pia_u11, 0);
 	m_pia_u11->readpa_handler().set(FUNC(by133_state::u11_a_r));
@@ -792,7 +781,7 @@ MACHINE_CONFIG_START(by133_state::babypac)
 	m_pia_u11->cb2_handler().set(FUNC(by133_state::u11_cb2_w));
 	m_pia_u11->irqa_handler().set_inputline("maincpu", M6800_IRQ_LINE);
 	m_pia_u11->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("babypac2", by133_state, u11_timer, attotime::from_hz(634)) // 555 timer*2
+	TIMER(config, "babypac2").configure_periodic(FUNC(by133_state::u11_timer), attotime::from_hz(634)); // 555 timer*2
 
 	/* video hardware */
 	TMS9928A(config, m_crtc, XTAL(10'738'635)).set_screen("screen");
@@ -802,28 +791,25 @@ MACHINE_CONFIG_START(by133_state::babypac)
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", ZN429E, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.25) // U32 (Vidiot) or U6 (Cheap Squeak)
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
+	ZN429E(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.25); // U32 (Vidiot) or U6 (Cheap Squeak)
 
 	SPEAKER(config, "beee").front_center();
-	MCFG_DEVICE_ADD("beeper", BEEP, 600)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "beee", 0.10)
-MACHINE_CONFIG_END
+	BEEP(config, m_beep, 600).add_route(ALL_OUTPUTS, "beee", 0.10);
+}
 
-MACHINE_CONFIG_START(by133_state::granny)
+void by133_state::granny(machine_config &config)
+{
 	babypac(config);
-	MCFG_DEVICE_REMOVE("videocpu")
-	MCFG_DEVICE_ADD("videocpu", MC6809, XTAL(8'000'000)) // MC68B09P (XTAL value hard to read)
-	MCFG_DEVICE_PROGRAM_MAP(granny_map)
+
+	MC6809(config.replace(), m_videocpu, XTAL(8'000'000)); // MC68B09P (XTAL value hard to read)
+	m_videocpu->set_addrmap(AS_PROGRAM, &by133_state::granny_map);
 
 	TMS9928A(config, m_crtc2, XTAL(10'738'635)).set_screen("screen");
 	m_crtc2->set_vram_size(0x4000);
 	m_crtc2->int_callback().set_inputline(m_videocpu, M6809_IRQ_LINE);
 
-	MCFG_DEVICE_MODIFY("screen")
-	MCFG_SCREEN_UPDATE_DRIVER(by133_state, screen_update_granny)
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_screen_update(FUNC(by133_state::screen_update_granny));
+}
 
 
 /*-----------------------------------------------------

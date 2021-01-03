@@ -10,6 +10,7 @@
 #include "video/decospr.h"
 #include "emupal.h"
 #include "screen.h"
+#include "tilemap.h"
 
 class tumbleb_state : public driver_device
 {
@@ -21,6 +22,10 @@ public:
 		m_pf1_data(*this, "pf1_data"),
 		m_pf2_data(*this, "pf2_data"),
 		m_control(*this, "control"),
+		m_pf1_tilemap(nullptr),
+		m_pf1_alt_tilemap(nullptr),
+		m_pf2_tilemap(nullptr),
+		m_pf2_alt_tilemap(nullptr),
 		m_maincpu(*this, "maincpu"),
 		m_audiocpu(*this, "audiocpu"),
 		m_oki(*this, "oki"),
@@ -43,11 +48,11 @@ public:
 	void magipur(machine_config &config);
 	void suprtrio(machine_config &config);
 	void htchctch(machine_config &config);
+	void htchctch_mcu(machine_config &config);
 	void sdfight(machine_config &config);
 	void chokchok(machine_config &config);
 	void cookbib_mcu(machine_config &config);
 	void jumpkids(machine_config &config);
-	void funkyjetb(machine_config &config);
 
 	void init_dquizgo();
 	void init_jumpkids();
@@ -64,7 +69,7 @@ public:
 	void init_magipur();
 	void init_carket();
 
-private:
+protected:
 	/* memory pointers */
 	optional_shared_ptr<uint16_t> m_mainram;
 	required_shared_ptr<uint16_t> m_spriteram;
@@ -97,30 +102,30 @@ private:
 
 	uint8_t m_semicom_prot_offset;
 	uint16_t m_protbase;
-	DECLARE_WRITE16_MEMBER(tumblepb_oki_w);
-	DECLARE_READ16_MEMBER(tumblepb_prot_r);
-	DECLARE_READ16_MEMBER(tumblepopb_controls_r);
-	DECLARE_READ16_MEMBER(semibase_unknown_r);
-	DECLARE_WRITE16_MEMBER(jumpkids_sound_w);
-	DECLARE_WRITE16_MEMBER(semicom_soundcmd_w);
-	DECLARE_WRITE8_MEMBER(oki_sound_bank_w);
-	DECLARE_WRITE8_MEMBER(jumpkids_oki_bank_w);
-	DECLARE_WRITE8_MEMBER(prot_p0_w);
-	DECLARE_WRITE8_MEMBER(prot_p1_w);
-	DECLARE_WRITE8_MEMBER(prot_p2_w);
-	DECLARE_READ16_MEMBER(bcstory_1a0_read);
-	DECLARE_WRITE16_MEMBER(bcstory_tilebank_w);
-	DECLARE_WRITE16_MEMBER(chokchok_tilebank_w);
-	DECLARE_WRITE16_MEMBER(wlstar_tilebank_w);
-	DECLARE_WRITE16_MEMBER(suprtrio_tilebank_w);
-	DECLARE_WRITE16_MEMBER(tumblepb_pf1_data_w);
-	DECLARE_WRITE16_MEMBER(tumblepb_pf2_data_w);
-	DECLARE_WRITE16_MEMBER(fncywld_pf1_data_w);
-	DECLARE_WRITE16_MEMBER(fncywld_pf2_data_w);
-	DECLARE_WRITE16_MEMBER(tumblepb_control_0_w);
-	DECLARE_WRITE16_MEMBER(pangpang_pf1_data_w);
-	DECLARE_WRITE16_MEMBER(pangpang_pf2_data_w);
-	DECLARE_WRITE16_MEMBER(tumbleb2_soundmcu_w);
+	void tumblepb_oki_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t tumblepb_prot_r();
+	uint16_t tumblepopb_controls_r(offs_t offset);
+	uint16_t semibase_unknown_r();
+	void jumpkids_sound_w(uint16_t data);
+	void semicom_soundcmd_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void oki_sound_bank_w(uint8_t data);
+	void jumpkids_oki_bank_w(uint8_t data);
+	void prot_p0_w(uint8_t data);
+	void prot_p1_w(uint8_t data);
+	void prot_p2_w(uint8_t data);
+	uint16_t bcstory_1a0_read();
+	void bcstory_tilebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void chokchok_tilebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void wlstar_tilebank_w(uint16_t data);
+	void suprtrio_tilebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void tumblepb_pf1_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void tumblepb_pf2_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void fncywld_pf1_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void fncywld_pf2_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void tumblepb_control_0_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void pangpang_pf1_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void pangpang_pf2_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void tumbleb2_soundmcu_w(uint16_t data);
 
 	TILEMAP_MAPPER_MEMBER(tumblep_scan);
 	TILE_GET_INFO_MEMBER(get_bg1_tile_info);
@@ -177,7 +182,33 @@ private:
 	void suprtrio_sound_map(address_map &map);
 	void tumblepopb_main_map(address_map &map);
 	void tumblepopba_main_map(address_map &map);
+};
+
+class tumbleb_pic_state : public tumbleb_state
+{
+public:
+	tumbleb_pic_state(const machine_config &mconfig, device_type type, const char *tag) :
+		tumbleb_state(mconfig, type, tag),
+		m_okibank(*this, "okibank")
+	{ }
+
+	void funkyjetb(machine_config &config);
+
+protected:
+	virtual void driver_start() override;
+
+private:
+	void oki_bank_w(uint8_t data);
+	uint8_t pic_data_r();
+	void pic_data_w(uint8_t data);
+	void pic_ctrl_w(uint8_t data);
+
 	void funkyjetb_map(address_map &map);
+	void funkyjetb_oki_map(address_map &map);
+
+	required_memory_bank m_okibank;
+
+	uint8_t m_pic_data;
 };
 
 #endif // MAME_INCLUDES_TUMBLEB_H

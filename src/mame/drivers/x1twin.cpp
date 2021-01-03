@@ -4,7 +4,7 @@
 
     Sharp X1Twin = Sharp X1 + NEC PC Engine All-in-One
 
-    Both systems doesn't interact at all, according to info on the net they just shares the
+    Both systems don't interact at all, according to info on the net they just share the
     same "house". It doesn't even do super-imposing, not even with the in-built X1 feature apparently
 
     TODO:
@@ -23,6 +23,8 @@
 #include "softlist.h"
 #include "speaker.h"
 
+
+namespace {
 
 class x1twin_state : public x1_state
 {
@@ -99,7 +101,7 @@ INPUT_CHANGED_MEMBER(x1twin_state::ipl_reset)
 	//anything else?
 }
 
-/* Apparently most games doesn't support this (not even the Konami ones!), one that does is...177 :o */
+/* Apparently most games don't support this (not even the Konami ones!), one that does is...177 :o */
 INPUT_CHANGED_MEMBER(x1twin_state::nmi_reset)
 {
 	m_maincpu->set_input_line(INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
@@ -410,7 +412,8 @@ static void x1_floppies(device_slot_interface &device)
 	device.option_add("dd", FLOPPY_525_DD);
 }
 
-MACHINE_CONFIG_START(x1twin_state::x1twin)
+void x1twin_state::x1twin(machine_config &config)
+{
 	/* basic machine hardware */
 	Z80(config, m_maincpu, X1_MAIN_CLOCK/4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &x1twin_state::x1_mem);
@@ -425,7 +428,7 @@ MACHINE_CONFIG_START(x1twin_state::x1twin)
 	ctc.zc_callback<1>().set("ctc", FUNC(z80ctc_device::trg1));
 	ctc.zc_callback<2>().set("ctc", FUNC(z80ctc_device::trg2));
 
-	MCFG_DEVICE_ADD("x1kb", X1_KEYBOARD, 0)
+	X1_KEYBOARD(config, "x1kb", 0);
 
 	i8255_device &ppi(I8255A(config, "ppi8255_0"));
 	ppi.in_pa_callback().set(FUNC(x1_state::x1_porta_r));
@@ -435,7 +438,6 @@ MACHINE_CONFIG_START(x1twin_state::x1twin)
 	ppi.out_pb_callback().set(FUNC(x1_state::x1_portb_w));
 	ppi.out_pc_callback().set(FUNC(x1_state::x1_portc_w));
 
-	MCFG_MACHINE_START_OVERRIDE(x1twin_state,x1)
 	MCFG_MACHINE_RESET_OVERRIDE(x1twin_state,x1)
 
 	#if 0
@@ -447,25 +449,25 @@ MACHINE_CONFIG_START(x1twin_state::x1twin)
 	m_maincpu->add_route(0, "pce_l", 0.5);
 	m_maincpu->add_route(1, "pce_r", 0.5);
 
-	MCFG_TIMER_ADD_SCANLINE("scantimer", pce_interrupt, "pce_screen", 0, 1)
+	TIMER(config, "scantimer").configure_scanline(FUNC(x1twin_state::pce_interrupt), "pce_screen", 0, 1);
 	#endif
 
 	config.set_default_layout(layout_dualhsxs);
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(640, 480)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 480-1)
-	MCFG_SCREEN_UPDATE_DRIVER(x1twin_state, screen_update_x1)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	m_screen->set_size(640, 480);
+	m_screen->set_visarea(0, 640-1, 0, 480-1);
+	m_screen->set_screen_update(FUNC(x1twin_state::screen_update_x1));
 
-	MCFG_SCREEN_ADD("pce_screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_RAW_PARAMS(PCE_MAIN_CLOCK/2, huc6260_device::WPF, 70, 70 + 512 + 32, huc6260_device::LPF, 14, 14+242)
-	MCFG_SCREEN_UPDATE_DRIVER(x1twin_state, screen_update_x1pce)
+	screen_device &pce_screen(SCREEN(config, "pce_screen", SCREEN_TYPE_RASTER));
+	pce_screen.set_refresh_hz(60);
+	pce_screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	pce_screen.set_raw(PCE_MAIN_CLOCK/2, huc6260_device::WPF, 70, 70 + 512 + 32, huc6260_device::LPF, 14, 14+242);
+	pce_screen.set_screen_update(FUNC(x1twin_state::screen_update_x1pce));
 
-	H46505(config, m_crtc, (VDP_CLOCK/48)); //unknown divider
+	HD6845S(config, m_crtc, (VDP_CLOCK/48)); //unknown divider (TODO: verify chip type)
 	m_crtc->set_screen(m_screen);
 	m_crtc->set_show_border_area(true);
 	m_crtc->set_char_width(8);
@@ -474,21 +476,18 @@ MACHINE_CONFIG_START(x1twin_state::x1twin)
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_x1);
 
-	MCFG_VIDEO_START_OVERRIDE(x1twin_state,x1)
-
 	MB8877(config, m_fdc, MAIN_CLOCK / 16);
 	// TODO: guesswork, try to implicitly start the motor
 	m_fdc->hld_wr_callback().set(FUNC(x1_state::hdl_w));
 
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", x1_floppies, "dd", x1_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", x1_floppies, "dd", x1_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:2", x1_floppies, "dd", x1_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:3", x1_floppies, "dd", x1_state::floppy_formats)
+	FLOPPY_CONNECTOR(config, "fdc:0", x1_floppies, "dd", x1_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:1", x1_floppies, "dd", x1_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:2", x1_floppies, "dd", x1_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:3", x1_floppies, "dd", x1_state::floppy_formats);
 
-	MCFG_SOFTWARE_LIST_ADD("flop_list","x1_flop")
+	SOFTWARE_LIST(config, "flop_list").set_original("x1_flop");
 
-	MCFG_GENERIC_CARTSLOT_ADD("cartslot", generic_plain_slot, "x1_cart")
-	MCFG_GENERIC_EXTENSIONS("bin,rom")
+	GENERIC_CARTSLOT(config, m_cart, generic_plain_slot, "x1_cart", "bin,rom");
 
 	SPEAKER(config, "x1_l").front_left();
 	SPEAKER(config, "x1_r").front_right();
@@ -506,18 +505,18 @@ MACHINE_CONFIG_START(x1twin_state::x1twin)
 	ay.add_route(0, "x1_r", 0.25);
 	ay.add_route(1, "x1_l", 0.5);
 	ay.add_route(2, "x1_r", 0.5);
-	WAVE(config, "wave", "cassette").add_route(ALL_OUTPUTS, "x1_l", 0.25).add_route(ALL_OUTPUTS, "x1_r", 0.10);
 
-	MCFG_CASSETTE_ADD("cassette")
-	MCFG_CASSETTE_FORMATS(x1_cassette_formats)
-	MCFG_CASSETTE_DEFAULT_STATE(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED)
-	MCFG_CASSETTE_INTERFACE("x1_cass")
+	CASSETTE(config, m_cassette);
+	m_cassette->set_formats(x1_cassette_formats);
+	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_DISABLED | CASSETTE_SPEAKER_ENABLED);
+	m_cassette->add_route(ALL_OUTPUTS, "x1_l", 0.25).add_route(ALL_OUTPUTS, "x1_r", 0.10);
+	m_cassette->set_interface("x1_cass");
 
-	MCFG_SOFTWARE_LIST_ADD("cass_list","x1_cass")
+	SOFTWARE_LIST(config, "cass_list").set_original("x1_cass");
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("keyboard_timer", x1twin_state, x1_keyboard_callback, attotime::from_hz(250))
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("cmt_wind_timer", x1twin_state, x1_cmt_wind_timer, attotime::from_hz(16))
-MACHINE_CONFIG_END
+	TIMER(config, "keyboard_timer").configure_periodic(FUNC(x1twin_state::x1_keyboard_callback), attotime::from_hz(250));
+	TIMER(config, "cmt_wind_timer").configure_periodic(FUNC(x1twin_state::x1_cmt_wind_timer), attotime::from_hz(16));
+}
 
 ROM_START( x1twin )
 	ROM_REGION( 0x10000, "x1_cpu", ROMREGION_ERASEFF )
@@ -543,11 +542,14 @@ ROM_START( x1twin )
 
 	ROM_REGION(0x20000, "kanji", ROMREGION_ERASEFF)
 
-	ROM_REGION(0x20000, "raw_kanji", ROMREGION_ERASEFF) // these comes from x1 turbo
+	ROM_REGION(0x20000, "raw_kanji", ROMREGION_ERASEFF) // these come from x1 turbo
 	ROM_LOAD("kanji4.rom", 0x00000, 0x8000, BAD_DUMP CRC(3e39de89) SHA1(d3fd24892bb1948c4697dedf5ff065ff3eaf7562) )
 	ROM_LOAD("kanji2.rom", 0x08000, 0x8000, BAD_DUMP CRC(e710628a) SHA1(103bbe459dc8da27a9400aa45b385255c18fcc75) )
 	ROM_LOAD("kanji3.rom", 0x10000, 0x8000, BAD_DUMP CRC(8cae13ae) SHA1(273f3329c70b332f6a49a3a95e906bbfe3e9f0a1) )
 	ROM_LOAD("kanji1.rom", 0x18000, 0x8000, BAD_DUMP CRC(5874f70b) SHA1(dad7ada1b70c45f1e9db11db273ef7b385ef4f17) )
 ROM_END
+
+} // Anonymous namespace
+
 
 COMP( 1986, x1twin, x1, 0, x1twin, x1twin, x1twin_state, init_x1_kanji, "Sharp", "X1 Twin (CZ-830C)", MACHINE_NOT_WORKING )

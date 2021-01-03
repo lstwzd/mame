@@ -9,34 +9,35 @@
 #include "machine/eepromser.h"
 #include "emupal.h"
 #include "screen.h"
+#include "tilemap.h"
 
 class unico_state : public driver_device
 {
 public:
 	unico_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
+		m_maincpu(*this, "maincpu"),
 		m_palette(*this, "palette"),
 		m_gfxdecode(*this, "gfxdecode"),
+		m_oki(*this, "oki"),
 		m_leds(*this, "led%u", 0U),
-		m_vram(*this, "vram", 0),
-		m_scroll(*this, "scroll", 0),
-		m_spriteram(*this, "spriteram", 0),
-		m_maincpu(*this, "maincpu"),
-		m_oki(*this, "oki")
+		m_vram(*this, "vram", 0xc000, ENDIANNESS_BIG),
+		m_scroll(*this, "scroll", 22, ENDIANNESS_BIG),
+		m_spriteram(*this, "spriteram", 0x800, ENDIANNESS_BIG)
 	{ }
 
 	void burglarx(machine_config &config);
 
 protected:
 	static rgb_t unico_R6G6B6X(uint32_t raw);
-	DECLARE_READ16_MEMBER(vram_r);
-	DECLARE_WRITE16_MEMBER(vram_w);
-	DECLARE_READ16_MEMBER(scroll_r);
-	DECLARE_WRITE16_MEMBER(scroll_w);
-	DECLARE_READ16_MEMBER(spriteram_r);
-	DECLARE_WRITE16_MEMBER(spriteram_w);
+	uint16_t vram_r(offs_t offset);
+	void vram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t scroll_r(offs_t offset);
+	void scroll_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t spriteram_r(offs_t offset);
+	void spriteram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_WRITE8_MEMBER(burglarx_okibank_w);
+	void burglarx_okibank_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_tile_info);
 	virtual void machine_start() override;
 	virtual void video_start() override;
@@ -45,20 +46,19 @@ protected:
 
 	void burglarx_map(address_map &map);
 
+	required_device<cpu_device> m_maincpu;
 	required_device<palette_device> m_palette;
 	required_device<gfxdecode_device> m_gfxdecode;
+	optional_device<okim6295_device> m_oki;
 	output_finder<2> m_leds;
 
 private:
-	required_shared_ptr<uint16_t> m_vram;
-	required_shared_ptr<uint16_t> m_scroll;
+	memory_share_creator<uint16_t> m_vram;
+	memory_share_creator<uint16_t> m_scroll;
 	tilemap_t *m_tilemap[3];
 	int m_sprites_scrolldx;
 	int m_sprites_scrolldy;
-	required_shared_ptr<uint16_t> m_spriteram;
-
-	required_device<cpu_device> m_maincpu;
-	optional_device<okim6295_device> m_oki;
+	memory_share_creator<uint16_t> m_spriteram;
 };
 
 class zeropnt_state : public unico_state
@@ -76,13 +76,15 @@ public:
 protected:
 	virtual void machine_start() override;
 
-	DECLARE_WRITE8_MEMBER(zeropnt_okibank_leds_w);
-	DECLARE_READ16_MEMBER(gunx_0_msb_r);
-	DECLARE_READ16_MEMBER(guny_0_msb_r);
-	DECLARE_READ16_MEMBER(gunx_1_msb_r);
-	DECLARE_READ16_MEMBER(guny_1_msb_r);
+	void zeropnt_okibank_leds_w(uint8_t data);
+	uint16_t gunx_0_msb_r();
+	uint16_t guny_0_msb_r();
+	uint16_t gunx_1_msb_r();
+	uint16_t guny_1_msb_r();
 
 	required_memory_bank m_okibank;
+
+	required_device<screen_device> m_screen;
 
 	void zeropnt_map(address_map &map);
 	void zeropnt_oki_map(address_map &map);
@@ -90,7 +92,6 @@ protected:
 private:
 	enum { Y0, X0, Y1, X1 }; // gun axis indices
 
-	required_device<screen_device> m_screen;
 	required_ioport_array<4> m_gun_axes;
 };
 
@@ -107,14 +108,14 @@ public:
 protected:
 	virtual void machine_start() override;
 
-	DECLARE_READ32_MEMBER(zeropnt2_gunx_0_msb_r);
-	DECLARE_READ32_MEMBER(zeropnt2_guny_0_msb_r);
-	DECLARE_READ32_MEMBER(zeropnt2_gunx_1_msb_r);
-	DECLARE_READ32_MEMBER(zeropnt2_guny_1_msb_r);
-	DECLARE_WRITE8_MEMBER(zeropnt2_okibank);
-	DECLARE_WRITE8_MEMBER(leds_w);
+	uint32_t zeropnt2_gunx_0_msb_r();
+	uint32_t zeropnt2_guny_0_msb_r();
+	uint32_t zeropnt2_gunx_1_msb_r();
+	uint32_t zeropnt2_guny_1_msb_r();
+	void zeropnt2_okibank(uint8_t data);
+	void leds_w(uint8_t data);
 
-	DECLARE_WRITE32_MEMBER(eeprom_w);
+	void eeprom_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 	void zeropnt2_map(address_map &map);
 

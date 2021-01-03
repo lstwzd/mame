@@ -30,6 +30,9 @@ other = M5L8226 (x2)
 RAM = 4116 (x11)
 
 ----------------------------------------------------
+
+XTAL values appear to be 3579.545 (X1) and 11.200 (X2).
+
 ********************************************************************/
 
 #include "emu.h"
@@ -49,7 +52,7 @@ RAM = 4116 (x11)
 
 #define LOG_AUDIO_COMM  (0)
 
-#define MAIN_CPU_MASTER_CLOCK   (11200000)
+#define MAIN_CPU_MASTER_CLOCK   (11.2_MHz_XTAL)
 #define PIXEL_CLOCK             (MAIN_CPU_MASTER_CLOCK / 2)
 #define CRTC_CLOCK              (MAIN_CPU_MASTER_CLOCK / 16)
 
@@ -73,7 +76,7 @@ public:
 
 	void r2dtank(machine_config &config);
 
-	DECLARE_CUSTOM_INPUT_MEMBER(get_ttl74123_output);
+	DECLARE_READ_LINE_MEMBER(ttl74123_output_r);
 
 protected:
 	virtual void machine_start() override;
@@ -95,16 +98,16 @@ private:
 	uint32_t m_ttl74123_output;
 	uint8_t m_AY8910_selected;
 
-	DECLARE_READ8_MEMBER(audio_command_r);
-	DECLARE_WRITE8_MEMBER(audio_command_w);
-	DECLARE_READ8_MEMBER(audio_answer_r);
-	DECLARE_WRITE8_MEMBER(audio_answer_w);
+	uint8_t audio_command_r();
+	void audio_command_w(uint8_t data);
+	uint8_t audio_answer_r();
+	void audio_answer_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(main_cpu_irq);
-	DECLARE_WRITE8_MEMBER(AY8910_select_w);
-	DECLARE_READ8_MEMBER(AY8910_port_r);
-	DECLARE_WRITE8_MEMBER(AY8910_port_w);
+	void AY8910_select_w(uint8_t data);
+	uint8_t AY8910_port_r();
+	void AY8910_port_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(flipscreen_w);
-	DECLARE_WRITE8_MEMBER(pia_comp_w);
+	void pia_comp_w(offs_t offset, uint8_t data);
 
 	DECLARE_WRITE_LINE_MEMBER(ttl74123_output_changed);
 
@@ -137,9 +140,9 @@ WRITE_LINE_MEMBER(r2dtank_state::main_cpu_irq)
  *
  *************************************/
 
-READ8_MEMBER(r2dtank_state::audio_command_r)
+uint8_t r2dtank_state::audio_command_r()
 {
-	uint8_t ret = m_soundlatch->read(space, 0);
+	uint8_t ret = m_soundlatch->read();
 
 if (LOG_AUDIO_COMM) logerror("%08X  CPU#1  Audio Command Read: %x\n", m_audiocpu->pc(), ret);
 
@@ -147,41 +150,41 @@ if (LOG_AUDIO_COMM) logerror("%08X  CPU#1  Audio Command Read: %x\n", m_audiocpu
 }
 
 
-WRITE8_MEMBER(r2dtank_state::audio_command_w)
+void r2dtank_state::audio_command_w(uint8_t data)
 {
-	m_soundlatch->write(space, 0, ~data);
+	m_soundlatch->write(~data);
 	m_audiocpu->set_input_line(M6802_IRQ_LINE, HOLD_LINE);
 
 if (LOG_AUDIO_COMM) logerror("%08X   CPU#0  Audio Command Write: %x\n", m_maincpu->pc(), data^0xff);
 }
 
 
-READ8_MEMBER(r2dtank_state::audio_answer_r)
+uint8_t r2dtank_state::audio_answer_r()
 {
-	uint8_t ret = m_soundlatch2->read(space, 0);
+	uint8_t ret = m_soundlatch2->read();
 if (LOG_AUDIO_COMM) logerror("%08X  CPU#0  Audio Answer Read: %x\n", m_maincpu->pc(), ret);
 
 	return ret;
 }
 
 
-WRITE8_MEMBER(r2dtank_state::audio_answer_w)
+void r2dtank_state::audio_answer_w(uint8_t data)
 {
-	/* HACK - prevents lock-up, but causes game to end some in-between sreens prematurely */
+	/* HACK - prevents lock-up, but causes game to end some in-between screens prematurely */
 	if (m_audiocpu->pc() == 0xfb12)
 		data = 0x00;
 
-	m_soundlatch2->write(space, 0, data);
+	m_soundlatch2->write(data);
 	m_maincpu->set_input_line(M6809_IRQ_LINE, HOLD_LINE);
 
 if (LOG_AUDIO_COMM) logerror("%08X  CPU#1  Audio Answer Write: %x\n", m_audiocpu->pc(), data);
 }
 
 
-WRITE8_MEMBER(r2dtank_state::AY8910_select_w)
+void r2dtank_state::AY8910_select_w(uint8_t data)
 {
 	/* not sure what all the bits mean:
-	   D0 - ????? definetely used
+	   D0 - ????? definitely used
 	   D1 - not used?
 	   D2 - selects ay8910 control or port
 	   D3 - selects ay8910 #0
@@ -193,27 +196,27 @@ if (LOG_AUDIO_COMM) logerror("%s:  CPU#1  AY8910_select_w: %x\n", machine().desc
 }
 
 
-READ8_MEMBER(r2dtank_state::AY8910_port_r)
+uint8_t r2dtank_state::AY8910_port_r()
 {
 	uint8_t ret = 0;
 
 	if (m_AY8910_selected & 0x08)
-		ret = m_ay1->data_r(space, 0);
+		ret = m_ay1->data_r();
 
 	if (m_AY8910_selected & 0x10)
-		ret = m_ay2->data_r(space, 0);
+		ret = m_ay2->data_r();
 
 	return ret;
 }
 
 
-WRITE8_MEMBER(r2dtank_state::AY8910_port_w)
+void r2dtank_state::AY8910_port_w(uint8_t data)
 {
 	if (m_AY8910_selected & 0x08)
-		m_ay1->data_address_w(space, m_AY8910_selected >> 2, data);
+		m_ay1->data_address_w(m_AY8910_selected >> 2, data);
 
 	if (m_AY8910_selected & 0x10)
-		m_ay2->data_address_w(space, m_AY8910_selected >> 2, data);
+		m_ay2->data_address_w(m_AY8910_selected >> 2, data);
 }
 
 
@@ -236,7 +239,7 @@ WRITE_LINE_MEMBER(r2dtank_state::ttl74123_output_changed)
 }
 
 
-CUSTOM_INPUT_MEMBER(r2dtank_state::get_ttl74123_output)
+READ_LINE_MEMBER(r2dtank_state::ttl74123_output_r)
 {
 	return m_ttl74123_output;
 }
@@ -276,8 +279,6 @@ MC6845_UPDATE_ROW( r2dtank_state::crtc_update_row )
 
 	for (uint8_t cx = 0; cx < x_count; cx++)
 	{
-		uint8_t data, fore_color;
-
 		/* the memory is hooked up to the MA, RA lines this way */
 		offs_t offs = ((ma << 3) & 0x1f00) |
 						((ra << 5) & 0x00e0) |
@@ -286,31 +287,31 @@ MC6845_UPDATE_ROW( r2dtank_state::crtc_update_row )
 		if (m_flipscreen)
 			offs = offs ^ 0x1fff;
 
-		data = m_videoram[offs];
-		fore_color = (m_colorram[offs] >> 5) & 0x07;
+		uint8_t data = m_videoram[offs];
+		uint8_t fore_color = (m_colorram[offs] >> 5) & 0x07;
 
 		for (int i = 0; i < 8; i++)
 		{
-			uint8_t bit, color;
+			uint8_t bit;
 
 			if (m_flipscreen)
 			{
 				bit = data & 0x01;
-				data = data >> 1;
+				data >>= 1;
 			}
 			else
 			{
 				bit = data & 0x80;
-				data = data << 1;
+				data <<= 1;
 			}
 
-			color = bit ? fore_color : 0;
-			bitmap.pix32(y, x) = m_palette->pen_color(color);
+			uint8_t const color = bit ? fore_color : 0;
+			bitmap.pix(y, x) = m_palette->pen_color(color);
 
-			x = x + 1;
+			x++;
 		}
 
-		ma = ma + 1;
+		ma++;
 	}
 }
 
@@ -322,9 +323,9 @@ MC6845_UPDATE_ROW( r2dtank_state::crtc_update_row )
  *
  *************************************/
 
-WRITE8_MEMBER(r2dtank_state::pia_comp_w)
+void r2dtank_state::pia_comp_w(offs_t offset, uint8_t data)
 {
-	m_pia_main->write(machine().dummy_space(), offset, ~data);
+	m_pia_main->write(offset, ~data);
 }
 
 
@@ -345,7 +346,6 @@ void r2dtank_state::r2dtank_main_map(address_map &map)
 
 void r2dtank_state::r2dtank_audio_map(address_map &map)
 {
-	map(0x0000, 0x007f).ram();     /* internal RAM */
 	map(0xd000, 0xd003).rw("pia_audio", FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0xf000, 0xf000).rw(FUNC(r2dtank_state::audio_command_r), FUNC(r2dtank_state::audio_answer_w));
 	map(0xf800, 0xffff).rom();
@@ -369,7 +369,7 @@ static INPUT_PORTS_START( r2dtank )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_COCKTAIL
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(DEVICE_SELF, r2dtank_state,get_ttl74123_output, nullptr)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(r2dtank_state, ttl74123_output_r)
 
 	PORT_START("IN1")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_COCKTAIL
@@ -442,19 +442,20 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(r2dtank_state::r2dtank)
-	MCFG_DEVICE_ADD("maincpu", M6809,3000000)       /* ?? too fast ? */
-	MCFG_DEVICE_PROGRAM_MAP(r2dtank_main_map)
+void r2dtank_state::r2dtank(machine_config &config)
+{
+	MC6809(config, m_maincpu, MAIN_CPU_MASTER_CLOCK / 4); // divider guessed
+	m_maincpu->set_addrmap(AS_PROGRAM, &r2dtank_state::r2dtank_main_map);
 
-	MCFG_DEVICE_ADD("audiocpu", M6802,3000000)         /* ?? */
-	MCFG_DEVICE_PROGRAM_MAP(r2dtank_audio_map)
+	M6802(config, m_audiocpu, 3.579545_MHz_XTAL);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &r2dtank_state::r2dtank_audio_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 256, 0, 256, 256, 0, 256)   /* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE_DEVICE("crtc", mc6845_device, screen_update)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(PIXEL_CLOCK, 360, 0, 256, 276, 0, 224);
+	screen.set_screen_update("crtc", FUNC(mc6845_device::screen_update));
 
 	PALETTE(config, m_palette, palette_device::BGR_3BIT);
 
@@ -462,7 +463,7 @@ MACHINE_CONFIG_START(r2dtank_state::r2dtank)
 	crtc.set_screen("screen");
 	crtc.set_show_border_area(false);
 	crtc.set_char_width(8);
-	crtc.set_update_row_callback(FUNC(r2dtank_state::crtc_update_row), this);
+	crtc.set_update_row_callback(FUNC(r2dtank_state::crtc_update_row));
 	crtc.out_de_callback().set("74123", FUNC(ttl74123_device::a_w));
 
 	/* 74LS123 */
@@ -496,16 +497,15 @@ MACHINE_CONFIG_START(r2dtank_state::r2dtank)
 	GENERIC_LATCH_8(config, m_soundlatch);
 	GENERIC_LATCH_8(config, m_soundlatch2);
 
-	AY8910(config, m_ay1, (4000000 / 4));
+	AY8910(config, m_ay1, 3.579545_MHz_XTAL / 4); // probably E clock from MC6802
 	m_ay1->port_a_read_callback().set_ioport("DSWB");
 	m_ay1->add_route(ALL_OUTPUTS, "mono", 0.25);
 
-	AY8910(config, m_ay2, (4000000 / 4));
+	AY8910(config, m_ay2, 3.579545_MHz_XTAL / 4);
 	m_ay2->port_a_read_callback().set_ioport("IN1");
 	m_ay2->port_b_read_callback().set_ioport("DSWA");
 	m_ay2->add_route(ALL_OUTPUTS, "mono", 0.25);
-
-MACHINE_CONFIG_END
+}
 
 
 

@@ -15,7 +15,7 @@
 class dec_ioga_device : public device_t
 {
 public:
-	dec_ioga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	dec_ioga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
 	void map(address_map &map);
 
@@ -28,19 +28,29 @@ public:
 	// multiplex irq output
 	auto irq_out() { return m_irq_out_cb.bind(); }
 
+	// DMA interface
+	void set_dma_space(address_space *space);
+	u16 lance_dma_r(offs_t offset);
+	void lance_dma_w(offs_t offset, u16 data);
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
-	DECLARE_READ32_MEMBER(csr_r);
-	DECLARE_WRITE32_MEMBER(csr_w);
-	DECLARE_READ32_MEMBER(intr_r);
-	DECLARE_WRITE32_MEMBER(intr_w);
-	DECLARE_READ32_MEMBER(imsk_r);
-	DECLARE_WRITE32_MEMBER(imsk_w);
+	u32 csr_r();
+	void csr_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+	u32 intr_r();
+	void intr_w(u32 data);
+	u32 imsk_r();
+	void imsk_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+	u32 dmaptr_r(offs_t offset);
+	void dmaptr_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+
+	address_space *m_maincpu_space;
 
 private:
-	uint32_t m_csr, m_intr, m_imsk;
+	u32 m_csr, m_intr, m_imsk;
+	u32 m_dmaptrs[0x10];
 
 	devcb_write_line m_irq_out_cb;
 

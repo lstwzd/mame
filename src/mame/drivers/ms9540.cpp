@@ -33,7 +33,7 @@ class ms9540_state : public driver_device
 public:
 	ms9540_state(const machine_config &mconfig, device_type type, const char *tag)
 		: driver_device(mconfig, type, tag)
-		, m_p_base(*this, "rambase")
+		, m_ram(*this, "mainram")
 		, m_maincpu(*this, "maincpu")
 		, m_terminal(*this, "terminal")
 	{ }
@@ -41,23 +41,53 @@ public:
 	void ms9540(machine_config &config);
 
 private:
+	uint8_t latch_1e001_r();
+	void latch_1e001_w(u8 data);
+	uint8_t latch_1f001_r();
+	void latch_1f001_w(u8 data);
 	void kbd_put(u8 data);
 	void mem_map(address_map &map);
 	uint8_t m_term_data;
-	virtual void machine_reset() override;
-	required_shared_ptr<uint16_t> m_p_base;
+	uint8_t m_latch_1e001;
+	uint8_t m_latch_1f001;
+	void machine_reset() override;
+	void machine_start() override;
+	required_shared_ptr<uint16_t> m_ram;
 	required_device<cpu_device> m_maincpu;
 	required_device<generic_terminal_device> m_terminal;
 };
 
 
+uint8_t ms9540_state::latch_1e001_r()
+{
+	return m_latch_1e001;
+}
+
+void ms9540_state::latch_1e001_w(uint8_t data)
+{
+	logerror("%s: $1e001 <- #$%02x\n", machine().describe_context(), data);
+	m_latch_1e001 = data;
+}
+
+uint8_t ms9540_state::latch_1f001_r()
+{
+	return m_latch_1f001;
+}
+
+void ms9540_state::latch_1f001_w(uint8_t data)
+{
+	logerror("%s: $1f001 <- #$%02x\n", machine().describe_context(), data);
+	m_latch_1f001 = data;
+}
+
 void ms9540_state::mem_map(address_map &map)
 {
 	map.unmap_value_high();
-	map.global_mask(0xffffff);
-	map(0x000000, 0x00ffff).ram().share("rambase");
+	map(0x000000, 0x00ffff).ram().share("mainram");
 	map(0x010000, 0x013fff).rom().region("9540", 0);
 	map(0x018000, 0x018fff).ram();
+	map(0x01e001, 0x01e001).rw(FUNC(ms9540_state::latch_1e001_r), FUNC(ms9540_state::latch_1e001_w));
+	map(0x01f001, 0x01f001).rw(FUNC(ms9540_state::latch_1f001_r), FUNC(ms9540_state::latch_1f001_w));
 }
 
 
@@ -69,8 +99,14 @@ INPUT_PORTS_END
 void ms9540_state::machine_reset()
 {
 	uint8_t* ROM = memregion("9540")->base();
-	memcpy(m_p_base, ROM, 8);
-	m_maincpu->reset();
+	memcpy(m_ram, ROM, 8);
+}
+
+void ms9540_state::machine_start()
+{
+	save_item(NAME(m_term_data));
+	save_item(NAME(m_latch_1e001));
+	save_item(NAME(m_latch_1f001));
 }
 
 void ms9540_state::kbd_put(u8 data)
@@ -104,4 +140,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY               FULLNAME  FLAGS
-COMP( 198?, ms9540, 0,      0,      ms9540,  ms9540, ms9540_state, empty_init, "Millennium Systems", "ms9540", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+COMP( 198?, ms9540, 0,      0,      ms9540,  ms9540, ms9540_state, empty_init, "Millennium Systems", "ms9540", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE )

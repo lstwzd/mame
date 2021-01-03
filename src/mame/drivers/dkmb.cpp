@@ -42,8 +42,8 @@ public:
 
 	void dkmb(machine_config &config);
 
-	DECLARE_READ64_MEMBER(unk_2060000_r);
-	DECLARE_READ64_MEMBER(unk_20c0010_r);
+	u64 unk_2060000_r();
+	u64 unk_20c0010_r();
 
 protected:
 	virtual void machine_start() override;
@@ -67,11 +67,11 @@ uint32_t dkmb_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, 
 	int count = 0;
 	for (int y = 0; y < 256; y++)
 	{
-		uint32_t* dst = &bitmap.pix32(y);
+		uint32_t *const dst = &bitmap.pix(y);
 
 		for (int x = 0; x < 1024 / 2; x++)
 		{
-			uint64_t val = m_framebuffer[count];
+			uint64_t const val = m_framebuffer[count];
 
 			dst[(x * 2) + 0] = (val >> 32) & 0x00ffffff;
 			dst[(x * 2) + 1] = (val >> 0)  & 0x00ffffff;
@@ -84,12 +84,12 @@ uint32_t dkmb_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, 
 }
 
 
-READ64_MEMBER(dkmb_state::unk_2060000_r)
+u64 dkmb_state::unk_2060000_r()
 {
 	return ((u64)machine().rand()) << 56;
 }
 
-READ64_MEMBER(dkmb_state::unk_20c0010_r)
+u64 dkmb_state::unk_20c0010_r()
 {
 	return ((u64)machine().rand()) << 56;
 }
@@ -119,24 +119,24 @@ static INPUT_PORTS_START( dkmb )
 
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(dkmb_state::dkmb)
+void dkmb_state::dkmb(machine_config &config)
+{
+	PPC603R(config, m_maincpu, 75'000'000); // Actually MPC603RRX266LC
+	m_maincpu->set_addrmap(AS_PROGRAM, &dkmb_state::main_map);
 
-	MCFG_DEVICE_ADD("maincpu", PPC603R, 75'000'000) // Actually MPC603RRX266LC
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	PIC16C56(config, "pic", 4'000'000);  // Actually PIC12C508, clock not verified
 
-	MCFG_DEVICE_ADD("pic", PIC16C56, 4'000'000)  // Actually PIC12C508, clock not verified
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));  // wrong
+	screen.set_refresh_hz(60);
+	screen.set_screen_update(FUNC(dkmb_state::screen_update));
+	screen.set_size(1024, 256);
+	screen.set_visarea_full();
 
-	MCFG_SCREEN_ADD("screen", RASTER)  // wrong
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE_DRIVER(dkmb_state, screen_update)
-	MCFG_SCREEN_SIZE(1024, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 1024-1, 0, 256-1)
-
-	MCFG_PALETTE_ADD("palette", 65536)
+	PALETTE(config, "palette").set_entries(65536);
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-MACHINE_CONFIG_END
+}
 
 
 ROM_START( dkmb )

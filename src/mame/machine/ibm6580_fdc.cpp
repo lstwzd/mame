@@ -3,24 +3,22 @@
 #include "emu.h"
 #include "ibm6580_fdc.h"
 
-#define VERBOSE_DBG 2       /* general debug messages */
 
-#define DBG_LOG(N,M,A) \
-	do { \
-	if(VERBOSE_DBG>=N) \
-		{ \
-			if( M ) \
-				logerror("%11.6f at %s: %-10s",machine().time().as_double(),machine().describe_context(),(char*)M ); \
-			logerror A; \
-		} \
-	} while (0)
+//#define LOG_GENERAL (1U <<  0) //defined in logmacro.h already
+#define LOG_DEBUG     (1U <<  1)
+
+//#define VERBOSE (LOG_GENERAL | LOG_DEBUG)
+//#define LOG_OUTPUT_FUNC printf
+#include "logmacro.h"
+
+#define LOGDBG(...) LOGMASKED(LOG_DEBUG, __VA_ARGS__)
 
 
 DEFINE_DEVICE_TYPE(DW_FDC, dw_fdc_device, "dw_fdc", "IBM Displaywriter Floppy")
 
 ROM_START( dw_fdc )
 	ROM_REGION(0x800, "mcu", 0)
-	ROM_LOAD("4430030_FLP_8041.BIN", 0x0000, 0x400, CRC(2bb96799) SHA1(e30b0f2d790197f290858eab74ad5e151ded78c3))
+	ROM_LOAD("4430030_flp_8041.bin", 0x0000, 0x400, CRC(2bb96799) SHA1(e30b0f2d790197f290858eab74ad5e151ded78c3))
 ROM_END
 
 
@@ -44,8 +42,8 @@ void dw_fdc_device::device_add_mconfig(machine_config &config)
 	UPD765A(config, "upd765", 24_MHz_XTAL / 3, false, false);
 //  m_upd_fdc->intrq_wr_callback().set("pic8259", FUNC(pic8259_device::ir4_w));
 //  m_upd_fdc->drq_wr_callback().set("dma8257", FUNC(dma8257_device::XXX));
-//  MCFG_FLOPPY_DRIVE_ADD(UPD765_TAG ":0", wangpc_floppies, "525dd", wangpc_state::floppy_formats)
-//  MCFG_FLOPPY_DRIVE_ADD(UPD765_TAG ":1", wangpc_floppies, "525dd", wangpc_state::floppy_formats)
+//  FLOPPY_CONNECTOR(config, UPD765_TAG ":0", wangpc_floppies, "525dd", wangpc_state::floppy_formats);
+//  FLOPPY_CONNECTOR(config, UPD765_TAG ":1", wangpc_floppies, "525dd", wangpc_state::floppy_formats);
 }
 
 
@@ -76,49 +74,49 @@ void dw_fdc_device::device_timer(emu_timer &timer, device_timer_id id, int param
 	m_mcu->set_input_line(INPUT_LINE_RESET, ASSERT_LINE);
 }
 
-WRITE8_MEMBER( dw_fdc_device::p1_w )
+void dw_fdc_device::p1_w(uint8_t data)
 {
 	m_p1 = data;
 
-	DBG_LOG(2,"p1",( "<- %02x\n", data, m_p1));
+	LOGDBG("p1 <- %02x\n", data, m_p1);
 }
 
-WRITE8_MEMBER( dw_fdc_device::p2_w )
+void dw_fdc_device::p2_w(uint8_t data)
 {
 	m_p2 = data;
 
-	DBG_LOG(2,"p2",( "<- %02x\n", data));
+	LOGDBG("p2 <- %02x\n", data);
 }
 
-READ8_MEMBER( dw_fdc_device::p2_r )
+uint8_t dw_fdc_device::p2_r()
 {
 	uint8_t data = m_p2;
 
-	DBG_LOG(2,"p2",( "== %02x\n", data));
+	LOGDBG("p2 == %02x\n", data);
 
 	return data;
 }
 
 READ_LINE_MEMBER( dw_fdc_device::t0_r )
 {
-	DBG_LOG(2,"t0",( "== %d\n", m_t0));
+	LOGDBG("t0 == %d\n", m_t0);
 
 	return m_t0;
 }
 
 READ_LINE_MEMBER( dw_fdc_device::t1_r )
 {
-	DBG_LOG(2,"t1",( "== %d\n", m_t1));
+	LOGDBG("t1 == %d\n", m_t1);
 
 	return m_t1;
 }
 
-WRITE8_MEMBER( dw_fdc_device::bus_w )
+void dw_fdc_device::bus_w(uint8_t data)
 {
 	m_bus = data;
 }
 
-READ8_MEMBER( dw_fdc_device::bus_r )
+uint8_t dw_fdc_device::bus_r()
 {
 	return m_bus;
 }

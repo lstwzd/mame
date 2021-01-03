@@ -23,6 +23,9 @@ public:
 		driver_device(mconfig, type, tag),
 		m_palrom(*this, "palrom"),
 		m_gfxrom(*this, "gfx"),
+		m_eepromout_io(*this, "EEPROMOUT"),
+		m_2a0002_io(*this, "2a0002"),
+		m_2a000e_io(*this, "2a000e"),
 		m_maincpu(*this, "maincpu"),
 		m_audiocpu(*this, "audiocpu"),
 		m_screen(*this, "screen"),
@@ -32,8 +35,6 @@ public:
 
 	void fredmem(machine_config &config);
 	void dcheese(machine_config &config);
-
-	DECLARE_CUSTOM_INPUT_MEMBER(sound_latch_state_r);
 
 protected:
 	enum
@@ -48,23 +49,26 @@ protected:
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 private:
-	required_region_ptr<uint16_t> m_palrom;
-	required_region_ptr<uint8_t> m_gfxrom;
+	required_region_ptr<u16> m_palrom;
+	required_region_ptr<u8> m_gfxrom;
+	required_ioport m_eepromout_io;
+	required_ioport m_2a0002_io;
+	required_ioport m_2a000e_io;
 
 	/* video-related */
-	uint16_t   m_blitter_color[2];
-	uint16_t   m_blitter_xparam[16];
-	uint16_t   m_blitter_yparam[16];
-	uint16_t   m_blitter_vidparam[32];
+	u16   m_blitter_color[2];
+	u16   m_blitter_xparam[16];
+	u16   m_blitter_yparam[16];
+	u16   m_blitter_vidparam[32];
 
 	std::unique_ptr<bitmap_ind16> m_dstbitmap;
 	emu_timer *m_blitter_timer;
 	emu_timer *m_signal_irq_timer;
 
 	/* misc */
-	uint8_t    m_irq_state[5];
-	uint8_t    m_sound_control;
-	uint8_t    m_sound_msb_latch;
+	u8    m_irq_state[5];
+	u8    m_sound_control;
+	u8    m_sound_msb_latch;
 
 	/* devices */
 	required_device<cpu_device> m_maincpu;
@@ -73,27 +77,28 @@ private:
 	required_device<bsmt2000_device> m_bsmt;
 	required_device<generic_latch_8_device> m_soundlatch;
 
-	DECLARE_WRITE16_MEMBER(eeprom_control_w);
-	DECLARE_READ8_MEMBER(sound_status_r);
-	DECLARE_WRITE8_MEMBER(sound_control_w);
-	DECLARE_WRITE8_MEMBER(bsmt_data_w);
-	DECLARE_WRITE16_MEMBER(blitter_color_w);
-	DECLARE_WRITE16_MEMBER(blitter_xparam_w);
-	DECLARE_WRITE16_MEMBER(blitter_yparam_w);
-	DECLARE_WRITE16_MEMBER(blitter_vidparam_w);
-	DECLARE_WRITE16_MEMBER(blitter_unknown_w);
-	DECLARE_READ16_MEMBER(blitter_vidparam_r);
+	void eeprom_control_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	u8 sound_status_r();
+	void sound_control_w(u8 data);
+	void bsmt_data_w(offs_t offset, u8 data);
+	void blitter_color_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	void blitter_xparam_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	void blitter_yparam_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	void blitter_vidparam_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	void blitter_unknown_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	u16 blitter_vidparam_r(offs_t offset);
 	void dcheese_palette(palette_device &palette) const;
-	uint32_t screen_update_dcheese(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	INTERRUPT_GEN_MEMBER(dcheese_vblank);
-	void dcheese_signal_irq(int which);
+	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	DECLARE_WRITE_LINE_MEMBER(vblank);
+	void signal_irq(u8 which);
 	void update_irq_state();
-	IRQ_CALLBACK_MEMBER(irq_callback);
+	uint8_t iack_r(offs_t offset);
 	void update_scanline_irq();
 	void do_clear();
 	void do_blit();
 
 	void main_cpu_map(address_map &map);
+	void main_fc7_map(address_map &map);
 	void sound_cpu_map(address_map &map);
 };
 

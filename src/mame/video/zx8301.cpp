@@ -58,7 +58,8 @@ DEFINE_DEVICE_TYPE(ZX8301, zx8301_device, "zx8301", "Sinclair ZX8301")
 // default address map
 void zx8301_device::zx8301(address_map &map)
 {
-	map(0x00000, 0x1ffff).ram();
+	if (!has_configured_map(0))
+		map(0x00000, 0x1ffff).ram();
 }
 
 
@@ -113,7 +114,7 @@ zx8301_device::zx8301_device(const machine_config &mconfig, const char *tag, dev
 	: device_t(mconfig, ZX8301, tag, owner, clock)
 	, device_memory_interface(mconfig, *this)
 	, device_video_interface(mconfig, *this)
-	, m_space_config("videoram", ENDIANNESS_LITTLE, 8, 17, 0, address_map_constructor(), address_map_constructor(FUNC(zx8301_device::zx8301), this))
+	, m_space_config("videoram", ENDIANNESS_LITTLE, 8, 17, 0, address_map_constructor(FUNC(zx8301_device::zx8301), this))
 	, m_cpu(*this, finder_base::DUMMY_TAG)
 	, m_write_vsync(*this)
 	, m_dispoff(1)
@@ -177,7 +178,7 @@ void zx8301_device::device_timer(emu_timer &timer, device_timer_id id, int param
 //  control_w - display control register
 //-------------------------------------------------
 
-WRITE8_MEMBER( zx8301_device::control_w )
+void zx8301_device::control_w(uint8_t data)
 {
 	/*
 
@@ -211,7 +212,7 @@ WRITE8_MEMBER( zx8301_device::control_w )
 //  data_r - RAM read
 //-------------------------------------------------
 
-READ8_MEMBER( zx8301_device::data_r )
+uint8_t zx8301_device::data_r(offs_t offset)
 {
 	if (LOG) logerror("ZX8301 RAM Read: %06x\n", offset);
 
@@ -228,7 +229,7 @@ READ8_MEMBER( zx8301_device::data_r )
 //  data_w - RAM write
 //-------------------------------------------------
 
-WRITE8_MEMBER( zx8301_device::data_w )
+void zx8301_device::data_w(offs_t offset, uint8_t data)
 {
 	if (LOG) logerror("ZX8301 RAM Write: %06x = %02x\n", offset, data);
 
@@ -260,7 +261,7 @@ void zx8301_device::draw_line_mode4(bitmap_rgb32 &bitmap, int y, uint16_t da)
 			int green = BIT(byte_high, 7);
 			int color = (green << 1) | red;
 
-			bitmap.pix32(y, x++) = PALETTE_ZX8301[ZX8301_COLOR_MODE4[color]];
+			bitmap.pix(y, x++) = PALETTE_ZX8301[ZX8301_COLOR_MODE4[color]];
 
 			byte_high <<= 1;
 			byte_low <<= 1;
@@ -277,6 +278,9 @@ void zx8301_device::draw_line_mode8(bitmap_rgb32 &bitmap, int y, uint16_t da)
 {
 	int x = 0;
 
+	bool flash_active = false;
+	int flash_color = 0;
+
 	for (int word = 0; word < 64; word++)
 	{
 		uint8_t byte_high = readbyte(da++);
@@ -291,13 +295,19 @@ void zx8301_device::draw_line_mode8(bitmap_rgb32 &bitmap, int y, uint16_t da)
 
 			int color = (green << 2) | (red << 1) | blue;
 
-			if (flash && m_flash)
+			if (flash_active)
 			{
-				color = 0;
+				color = flash_color;
 			}
 
-			bitmap.pix32(y, x++) = PALETTE_ZX8301[color];
-			bitmap.pix32(y, x++) = PALETTE_ZX8301[color];
+			if (flash && m_flash)
+			{
+				flash_active = !flash_active;
+				flash_color = color;
+			}
+
+			bitmap.pix(y, x++) = PALETTE_ZX8301[color];
+			bitmap.pix(y, x++) = PALETTE_ZX8301[color];
 
 			byte_high <<= 2;
 			byte_low <<= 2;

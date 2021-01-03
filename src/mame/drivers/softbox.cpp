@@ -168,21 +168,21 @@ INPUT_PORTS_END
 //  I8255A 0 Interface
 //-------------------------------------------------
 
-READ8_MEMBER( softbox_state::ppi0_pa_r )
+uint8_t softbox_state::ppi0_pa_r()
 {
-	return m_ieee->read_dio() ^ 0xff;
+	return m_ieee->dio_r() ^ 0xff;
 }
 
-WRITE8_MEMBER( softbox_state::ppi0_pb_w )
+void softbox_state::ppi0_pb_w(uint8_t data)
 {
-	m_ieee->write_dio(data ^ 0xff);
+	m_ieee->host_dio_w(data ^ 0xff);
 }
 
 //-------------------------------------------------
 //  I8255A 1 Interface
 //-------------------------------------------------
 
-READ8_MEMBER( softbox_state::ppi1_pa_r )
+uint8_t softbox_state::ppi1_pa_r()
 {
 	/*
 
@@ -213,7 +213,7 @@ READ8_MEMBER( softbox_state::ppi1_pa_r )
 	return data;
 }
 
-WRITE8_MEMBER( softbox_state::ppi1_pb_w )
+void softbox_state::ppi1_pb_w(uint8_t data)
 {
 	/*
 
@@ -240,7 +240,7 @@ WRITE8_MEMBER( softbox_state::ppi1_pb_w )
 	m_ieee->host_ifc_w(!BIT(data, 7));
 }
 
-READ8_MEMBER( softbox_state::ppi1_pc_r )
+uint8_t softbox_state::ppi1_pc_r()
 {
 	/*
 
@@ -257,7 +257,7 @@ READ8_MEMBER( softbox_state::ppi1_pc_r )
 
 	*/
 
-	uint8_t status = m_hdc->status_r(space, 0);
+	uint8_t status = m_hdc->status_r();
 	uint8_t data = 0;
 
 	data |= (status & corvus_hdc_device::CONTROLLER_BUSY) ? 0 : 0x10;
@@ -266,7 +266,7 @@ READ8_MEMBER( softbox_state::ppi1_pc_r )
 	return data;
 }
 
-WRITE8_MEMBER( softbox_state::ppi1_pc_w )
+void softbox_state::ppi1_pc_w(uint8_t data)
 {
 	/*
 
@@ -355,15 +355,12 @@ void softbox_state::ieee488_ifc(int state)
 //  MACHINE CONFIGURATION
 //**************************************************************************
 
-//-------------------------------------------------
-//  MACHINE_CONFIG( softbox )
-//-------------------------------------------------
-
-MACHINE_CONFIG_START(softbox_state::softbox)
+void softbox_state::softbox(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD(Z80_TAG, Z80, XTAL(8'000'000)/2)
-	MCFG_DEVICE_PROGRAM_MAP(softbox_mem)
-	MCFG_DEVICE_IO_MAP(softbox_io)
+	Z80(config, m_maincpu, XTAL(8'000'000)/2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &softbox_state::softbox_mem);
+	m_maincpu->set_addrmap(AS_IO, &softbox_state::softbox_io);
 
 	// devices
 	i8251_device &i8251(I8251(config, I8251_TAG, 0));
@@ -392,23 +389,19 @@ MACHINE_CONFIG_START(softbox_state::softbox)
 	dbrg.fr_handler().set(I8251_TAG, FUNC(i8251_device::write_rxc));
 	dbrg.ft_handler().set(I8251_TAG, FUNC(i8251_device::write_txc));
 
-	MCFG_CBM_IEEE488_ADD("c8050")
+	ieee488_device::add_cbm_devices(config, "c8050");
 
-	MCFG_DEVICE_ADD(CORVUS_HDC_TAG, CORVUS_HDC, 0)
-	MCFG_HARDDISK_ADD("harddisk1")
-	MCFG_HARDDISK_INTERFACE("corvus_hdd")
-	MCFG_HARDDISK_ADD("harddisk2")
-	MCFG_HARDDISK_INTERFACE("corvus_hdd")
-	MCFG_HARDDISK_ADD("harddisk3")
-	MCFG_HARDDISK_INTERFACE("corvus_hdd")
-	MCFG_HARDDISK_ADD("harddisk4")
-	MCFG_HARDDISK_INTERFACE("corvus_hdd")
+	CORVUS_HDC(config, m_hdc, 0);
+	HARDDISK(config, "harddisk1", "corvus_hdd");
+	HARDDISK(config, "harddisk2", "corvus_hdd");
+	HARDDISK(config, "harddisk3", "corvus_hdd");
+	HARDDISK(config, "harddisk4", "corvus_hdd");
 
-	MCFG_IMI7000_BUS_ADD("imi5000h", nullptr, nullptr, nullptr)
+	IMI7000_BUS(config, "imi7000").set_slot_default_options("imi5000h", nullptr, nullptr, nullptr);
 
 	// software lists
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "softbox")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "flop_list").set_original("softbox");
+}
 
 
 

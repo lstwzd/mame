@@ -26,8 +26,8 @@ game details unknown
 class piggypas_state : public driver_device
 {
 public:
-	piggypas_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	piggypas_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_hd44780(*this, "hd44780"),
 		m_ticket(*this, "ticket"),
@@ -37,17 +37,16 @@ public:
 	void piggypas(machine_config &config);
 	void fidlstix(machine_config &config);
 	DECLARE_INPUT_CHANGED_MEMBER(ball_sensor);
-	DECLARE_CUSTOM_INPUT_MEMBER(ticket_r);
+
 private:
 	void output_digits();
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
-	DECLARE_WRITE8_MEMBER(ctrl_w);
-	DECLARE_WRITE8_MEMBER(mcs51_tx_callback);
-	DECLARE_WRITE8_MEMBER(led_strobe_w);
-	DECLARE_READ8_MEMBER(lcd_latch_r);
-	DECLARE_WRITE8_MEMBER(lcd_latch_w);
-	DECLARE_WRITE8_MEMBER(lcd_control_w);
+	void ctrl_w(uint8_t data);
+	void mcs51_tx_callback(uint8_t data);
+	void led_strobe_w(uint8_t data);
+	void lcd_latch_w(uint8_t data);
+	void lcd_control_w(uint8_t data);
 	HD44780_PIXEL_UPDATE(piggypas_pixel_update);
 
 	required_device<mcs51_cpu_device> m_maincpu;
@@ -72,7 +71,7 @@ void piggypas_state::output_digits()
 	m_digits[3] = bitswap<8>((m_digit_latch >> 24) & 0xff, 7,6,4,3,2,1,0,5) & 0x7f;
 }
 
-WRITE8_MEMBER(piggypas_state::ctrl_w)
+void piggypas_state::ctrl_w(uint8_t data)
 {
 	if (!BIT(data, 2) && BIT(m_ctrl, 2))
 		output_digits();
@@ -82,40 +81,32 @@ WRITE8_MEMBER(piggypas_state::ctrl_w)
 	m_ctrl = data;
 }
 
-WRITE8_MEMBER(piggypas_state::mcs51_tx_callback)
+void piggypas_state::mcs51_tx_callback(uint8_t data)
 {
 	m_digit_latch = (m_digit_latch >> 8) | (u32(data) << 24);
 }
 
-WRITE8_MEMBER(piggypas_state::led_strobe_w)
+void piggypas_state::led_strobe_w(uint8_t data)
 {
 	if (!BIT(data, 0))
 		m_digit_latch = 0;
 }
 
-READ8_MEMBER(piggypas_state::lcd_latch_r)
-{
-	return m_lcd_latch;
-}
-
-WRITE8_MEMBER(piggypas_state::lcd_latch_w)
+void piggypas_state::lcd_latch_w(uint8_t data)
 {
 	// P1.7 might also be used to reset DS1232 watchdog
 	m_lcd_latch = data;
+	m_hd44780->db_w(data);
 }
 
-WRITE8_MEMBER(piggypas_state::lcd_control_w)
+void piggypas_state::lcd_control_w(uint8_t data)
 {
 	// RXD (P3.0) = chip select
 	// TXD (P3.1) = register select
 	// INT0 (P3.2) = R/W
-	if (BIT(data, 0))
-	{
-		if (BIT(data, 2))
-			m_lcd_latch = m_hd44780->read(BIT(data, 1));
-		else
-			m_hd44780->write(BIT(data, 1), m_lcd_latch);
-	}
+	m_hd44780->e_w(BIT(data, 0));
+	m_hd44780->rs_w(BIT(data, 1));
+	m_hd44780->rw_w(BIT(data, 2));
 
 	// T0 (P3.4) = output shift clock (serial data present at P1.0)
 	// T1 (P3.5) = output latch enable
@@ -153,17 +144,12 @@ INPUT_CHANGED_MEMBER(piggypas_state::ball_sensor)
 	m_maincpu->set_input_line(1, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
-CUSTOM_INPUT_MEMBER(piggypas_state::ticket_r)
-{
-	return m_ticket->line_r();
-}
-
 static INPUT_PORTS_START( piggypas )
 	PORT_START("IN0")
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_COIN3)
 	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_START1)
 	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_COIN4)
-	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_CUSTOM)  PORT_CUSTOM_MEMBER(DEVICE_SELF, piggypas_state, ticket_r, nullptr)
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_CUSTOM)  PORT_READ_LINE_DEVICE_MEMBER("ticket", ticket_dispenser_device, line_r)
 	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_COIN2)
 	PORT_BIT(0x20, IP_ACTIVE_HIGH, IPT_KEYPAD)  PORT_NAME("Gate sensor")   PORT_CODE(KEYCODE_G)
 	PORT_BIT(0x40, IP_ACTIVE_HIGH, IPT_UNUSED)
@@ -198,13 +184,13 @@ void piggypas_state::machine_reset()
 HD44780_PIXEL_UPDATE(piggypas_state::piggypas_pixel_update)
 {
 	if (pos < 8)
-		bitmap.pix16(y, (line * 8 + pos) * 6 + x) = state;
+		bitmap.pix(y, (line * 8 + pos) * 6 + x) = state;
 }
 
 void piggypas_state::piggypas(machine_config &config)
 {
 	/* basic machine hardware */
-	I80C31(config, m_maincpu, XTAL(8'448'000)); // OKI M80C31F or M80C154S
+	I80C31(config, m_maincpu, 8.448_MHz_XTAL); // OKI M80C31F or M80C154S
 	m_maincpu->set_addrmap(AS_PROGRAM, &piggypas_state::piggypas_map);
 	m_maincpu->set_addrmap(AS_IO, &piggypas_state::piggypas_io);
 	m_maincpu->port_out_cb<1>().set(FUNC(piggypas_state::led_strobe_w));
@@ -226,12 +212,12 @@ void piggypas_state::piggypas(machine_config &config)
 
 	hd44780_device &hd44780(HD44780(config, "hd44780"));
 	hd44780.set_lcd_size(1, 16);
-	hd44780.set_pixel_update_cb(FUNC(piggypas_state::piggypas_pixel_update), this);
+	hd44780.set_pixel_update_cb(FUNC(piggypas_state::piggypas_pixel_update));
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 
-	okim6295_device &oki(OKIM6295(config, "oki", XTAL(8'448'000) / 8, okim6295_device::PIN7_HIGH)); // clock and pin 7 not verified
+	okim6295_device &oki(OKIM6295(config, "oki", 8.448_MHz_XTAL / 8, okim6295_device::PIN7_HIGH)); // clock not verified
 	oki.add_route(ALL_OUTPUTS, "mono", 1.0);
 
 	i8255_device &ppi(I8255A(config, "ppi")); // OKI M82C55A-2
@@ -248,7 +234,7 @@ void piggypas_state::fidlstix(machine_config &config)
 
 	m_maincpu->set_addrmap(AS_IO, &piggypas_state::fidlstix_io);
 	m_maincpu->serial_tx_cb().set_nop();
-	m_maincpu->port_in_cb<1>().set(FUNC(piggypas_state::lcd_latch_r));
+	m_maincpu->port_in_cb<1>().set(m_hd44780, FUNC(hd44780_device::db_r));
 	m_maincpu->port_out_cb<1>().set(FUNC(piggypas_state::lcd_latch_w));
 	m_maincpu->port_out_cb<3>().set(FUNC(piggypas_state::lcd_control_w));
 }
@@ -291,6 +277,42 @@ ROM_START( fidlstix )
 	ROM_LOAD( "fiddle.u14", 0x00000, 0x40000, CRC(baf4e1cd) SHA1(ae153f832cbd188e9f3f357a1a1f68cc8264d346) )
 ROM_END
 
+/*
+
+8.448MHz Crystal
+P-80C31-16 cpu
+M6295 (Verified with DMM that Pin 7 tied to VCC)
+DS1220AD-150
+M82C55A-2
+UCN5832A
+2 Line Display LCD
+HD44780A00 (underneath board the LCD is mounted to)
+
+-----------------------------------------------------------------------------
+
+Factory Wire Mods
+
+
+Parts Side:
+
+    - Pin 1 of U25 (74LS373) pulled up and jumper wired to pin 5 of U2 (CM1232P)
+
+Solder Side:
+
+    - Ground test point near C32 jumper wired to pin 2 of J8
+      (pin 2 of J8 connected to pins 5 and 6 of L6 (CM1232P))
+
+    - Pin 1 of J1 jumper wired with a 1K +/-5% 1/4 watt resistor to pin 10 of J1
+
+*/
+ROM_START( hoopitup )
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "us a05449-01c.u6", 0x00000, 0x08000, CRC(8fc6a07d) SHA1(c1c7ad708eb84e9801fb5acea0b3b797923886c3) )
+
+	ROM_REGION( 0x40000, "oki", 0 )
+	ROM_LOAD( "sound ad5.u14", 0x00000, 0x40000, CRC(e6f647c3) SHA1(8f208af76e5f94b5db479ecbd65922fd834250cf) )
+ROM_END
+
 // bad dump of program rom
 ROM_START( jackbean )
 	ROM_REGION( 0x10000, "maincpu", 0 )
@@ -323,16 +345,18 @@ ROM_END
 
 
 // COPYRIGHT (c) 1990, 1991, 1992, DOYLE & ASSOC., INC.   VERSION 04.40
-GAME( 1992, piggypas,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Piggy Pass (version 04.40)", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 1992, piggypas,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Piggy Pass (version 04.40)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 // COPYRIGHT (c) 1990, 1991, 1992, DOYLE & ASSOC., INC.   VERSION 05.22
-GAME( 1992, hoopshot,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Hoop Shot (version 05.22)", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 1992, hoopshot,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Hoop Shot (version 05.22)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 // Quick $ilver   Development Co.    10/08/96      ROUND  REV 6
-GAME( 1996, rndrndqs,  0,    fidlstix, piggypas, piggypas_state,  empty_init, ROT0, "Quick $ilver Development Co.", "Round and Round (Rev 6) (Quick $ilver)", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 1996, rndrndqs,  0,    fidlstix, piggypas, piggypas_state,  empty_init, ROT0, "Quick $ilver Development Co.", "Round and Round (Rev 6) (Quick $ilver)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 //  Quick$ilver   Development Co.    10/02/95      -FIDDLESTIX-       REV 15T
-GAME( 1995, fidlstix,  0,    fidlstix, piggypas, piggypas_state,  empty_init, ROT0, "Quick $ilver Development Co.", "Fiddle Stix (1st Rev)", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 1995, fidlstix,  0,    fidlstix, piggypas, piggypas_state,  empty_init, ROT0, "Quick $ilver Development Co.", "Fiddle Stix (1st Rev)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
+// Quick $ilver   Development Co.    11/20/95     HoopItUp REV 23
+GAME( 1995, hoopitup,  0,    fidlstix, piggypas, piggypas_state,  empty_init, ROT0, "Atari Games", "Hoop it Up World Tour - 3 on 3 (Rev 23)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 // bad dump, so version unknown
-GAME( 199?, jackbean,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Jack & The Beanstalk (Doyle & Assoc.?)", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 199?, jackbean,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Jack & The Beanstalk (Doyle & Assoc.?)", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 // bad dump, so version unknown
-GAME( 199?, dumpump,   0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Dump The Ump", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 199?, dumpump,   0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "Dump The Ump", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )
 // bad dump, so version unknown
-GAME( 199?, 3lilpigs,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "3 Lil' Pigs", MACHINE_IS_SKELETON_MECHANICAL )
+GAME( 199?, 3lilpigs,  0,    piggypas, piggypas, piggypas_state,  empty_init, ROT0, "Doyle & Assoc.", "3 Lil' Pigs", MACHINE_NOT_WORKING | MACHINE_MECHANICAL )

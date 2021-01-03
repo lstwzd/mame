@@ -14,13 +14,12 @@
 #include "imagedev/floppy.h"
 #include "imagedev/snapquik.h"
 #include "machine/ay31015.h"
-#include "machine/com8116.h"
+#include "machine/clock.h"
 #include "machine/i8255.h"
 #include "bus/rs232/rs232.h"
 #include "machine/buffer.h"
 #include "machine/wd_fdc.h"
 #include "sound/spkrdev.h"
-#include "sound/wave.h"
 #include "emupal.h"
 
 #include "formats/trs_cas.h"
@@ -41,8 +40,8 @@ public:
 		, m_cent_data_out(*this, "cent_data_out")
 		, m_cent_status_in(*this, "cent_status_in")
 		, m_uart(*this, "uart")
+		, m_uart_clock(*this, "uart_clock")
 		, m_ppi(*this, "ppi")  // Radionic only
-		, m_brg(*this, "brg")
 		, m_fdc(*this, "fdc")
 		, m_floppy0(*this, "fdc:0")
 		, m_floppy1(*this, "fdc:1")
@@ -56,6 +55,7 @@ public:
 	{ }
 
 	void sys80(machine_config &config);
+	void sys80p(machine_config &config);
 	void trs80(machine_config &config);
 	void lnw80(machine_config &config);
 	void radionic(machine_config &config);
@@ -71,30 +71,30 @@ protected:
 
 private:
 	DECLARE_FLOPPY_FORMATS(floppy_formats);
-	DECLARE_WRITE8_MEMBER(port_ff_w);
-	DECLARE_WRITE8_MEMBER(lnw80_fe_w);
-	DECLARE_WRITE8_MEMBER(sys80_fe_w);
-	DECLARE_WRITE8_MEMBER(sys80_f8_w);
-	DECLARE_WRITE8_MEMBER(port_ea_w);
-	DECLARE_WRITE8_MEMBER(port_e8_w);
-	DECLARE_READ8_MEMBER(lnw80_fe_r);
-	DECLARE_READ8_MEMBER(port_ff_r);
-	DECLARE_READ8_MEMBER(sys80_f9_r);
-	DECLARE_READ8_MEMBER(port_ea_r);
-	DECLARE_READ8_MEMBER(port_e8_r);
-	DECLARE_READ8_MEMBER(irq_status_r);
-	DECLARE_READ8_MEMBER(printer_r);
-	DECLARE_WRITE8_MEMBER(printer_w);
-	DECLARE_WRITE8_MEMBER(cassunit_w);
-	DECLARE_WRITE8_MEMBER(motor_w);
-	DECLARE_READ8_MEMBER(keyboard_r);
-	DECLARE_READ8_MEMBER(wd179x_r);
+	void port_ff_w(uint8_t data);
+	void lnw80_fe_w(uint8_t data);
+	void sys80_fe_w(uint8_t data);
+	void sys80_f8_w(uint8_t data);
+	void port_ea_w(uint8_t data);
+	void port_e8_w(uint8_t data);
+	uint8_t lnw80_fe_r();
+	uint8_t port_ff_r();
+	uint8_t sys80_f9_r();
+	uint8_t port_ea_r();
+	uint8_t port_e8_r();
+	uint8_t irq_status_r();
+	uint8_t printer_r();
+	void printer_w(uint8_t data);
+	void cassunit_w(uint8_t data);
+	void motor_w(uint8_t data);
+	uint8_t keyboard_r(offs_t offset);
+	uint8_t wd179x_r();
 
 	INTERRUPT_GEN_MEMBER(rtc_interrupt);
 	INTERRUPT_GEN_MEMBER(fdc_interrupt);
 	TIMER_CALLBACK_MEMBER(cassette_data_callback);
 	DECLARE_WRITE_LINE_MEMBER(intrq_w);
-	DECLARE_QUICKLOAD_LOAD_MEMBER( trs80_cmd );
+	DECLARE_QUICKLOAD_LOAD_MEMBER(quickload_cb);
 	DECLARE_MACHINE_RESET(lnw80);
 	void lnw80_palette(palette_device &palette) const;
 	uint32_t screen_update_trs80(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -135,8 +135,8 @@ private:
 	optional_device<output_latch_device> m_cent_data_out;
 	optional_device<input_buffer_device> m_cent_status_in;
 	optional_device<ay31015_device> m_uart;
+	optional_device<clock_device> m_uart_clock;
 	optional_device<i8255_device> m_ppi;
-	optional_device<com8116_device> m_brg;
 	optional_device<fd1793_device> m_fdc;
 	optional_device<floppy_connector> m_floppy0;
 	optional_device<floppy_connector> m_floppy1;

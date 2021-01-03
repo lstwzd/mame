@@ -103,7 +103,7 @@ enum
 //  mreq_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bullet_state::mreq_r )
+uint8_t bullet_state::mreq_r(offs_t offset)
 {
 	uint8_t data = 0;
 
@@ -131,7 +131,7 @@ READ8_MEMBER( bullet_state::mreq_r )
 //  mreq_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::mreq_w )
+void bullet_state::mreq_w(offs_t offset, uint8_t data)
 {
 	if (offset < 0xc000)
 	{
@@ -148,7 +148,7 @@ WRITE8_MEMBER( bullet_state::mreq_w )
 //  win_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bullet_state::win_r )
+uint8_t bullet_state::win_r()
 {
 	return 0;
 }
@@ -158,7 +158,7 @@ READ8_MEMBER( bullet_state::win_r )
 //  wstrobe_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::wstrobe_w )
+void bullet_state::wstrobe_w(uint8_t data)
 {
 }
 
@@ -167,7 +167,7 @@ WRITE8_MEMBER( bullet_state::wstrobe_w )
 //  brom_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bullet_state::brom_r )
+uint8_t bullet_state::brom_r()
 {
 	m_brom = 1;
 
@@ -179,7 +179,7 @@ READ8_MEMBER( bullet_state::brom_r )
 //  brom_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::brom_w )
+void bullet_state::brom_w(uint8_t data)
 {
 	m_brom = 1;
 }
@@ -189,7 +189,7 @@ WRITE8_MEMBER( bullet_state::brom_w )
 //  exdsk_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::exdsk_w )
+void bullet_state::exdsk_w(uint8_t data)
 {
 	/*
 
@@ -248,7 +248,7 @@ WRITE8_MEMBER( bullet_state::exdsk_w )
 //  exdma_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::exdma_w )
+void bullet_state::exdma_w(uint8_t data)
 {
 	/*
 
@@ -277,7 +277,7 @@ WRITE8_MEMBER( bullet_state::exdma_w )
 //  hdcon_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::hdcon_w )
+void bullet_state::hdcon_w(uint8_t data)
 {
 	/*
 
@@ -314,7 +314,7 @@ WRITE8_MEMBER( bullet_state::hdcon_w )
 //  info_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bullet_state::info_r )
+uint8_t bullet_state::info_r()
 {
 	/*
 
@@ -350,7 +350,7 @@ READ8_MEMBER( bullet_state::info_r )
 //  segst_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bullet_state::segst_w )
+void bullet_state::segst_w(uint8_t data)
 {
 	m_segst = BIT(data, 0);
 }
@@ -360,7 +360,7 @@ WRITE8_MEMBER( bullet_state::segst_w )
 //  mreq_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bulletf_state::mreq_r )
+uint8_t bulletf_state::mreq_r(offs_t offset)
 {
 	uint8_t data = 0;
 
@@ -395,7 +395,7 @@ READ8_MEMBER( bulletf_state::mreq_r )
 //  mreq_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bulletf_state::mreq_w )
+void bulletf_state::mreq_w(offs_t offset, uint8_t data)
 {
 	if (offset < 0xc000)
 	{
@@ -419,7 +419,7 @@ WRITE8_MEMBER( bulletf_state::mreq_w )
 //  xdma0_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bulletf_state::xdma0_w )
+void bulletf_state::xdma0_w(uint8_t data)
 {
 	/*
 
@@ -446,7 +446,7 @@ WRITE8_MEMBER( bulletf_state::xdma0_w )
 //  xfdc_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bulletf_state::xfdc_w )
+void bulletf_state::xfdc_w(uint8_t data)
 {
 	/*
 
@@ -506,7 +506,7 @@ WRITE8_MEMBER( bulletf_state::xfdc_w )
 //  mbank_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bulletf_state::mbank_w )
+void bulletf_state::mbank_w(uint8_t data)
 {
 	/*
 
@@ -531,7 +531,7 @@ WRITE8_MEMBER( bulletf_state::mbank_w )
 //  scsi_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bulletf_state::scsi_r )
+uint8_t bulletf_state::scsi_r()
 {
 	uint8_t data = m_scsi_data_in->read();
 
@@ -548,7 +548,7 @@ READ8_MEMBER( bulletf_state::scsi_r )
 //  scsi_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bulletf_state::scsi_w )
+void bulletf_state::scsi_w(uint8_t data)
 {
 	m_scsi_data_out->write(data);
 
@@ -562,7 +562,7 @@ WRITE8_MEMBER( bulletf_state::scsi_w )
 //  hwsts_r -
 //-------------------------------------------------
 
-READ8_MEMBER( bulletf_state::hwsts_r )
+uint8_t bulletf_state::hwsts_r()
 {
 	/*
 
@@ -625,7 +625,7 @@ void bullet_state::bullet_io(address_map &map)
 	map(0x08, 0x0b).rw(m_ctc, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
 	map(0x0c, 0x0c).mirror(0x03).rw(FUNC(bullet_state::win_r), FUNC(bullet_state::wstrobe_w));
 	map(0x10, 0x13).rw(m_fdc, FUNC(mb8877_device::read), FUNC(mb8877_device::write));
-	map(0x14, 0x14).rw(m_dmac, FUNC(z80dma_device::bus_r), FUNC(z80dma_device::bus_w));
+	map(0x14, 0x14).rw(m_dmac, FUNC(z80dma_device::read), FUNC(z80dma_device::write));
 	map(0x15, 0x15).rw(FUNC(bullet_state::brom_r), FUNC(bullet_state::brom_w));
 	map(0x16, 0x16).w(FUNC(bullet_state::exdsk_w));
 	map(0x17, 0x17).w(FUNC(bullet_state::exdma_w));
@@ -660,7 +660,7 @@ void bulletf_state::bulletf_io(address_map &map)
 	map(0x16, 0x16).w(FUNC(bulletf_state::xfdc_w));
 	map(0x17, 0x17).w(FUNC(bulletf_state::mbank_w));
 	map(0x19, 0x19).rw(FUNC(bulletf_state::scsi_r), FUNC(bulletf_state::scsi_w));
-	map(0x1a, 0x1a).rw(m_dmac, FUNC(z80dma_device::bus_r), FUNC(z80dma_device::bus_w));
+	map(0x1a, 0x1a).rw(m_dmac, FUNC(z80dma_device::read), FUNC(z80dma_device::write));
 	map(0x1b, 0x1b).r(FUNC(bulletf_state::hwsts_r));
 }
 
@@ -792,7 +792,7 @@ void bullet_state::update_dma_rdy()
 	m_dmac->rdy_w(rdy);
 }
 
-READ8_MEMBER( bullet_state::dma_mreq_r )
+uint8_t bullet_state::dma_mreq_r(offs_t offset)
 {
 	uint8_t data = m_ram->pointer()[(m_buf << 16) | offset];
 
@@ -804,7 +804,7 @@ READ8_MEMBER( bullet_state::dma_mreq_r )
 	return data;
 }
 
-WRITE8_MEMBER( bullet_state::dma_mreq_w )
+void bullet_state::dma_mreq_w(offs_t offset, uint8_t data)
 {
 	m_ram->pointer()[(m_buf << 16) | offset] = data;
 
@@ -814,12 +814,12 @@ WRITE8_MEMBER( bullet_state::dma_mreq_w )
 	}
 }
 
-READ8_MEMBER(bullet_state::io_read_byte)
+uint8_t bullet_state::io_read_byte(offs_t offset)
 {
 	return m_maincpu->space(AS_IO).read_byte(offset);
 }
 
-WRITE8_MEMBER(bullet_state::io_write_byte)
+void bullet_state::io_write_byte(offs_t offset, uint8_t data)
 {
 	m_maincpu->space(AS_IO).write_byte(offset, data);
 }
@@ -844,12 +844,12 @@ void bulletf_state::update_dma_rdy()
 	m_dmac->rdy_w(rdy);
 }
 
-READ8_MEMBER( bulletf_state::dma_mreq_r )
+uint8_t bulletf_state::dma_mreq_r(offs_t offset)
 {
 	return m_ram->pointer()[(DMB4 << 16) | offset];
 }
 
-WRITE8_MEMBER( bulletf_state::dma_mreq_w )
+void bulletf_state::dma_mreq_w(offs_t offset, uint8_t data)
 {
 	m_ram->pointer()[(DMB6 << 16) | offset] = data;
 }
@@ -878,7 +878,7 @@ DECLARE_WRITE_LINE_MEMBER( bullet_state::write_centronics_fault )
 	m_centronics_fault = state;
 }
 
-READ8_MEMBER( bullet_state::pio_pb_r )
+uint8_t bullet_state::pio_pb_r()
 {
 	/*
 
@@ -907,7 +907,7 @@ READ8_MEMBER( bullet_state::pio_pb_r )
 }
 
 
-WRITE8_MEMBER( bulletf_state::pio_pa_w )
+void bulletf_state::pio_pa_w(uint8_t data)
 {
 	/*
 
@@ -1103,10 +1103,11 @@ void bulletf_state::machine_reset()
 //**************************************************************************
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( bullet )
+//  machine_config( bullet )
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(bullet_state::bullet)
+void bullet_state::bullet(machine_config &config)
+{
 	// basic machine hardware
 	Z80(config, m_maincpu, 16_MHz_XTAL / 4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &bullet_state::bullet_mem);
@@ -1120,7 +1121,7 @@ MACHINE_CONFIG_START(bullet_state::bullet)
 	m_ctc->zc_callback<1>().set(m_dart, FUNC(z80dart_device::rxtxcb_w));
 	m_ctc->zc_callback<2>().set(m_ctc, FUNC(z80ctc_device::trg3));
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("ctc", bullet_state, ctc_tick, attotime::from_hz(4.9152_MHz_XTAL /4))
+	TIMER(config, "ctc").configure_periodic(FUNC(bullet_state::ctc_tick), attotime::from_hz(4.9152_MHz_XTAL / 4));
 
 	Z80DART(config, m_dart, 16_MHz_XTAL / 4);
 	m_dart->out_txda_callback().set(RS232_A_TAG, FUNC(rs232_port_device::write_txd));
@@ -1143,28 +1144,29 @@ MACHINE_CONFIG_START(bullet_state::bullet)
 
 	z80pio_device& pio(Z80PIO(config, Z80PIO_TAG, 16_MHz_XTAL / 4));
 	pio.out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	pio.out_pa_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	pio.out_pa_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	pio.in_pb_callback().set(FUNC(bullet_state::pio_pb_r));
 
 	MB8877(config, m_fdc, 16_MHz_XTAL / 16);
 	m_fdc->intrq_wr_callback().set(m_dart, FUNC(z80dart_device::dcda_w));
 	m_fdc->drq_wr_callback().set(FUNC(bullet_state::fdc_drq_w));
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":0", bullet_525_floppies, "525qd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":1", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":2", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":3", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":4", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":5", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":6", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":7", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, MB8877_TAG":0", bullet_525_floppies, "525qd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":1", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":2", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":3", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":4", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":5", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":6", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":7", bullet_8_floppies, nullptr,      floppy_image_device::default_floppy_formats);
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, bullet_state, write_centronics_busy))
-	MCFG_CENTRONICS_PERROR_HANDLER(WRITELINE(*this, bullet_state, write_centronics_perror))
-	MCFG_CENTRONICS_SELECT_HANDLER(WRITELINE(*this, bullet_state, write_centronics_select))
-	MCFG_CENTRONICS_FAULT_HANDLER(WRITELINE(*this, bullet_state, write_centronics_fault))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(bullet_state::write_centronics_busy));
+	m_centronics->perror_handler().set(FUNC(bullet_state::write_centronics_perror));
+	m_centronics->select_handler().set(FUNC(bullet_state::write_centronics_select));
+	m_centronics->fault_handler().set(FUNC(bullet_state::write_centronics_fault));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", CENTRONICS_TAG)
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	rs232_port_device &rs232a(RS232_PORT(config, RS232_A_TAG, default_rs232_devices, "terminal"));
 	rs232a.rxd_handler().set(m_dart, FUNC(z80dart_device::rxa_w));
@@ -1174,18 +1176,19 @@ MACHINE_CONFIG_START(bullet_state::bullet)
 	rs232b.rxd_handler().set(m_dart, FUNC(z80dart_device::rxb_w));
 
 	// software lists
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "wmbullet")
+	SOFTWARE_LIST(config, "flop_list").set_original("wmbullet");
 
 	// internal ram
 	RAM(config, RAM_TAG).set_default_size("128K");
-MACHINE_CONFIG_END
+}
 
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( bulletf )
+//  machine_config( bulletf )
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(bulletf_state::bulletf)
+void bulletf_state::bulletf(machine_config &config)
+{
 	// basic machine hardware
 	Z80(config, m_maincpu, 16_MHz_XTAL / 4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &bulletf_state::bulletf_mem);
@@ -1199,7 +1202,7 @@ MACHINE_CONFIG_START(bulletf_state::bulletf)
 	m_ctc->zc_callback<1>().set(m_dart, FUNC(z80dart_device::rxtxcb_w));
 	m_ctc->zc_callback<2>().set(m_ctc, FUNC(z80ctc_device::trg3));
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("ctc", bullet_state, ctc_tick, attotime::from_hz(4.9152_MHz_XTAL / 4))
+	TIMER(config, "ctc").configure_periodic(FUNC(bullet_state::ctc_tick), attotime::from_hz(4.9152_MHz_XTAL / 4));
 
 	Z80DART(config, m_dart, 16_MHz_XTAL / 4);
 	m_dart->out_txda_callback().set(RS232_A_TAG, FUNC(rs232_port_device::write_txd));
@@ -1222,29 +1225,30 @@ MACHINE_CONFIG_START(bulletf_state::bulletf)
 
 	z80pio_device& pio(Z80PIO(config, Z80PIO_TAG, 16_MHz_XTAL / 4));
 	pio.out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	pio.in_pa_callback().set("scsi_ctrl_in", FUNC(input_buffer_device::bus_r));
+	pio.in_pa_callback().set("scsi_ctrl_in", FUNC(input_buffer_device::read));
 	pio.out_pa_callback().set(FUNC(bulletf_state::pio_pa_w));
-	pio.out_ardy_callback().set("cent_data_out", FUNC(output_latch_device::bus_w));
+	pio.out_ardy_callback().set("cent_data_out", FUNC(output_latch_device::write));
 	pio.out_brdy_callback().set(FUNC(bulletf_state::cstrb_w));
 
 	MB8877(config, m_fdc, 16_MHz_XTAL / 16);
 	m_fdc->intrq_wr_callback().set(m_dart, FUNC(z80dart_device::rib_w));
 	m_fdc->drq_wr_callback().set(FUNC(bullet_state::fdc_drq_w));
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":0", bullet_525_floppies, "525qd", floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":1", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":2", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":3", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":4", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":5", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":6", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":7", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":8", bullet_35_floppies, nullptr, floppy_image_device::default_floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(MB8877_TAG":9", bullet_35_floppies, nullptr, floppy_image_device::default_floppy_formats)
+	FLOPPY_CONNECTOR(config, MB8877_TAG":0", bullet_525_floppies, "525qd", floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":1", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":2", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":3", bullet_525_floppies, nullptr,    floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":4", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":5", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":6", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":7", bullet_8_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":8", bullet_35_floppies, nullptr, floppy_image_device::default_floppy_formats);
+	FLOPPY_CONNECTOR(config, MB8877_TAG":9", bullet_35_floppies, nullptr, floppy_image_device::default_floppy_formats);
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, bullet_state, write_centronics_busy))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(bullet_state::write_centronics_busy));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", CENTRONICS_TAG)
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(cent_data_out);
 
 	rs232_port_device &rs232a(RS232_PORT(config, RS232_A_TAG, default_rs232_devices, "terminal"));
 	rs232a.rxd_handler().set(m_dart, FUNC(z80dart_device::rxa_w));
@@ -1253,26 +1257,26 @@ MACHINE_CONFIG_START(bulletf_state::bulletf)
 	rs232_port_device &rs232b(RS232_PORT(config, RS232_B_TAG, default_rs232_devices, nullptr));
 	rs232b.rxd_handler().set(m_dart, FUNC(z80dart_device::rxb_w));
 
-	MCFG_DEVICE_ADD(SCSIBUS_TAG, SCSI_PORT, 0)
-	MCFG_SCSI_BSY_HANDLER(WRITELINE("scsi_ctrl_in", input_buffer_device, write_bit3))
-	MCFG_SCSI_MSG_HANDLER(WRITELINE("scsi_ctrl_in", input_buffer_device, write_bit4))
-	MCFG_SCSI_CD_HANDLER(WRITELINE("scsi_ctrl_in", input_buffer_device, write_bit5))
-	MCFG_SCSI_REQ_HANDLER(WRITELINE(*this, bulletf_state, req_w))
-	MCFG_SCSI_IO_HANDLER(WRITELINE("scsi_ctrl_in", input_buffer_device, write_bit7))
-	MCFG_SCSI_DATA_INPUT_BUFFER("scsi_data_in")
+	SCSI_PORT(config, m_scsibus, 0);
+	m_scsibus->bsy_handler().set(m_scsi_ctrl_in, FUNC(input_buffer_device::write_bit3));
+	m_scsibus->msg_handler().set(m_scsi_ctrl_in, FUNC(input_buffer_device::write_bit4));
+	m_scsibus->cd_handler().set(m_scsi_ctrl_in, FUNC(input_buffer_device::write_bit5));
+	m_scsibus->req_handler().set(FUNC(bulletf_state::req_w));
+	m_scsibus->io_handler().set(m_scsi_ctrl_in, FUNC(input_buffer_device::write_bit7));
+	m_scsibus->set_data_input_buffer(m_scsi_data_in);
+	m_scsibus->set_slot_device(1, "harddisk", SCSIHD, DEVICE_INPUT_DEFAULTS_NAME(SCSI_ID_0));
 
-	MCFG_SCSI_OUTPUT_LATCH_ADD("scsi_data_out", SCSIBUS_TAG)
-	MCFG_DEVICE_ADD("scsi_ctrl_in", INPUT_BUFFER, 0)
-	MCFG_DEVICE_ADD("scsi_data_in", INPUT_BUFFER, 0)
-
-	MCFG_SCSIDEV_ADD(SCSIBUS_TAG ":" SCSI_PORT_DEVICE1, "harddisk", SCSIHD, SCSI_ID_0)
+	OUTPUT_LATCH(config, m_scsi_data_out);
+	m_scsibus->set_output_latch(*m_scsi_data_out);
+	INPUT_BUFFER(config, m_scsi_data_in);
+	INPUT_BUFFER(config, m_scsi_ctrl_in);
 
 	// software lists
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "wmbullet")
+	SOFTWARE_LIST(config, "flop_list").set_original("wmbullet");
 
 	// internal ram
 	RAM(config, RAM_TAG).set_default_size("128K");
-MACHINE_CONFIG_END
+}
 
 
 

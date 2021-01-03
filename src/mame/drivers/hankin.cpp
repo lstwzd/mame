@@ -22,7 +22,6 @@ ToDo:
 #include "machine/6821pia.h"
 #include "machine/timer.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "speaker.h"
 
 #include "hankin.lh"
@@ -54,13 +53,13 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(ic11_cb2_w);
 	DECLARE_WRITE_LINE_MEMBER(ic2_ca2_w);
 	DECLARE_WRITE_LINE_MEMBER(ic2_cb2_w);
-	DECLARE_WRITE8_MEMBER(ic10_a_w);
-	DECLARE_WRITE8_MEMBER(ic10_b_w);
-	DECLARE_WRITE8_MEMBER(ic11_a_w);
-	DECLARE_WRITE8_MEMBER(ic2_b_w);
-	DECLARE_WRITE8_MEMBER(ic2_a_w);
-	DECLARE_READ8_MEMBER(ic11_b_r);
-	DECLARE_READ8_MEMBER(ic2_a_r);
+	void ic10_a_w(uint8_t data);
+	void ic10_b_w(uint8_t data);
+	void ic11_a_w(uint8_t data);
+	void ic2_b_w(uint8_t data);
+	void ic2_a_w(uint8_t data);
+	uint8_t ic11_b_r();
+	uint8_t ic2_a_r();
 	TIMER_DEVICE_CALLBACK_MEMBER(timer_s);
 	TIMER_DEVICE_CALLBACK_MEMBER(timer_x);
 
@@ -103,7 +102,6 @@ private:
 void hankin_state::hankin_map(address_map &map)
 {
 	map.global_mask(0x1fff);
-	map(0x0000, 0x007f).ram(); // internal to the cpu
 	map(0x0088, 0x008b).rw(m_ic11, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0x0090, 0x0093).rw(m_ic10, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0x0200, 0x02ff).ram().share("nvram"); // 5101L 4-bit static ram
@@ -113,7 +111,6 @@ void hankin_state::hankin_map(address_map &map)
 void hankin_state::hankin_sub_map(address_map &map)
 {
 	map.global_mask(0x1fff);
-	map(0x0000, 0x007f).ram(); // internal to the cpu
 	map(0x0080, 0x0083).rw(m_ic2, FUNC(pia6821_device::read), FUNC(pia6821_device::write));
 	map(0x1000, 0x17ff).rom().mirror(0x800).region("audiocpu", 0);
 }
@@ -255,7 +252,7 @@ INPUT_CHANGED_MEMBER( hankin_state::self_test )
 	m_ic11->ca1_w(newval);
 }
 
-WRITE8_MEMBER( hankin_state::ic10_a_w )
+void hankin_state::ic10_a_w(uint8_t data)
 {
 	m_ic10a = data;
 
@@ -285,7 +282,7 @@ WRITE8_MEMBER( hankin_state::ic10_a_w )
 	}
 }
 
-WRITE8_MEMBER( hankin_state::ic10_b_w )
+void hankin_state::ic10_b_w(uint8_t data)
 {
 	m_ic10b = data;
 
@@ -326,7 +323,7 @@ WRITE_LINE_MEMBER( hankin_state::ic10_cb2_w )
 	m_ic10_cb2 = state;
 }
 
-WRITE8_MEMBER( hankin_state::ic11_a_w )
+void hankin_state::ic11_a_w(uint8_t data)
 {
 	m_ic11a = data;
 
@@ -351,7 +348,7 @@ WRITE8_MEMBER( hankin_state::ic11_a_w )
 	}
 }
 
-READ8_MEMBER( hankin_state::ic11_b_r )
+uint8_t hankin_state::ic11_b_r()
 {
 	uint8_t data = 0;
 
@@ -431,13 +428,13 @@ void hankin_state::machine_reset()
 }
 
 // PA0-3 = sound data from main cpu
-READ8_MEMBER( hankin_state::ic2_a_r )
+uint8_t hankin_state::ic2_a_r()
 {
 	return m_ic10b;
 }
 
 // PA4-7 = sound data to prom
-WRITE8_MEMBER( hankin_state::ic2_a_w )
+void hankin_state::ic2_a_w(uint8_t data)
 {
 	m_ic2a = data >> 4;
 	offs_t offs = (m_timer_s[2] & 31) | (m_ic2a << 5);
@@ -446,7 +443,7 @@ WRITE8_MEMBER( hankin_state::ic2_a_w )
 
 // PB0-3 = preset on 74LS161
 // PB4-7 = volume
-WRITE8_MEMBER( hankin_state::ic2_b_w )
+void hankin_state::ic2_b_w(uint8_t data)
 {
 	m_ic2b = data;
 
@@ -472,13 +469,14 @@ WRITE_LINE_MEMBER( hankin_state::ic2_cb2_w )
 	m_ic2_cb2 = state;
 }
 
-MACHINE_CONFIG_START(hankin_state::hankin)
+void hankin_state::hankin(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6802, 3276800)
-	MCFG_DEVICE_PROGRAM_MAP(hankin_map)
+	M6802(config, m_maincpu, 3276800);
+	m_maincpu->set_addrmap(AS_PROGRAM, &hankin_state::hankin_map);
 
-	MCFG_DEVICE_ADD("audiocpu", M6802, 3276800) // guess, xtal value not shown
-	MCFG_DEVICE_PROGRAM_MAP(hankin_sub_map)
+	M6802(config, m_audiocpu, 3276800); // guess, xtal value not shown
+	m_audiocpu->set_addrmap(AS_PROGRAM, &hankin_state::hankin_sub_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
@@ -489,9 +487,7 @@ MACHINE_CONFIG_START(hankin_state::hankin)
 	genpin_audio(config);
 
 	SPEAKER(config, "speaker").front_center();
-	MCFG_DEVICE_ADD("dac", DAC_4BIT_R2R, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.5) // unknown DAC
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
+	DAC_4BIT_R2R(config, m_dac, 0).add_route(ALL_OUTPUTS, "speaker", 0.5); // unknown DAC
 
 	/* Devices */
 	PIA6821(config, m_ic10, 0);
@@ -524,9 +520,9 @@ MACHINE_CONFIG_START(hankin_state::hankin)
 	m_ic2->irqa_handler().set_inputline("audiocpu", M6802_IRQ_LINE);
 	m_ic2->irqb_handler().set_inputline("audiocpu", M6802_IRQ_LINE);
 
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_x", hankin_state, timer_x, attotime::from_hz(120)) // mains freq*2
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("timer_s", hankin_state, timer_s, attotime::from_hz(94000)) // 555 on sound board*2
-MACHINE_CONFIG_END
+	TIMER(config, "timer_x").configure_periodic(FUNC(hankin_state::timer_x), attotime::from_hz(120)); // mains freq*2
+	TIMER(config, "timer_s").configure_periodic(FUNC(hankin_state::timer_s), attotime::from_hz(94000)); // 555 on sound board*2
+}
 
 /*--------------------------------
 / FJ Holden

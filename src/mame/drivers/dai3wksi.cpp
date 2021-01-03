@@ -5,7 +5,7 @@
 -Galaxy Force
 -Run Away
 --------------------------
-Dai San Wakusei Meteor
+Dai 3 Wakusei
 (c)1979 Sun Electronics
 
 SIV-01-B
@@ -93,9 +93,9 @@ private:
 	uint8_t       m_port_last2;
 	int         m_enabled_sound;
 	int         m_sound3_counter;
-	DECLARE_WRITE8_MEMBER(dai3wksi_audio_1_w);
-	DECLARE_WRITE8_MEMBER(dai3wksi_audio_2_w);
-	DECLARE_WRITE8_MEMBER(dai3wksi_audio_3_w);
+	void dai3wksi_audio_1_w(uint8_t data);
+	void dai3wksi_audio_2_w(uint8_t data);
+	void dai3wksi_audio_3_w(uint8_t data);
 
 	/* i/o ports */
 	required_ioport m_in2;
@@ -179,9 +179,9 @@ uint32_t dai3wksi_state::screen_update_dai3wksi(screen_device &screen, bitmap_rg
 			rgb_t pen = (data & (1 << i)) ? m_palette->pen_color(color) : rgb_t::black();
 
 			if (m_dai3wksi_flipscreen)
-				bitmap.pix32(255-y, 255-x) = pen;
+				bitmap.pix(255-y, 255-x) = pen;
 			else
-				bitmap.pix32(y, x) = pen;
+				bitmap.pix(y, x) = pen;
 
 			x++;
 		}
@@ -215,7 +215,7 @@ uint32_t dai3wksi_state::screen_update_dai3wksi(screen_device &screen, bitmap_rg
 
 
 #if (USE_SAMPLES)
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_1_w)
+void dai3wksi_state::dai3wksi_audio_1_w(uint8_t data)
 {
 	uint8_t rising_bits = data & ~m_port_last1;
 
@@ -234,7 +234,7 @@ WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_1_w)
 	m_port_last1 = data;
 }
 
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_2_w)
+void dai3wksi_state::dai3wksi_audio_2_w(uint8_t data)
 {
 	uint8_t rising_bits = data & ~m_port_last2;
 
@@ -261,7 +261,7 @@ WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_2_w)
 	m_port_last2 = data;
 }
 
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_3_w)
+void dai3wksi_state::dai3wksi_audio_3_w(uint8_t data)
 {
 	if (m_enabled_sound)
 	{
@@ -290,7 +290,7 @@ static const char *const dai3wksi_sample_names[] =
 
 #else
 
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_1_w)
+void dai3wksi_state::dai3wksi_audio_1_w(uint8_t data)
 {
 	machine().sound().system_enable(data & 0x80);
 
@@ -298,7 +298,7 @@ WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_1_w)
 	m_ic79->envelope_1_w((~data >> 2) & 0x01);    /* invader movement envelope control*/
 }
 
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_2_w)
+void dai3wksi_state::dai3wksi_audio_2_w(uint8_t data)
 {
 	m_dai3wksi_flipscreen =  data & 0x10;
 	m_dai3wksi_redscreen  = ~data & 0x20;
@@ -310,7 +310,7 @@ WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_2_w)
 	m_ic80->enable_w((~data >> 3) & 0x01);    /* planet explosion */
 }
 
-WRITE8_MEMBER(dai3wksi_state::dai3wksi_audio_3_w)
+void dai3wksi_state::dai3wksi_audio_3_w(uint8_t data)
 {
 	m_ic81->enable_w((~data >> 2) & 0x01);    /* player shoot enable */
 	m_ic81->vco_w((~data >> 3) & 0x01);       /* player shoot vco control */
@@ -533,7 +533,7 @@ void dai3wksi_state::dai3wksi(machine_config &config)
 	m_ic81->set_enable(1);
 	m_ic81->add_route(ALL_OUTPUTS, "mono", 0.4);
 #endif
-MACHINE_CONFIG_END
+}
 
 
 /*************************************
@@ -557,4 +557,4 @@ ROM_END
  *
  *************************************/
 
-GAME( 1979, dai3wksi, 0, dai3wksi, dai3wksi, dai3wksi_state, empty_init, ROT270, "Sun Electronics", "Dai San Wakusei Meteor (Japan)", MACHINE_WRONG_COLORS | MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE )
+GAME( 1979, dai3wksi, 0, dai3wksi, dai3wksi, dai3wksi_state, empty_init, ROT270, "Sun Electronics", "Dai 3 Wakusei (Japan)", MACHINE_WRONG_COLORS | MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE )

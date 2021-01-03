@@ -36,8 +36,8 @@ public:
 
 private:
 	DECLARE_WRITE_LINE_MEMBER(clock_tick);
-	DECLARE_WRITE8_MEMBER(inputs_w);
-	DECLARE_READ8_MEMBER(inputs_r);
+	void inputs_w(offs_t offset, u8 data);
+	u8 inputs_r();
 
 	void maincpu_map(address_map &map);
 
@@ -174,7 +174,7 @@ static INPUT_PORTS_START( inderp )
 	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_UNUSED )
 INPUT_PORTS_END
 
-READ8_MEMBER( inderp_state::inputs_r )
+u8 inderp_state::inputs_r()
 {
 	if (m_inbank < 10)
 		return m_inputs[m_inbank]->read();
@@ -183,7 +183,7 @@ READ8_MEMBER( inderp_state::inputs_r )
 }
 
 // 0-2 select a dipsw bank; 3-9 select banks of mechanical inputs; A-F not connected
-WRITE8_MEMBER( inderp_state::inputs_w )
+void inderp_state::inputs_w(offs_t offset, u8 data)
 {
 	m_inbank = offset;
 }
@@ -197,21 +197,22 @@ WRITE_LINE_MEMBER( inderp_state::clock_tick )
 		m_maincpu->set_input_line(M6504_IRQ_LINE, ASSERT_LINE);
 }
 
-MACHINE_CONFIG_START(inderp_state::inderp)
+void inderp_state::inderp(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6504, 434000) // possible calculation of frequency-derived time constant 100k res and 10pf cap
-	MCFG_DEVICE_PROGRAM_MAP(maincpu_map)
+	M6504(config, m_maincpu, 434000); // possible calculation of frequency-derived time constant 100k res and 10pf cap
+	m_maincpu->set_addrmap(AS_PROGRAM, &inderp_state::maincpu_map);
 
-	MCFG_DEVICE_ADD("cpoint_clock", CLOCK, 200) // crosspoint detector
-	MCFG_CLOCK_SIGNAL_HANDLER(WRITELINE(*this, inderp_state, clock_tick))
+	clock_device &cpoint_clock(CLOCK(config, "cpoint_clock", 200)); // crosspoint detector
+	cpoint_clock.signal_handler().set(FUNC(inderp_state::clock_tick));
 
 	/* video hardware */
-	//MCFG_DEFAULT_LAYOUT()
+	//config.set_default_layout()
 
 	/* sound hardware */
 	//discrete ?
 	genpin_audio(config);
-MACHINE_CONFIG_END
+}
 
 
 ROM_START(centauri)

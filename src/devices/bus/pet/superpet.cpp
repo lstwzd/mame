@@ -135,14 +135,14 @@ inline void superpet_device::update_cpu()
 	if (cpu)
 	{
 		// 6502 active
-		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
 		m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
+		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
 	}
 	else
 	{
 		// 6809 active
-		m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
 		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
+		m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
 	}
 }
 
@@ -173,7 +173,7 @@ superpet_device::superpet_device(const machine_config &mconfig, const char *tag,
 	m_acia(*this, MOS6551_TAG),
 	m_dongle(*this, MOS6702_TAG),
 	m_rom(*this, M6809_TAG),
-	m_ram(*this, "ram"),
+	m_ram(*this, "ram", 0x10000, ENDIANNESS_LITTLE),
 	m_io_sw1(*this, "SW1"),
 	m_io_sw2(*this, "SW2"),
 	m_system(0),
@@ -191,9 +191,6 @@ superpet_device::superpet_device(const machine_config &mconfig, const char *tag,
 
 void superpet_device::device_start()
 {
-	// allocate memory
-	m_ram.allocate(0x10000);
-
 	// state saving
 	save_item(NAME(m_system));
 	save_item(NAME(m_bank));
@@ -225,7 +222,7 @@ void superpet_device::device_reset()
 //  pet_norom_r - NO ROM read
 //-------------------------------------------------
 
-int superpet_device::pet_norom_r(address_space &space, offs_t offset, int sel)
+int superpet_device::pet_norom_r(offs_t offset, int sel)
 {
 	return BIT(m_system, 0);
 }
@@ -235,9 +232,9 @@ int superpet_device::pet_norom_r(address_space &space, offs_t offset, int sel)
 //  pet_bd_r - buffered data read
 //-------------------------------------------------
 
-uint8_t superpet_device::pet_bd_r(address_space &space, offs_t offset, uint8_t data, int &sel)
+uint8_t superpet_device::pet_bd_r(offs_t offset, uint8_t data, int &sel)
 {
-	int norom = pet_norom_r(space, offset, sel);
+	int norom = pet_norom_r(offset, sel);
 
 	switch (sel)
 	{
@@ -277,14 +274,14 @@ uint8_t superpet_device::pet_bd_r(address_space &space, offs_t offset, uint8_t d
 	case 0xefe1:
 	case 0xefe2:
 	case 0xefe3:
-		data = m_dongle->read(space, offset & 0x03);
+		data = m_dongle->read(offset & 0x03);
 		break;
 
 	case 0xeff0:
 	case 0xeff1:
 	case 0xeff2:
 	case 0xeff3:
-		data = m_acia->read(space, offset & 0x03);
+		data = m_acia->read(offset & 0x03);
 		break;
 	}
 
@@ -296,7 +293,7 @@ uint8_t superpet_device::pet_bd_r(address_space &space, offs_t offset, uint8_t d
 //  pet_bd_w - buffered data write
 //-------------------------------------------------
 
-void superpet_device::pet_bd_w(address_space &space, offs_t offset, uint8_t data, int &sel)
+void superpet_device::pet_bd_w(offs_t offset, uint8_t data, int &sel)
 {
 	switch (sel)
 	{
@@ -314,7 +311,7 @@ void superpet_device::pet_bd_w(address_space &space, offs_t offset, uint8_t data
 	case 0xefe1:
 	case 0xefe2:
 	case 0xefe3:
-		m_dongle->write(space, offset & 0x03, data);
+		m_dongle->write(offset & 0x03, data);
 		printf("6702 %u %02x\n", offset & 0x03, data);
 		break;
 
@@ -322,7 +319,7 @@ void superpet_device::pet_bd_w(address_space &space, offs_t offset, uint8_t data
 	case 0xeff1:
 	case 0xeff2:
 	case 0xeff3:
-		m_acia->write(space, offset & 0x03, data);
+		m_acia->write(offset & 0x03, data);
 		break;
 
 	case 0xeff8:
@@ -400,7 +397,7 @@ void superpet_device::pet_irq_w(int state)
 //  read -
 //-------------------------------------------------
 
-READ8_MEMBER( superpet_device::read )
+uint8_t superpet_device::read(offs_t offset)
 {
 	return m_slot->dma_bd_r(offset);
 }
@@ -410,7 +407,7 @@ READ8_MEMBER( superpet_device::read )
 //  write -
 //-------------------------------------------------
 
-WRITE8_MEMBER( superpet_device::write )
+void superpet_device::write(offs_t offset, uint8_t data)
 {
 	m_slot->dma_bd_w(offset, data);
 }

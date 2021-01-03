@@ -22,10 +22,18 @@ AY-3-8910 @ 1.789766MHz [10.7386/6]
 10 position DIPSW
 NOTE! switches 1, 3 & 5 must be ON or the game will not boot.
 
+== MSX2 hardware version:
+
+It's on the same PCB as sfkick, but with a small daughterboard for the sound chip, and no epoxy block.
+Positions originally for YM2203 and extra Z80 are not populated.
+
 TODO:
-- A timer apparently expires when beating stage 4 (signalled by a long beeping sound).
+- pengadvb: add dipswitch
+- pengadvb: A timer apparently expires when beating stage 4 (signalled by a long beeping sound).
   Player needs to insert another credit and press start button (?) in order to continue.
   Is this timer supposed to be shown on screen or there are additional 7-LEDs not handled?
+- pengadvb2: V9938 video chip with 64KB VRAM instead of TMS9128, game works ok though
+- pengadvb2: The CBK1029 PCB is also emulated by sfkick.cpp. Merge drivers? The board is differently populated.
 
 ***************************************************************************/
 
@@ -52,20 +60,23 @@ public:
 	void pengadvb(machine_config &config);
 
 	void init_pengadvb();
+	void init_pengadvb2();
 
-private:
-	DECLARE_READ8_MEMBER(mem_r);
-	DECLARE_WRITE8_MEMBER(mem_w);
-	DECLARE_WRITE8_MEMBER(megarom_bank_w);
-
-	DECLARE_WRITE8_MEMBER(pengadvb_psg_port_b_w);
-	DECLARE_READ8_MEMBER(pengadvb_ppi_port_a_r);
-	DECLARE_WRITE8_MEMBER(pengadvb_ppi_port_a_w);
-	DECLARE_READ8_MEMBER(pengadvb_ppi_port_b_r);
-	DECLARE_WRITE8_MEMBER(pengadvb_ppi_port_c_w);
-
+protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
+
+private:
+	uint8_t mem_r(offs_t offset);
+	void mem_w(offs_t offset, uint8_t data);
+	void megarom_bank_w(offs_t offset, uint8_t data);
+
+	void psg_port_b_w(uint8_t data);
+	uint8_t ppi_port_a_r();
+	void ppi_port_a_w(uint8_t data);
+	uint8_t ppi_port_b_r();
+	void ppi_port_c_w(uint8_t data);
+
 	void pengadvb_decrypt(const char* region);
 	void bank_mem(address_map &map);
 	void io_mem(address_map &map);
@@ -86,17 +97,17 @@ private:
 
 ***************************************************************************/
 
-READ8_MEMBER(pengadvb_state::mem_r)
+uint8_t pengadvb_state::mem_r(offs_t offset)
 {
-	return m_page[offset >> 14 & 3]->read8(space, offset);
+	return m_page[offset >> 14 & 3]->read8(offset);
 }
 
-WRITE8_MEMBER(pengadvb_state::mem_w)
+void pengadvb_state::mem_w(offs_t offset, uint8_t data)
 {
-	m_page[offset >> 14 & 3]->write8(space, offset, data);
+	m_page[offset >> 14 & 3]->write8(offset, data);
 }
 
-WRITE8_MEMBER(pengadvb_state::megarom_bank_w)
+void pengadvb_state::megarom_bank_w(offs_t offset, uint8_t data)
 {
 	m_bank[offset >> 13 & 3]->set_entry(data & 0xf);
 }
@@ -126,8 +137,7 @@ void pengadvb_state::io_mem(address_map &map)
 {
 	map.unmap_value_high();
 	map.global_mask(0xff);
-	map(0x98, 0x98).rw("tms9128", FUNC(tms9128_device::vram_r), FUNC(tms9128_device::vram_w));
-	map(0x99, 0x99).rw("tms9128", FUNC(tms9128_device::register_r), FUNC(tms9128_device::register_w));
+	map(0x98, 0x99).rw("tms9128", FUNC(tms9128_device::read), FUNC(tms9128_device::write));
 	map(0xa0, 0xa1).w("aysnd", FUNC(ay8910_device::address_data_w));
 	map(0xa2, 0xa2).r("aysnd", FUNC(ay8910_device::data_r));
 	map(0xa8, 0xab).rw("ppi8255", FUNC(i8255_device::read), FUNC(i8255_device::write));
@@ -155,8 +165,57 @@ static INPUT_PORTS_START( pengadvb )
 	// bit 1 is also tested, unknown purpose.
 	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT(0xee, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("IN2")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("DSW1")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( pengadvb2 ) // reads are scrambled
+	PORT_START("IN0")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("IN1")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT )
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT )
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_START1 ) // also used for button 2 (pistol)
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_BUTTON1 )
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("IN2")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_COIN1 )
+	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN )
+	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_JOYSTICK_UP )
+	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("DSW1")
+	PORT_DIPNAME( 0x03, 0x02, DEF_STR( Lives ) ) PORT_DIPLOCATION("SW1:1,2")
+	PORT_DIPSETTING(    0x03, "1" )
+	PORT_DIPSETTING(    0x02, "2" )
+	PORT_DIPSETTING(    0x01, "3" )
+	PORT_DIPSETTING(    0x00, "5" )
+	PORT_DIPNAME( 0xa4, 0xa4, DEF_STR( Coinage ) ) PORT_DIPLOCATION("SW1:3,4,5")
+	PORT_DIPSETTING(    0x04, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( 3C_2C ) )
+	PORT_DIPSETTING(    0x84, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0xa4, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0xa0, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x24, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( 1C_5C ) )
+	PORT_DIPUNKNOWN_DIPLOC(0x08, 0x08, "SW1:6")
+	PORT_DIPUNKNOWN_DIPLOC(0x10, 0x10, "SW1:7")
+	PORT_DIPUNKNOWN_DIPLOC(0x40, 0x40, "SW1:8")
+INPUT_PORTS_END
 
 /***************************************************************************
 
@@ -165,7 +224,7 @@ INPUT_PORTS_END
 ***************************************************************************/
 
 // AY8910
-WRITE8_MEMBER(pengadvb_state::pengadvb_psg_port_b_w)
+void pengadvb_state::psg_port_b_w(uint8_t data)
 {
 	// leftover from msx ver?
 }
@@ -173,12 +232,12 @@ WRITE8_MEMBER(pengadvb_state::pengadvb_psg_port_b_w)
 /**************************************************************************/
 
 // I8255
-READ8_MEMBER(pengadvb_state::pengadvb_ppi_port_a_r)
+uint8_t pengadvb_state::ppi_port_a_r()
 {
 	return m_primary_slot_reg;
 }
 
-WRITE8_MEMBER(pengadvb_state::pengadvb_ppi_port_a_w)
+void pengadvb_state::ppi_port_a_w(uint8_t data)
 {
 	if (data != m_primary_slot_reg)
 	{
@@ -189,14 +248,16 @@ WRITE8_MEMBER(pengadvb_state::pengadvb_ppi_port_a_w)
 	}
 }
 
-READ8_MEMBER(pengadvb_state::pengadvb_ppi_port_b_r)
+uint8_t pengadvb_state::ppi_port_b_r()
 {
-	// TODO: dipswitch
 	switch (m_kb_matrix_row)
 	{
-		case 0x0:
+		case 0x00:
 			return ioport("IN1")->read();
-
+		case 0x01:
+			return ioport("IN2")->read();
+		case 0x04:
+			return ioport("DSW1")->read();
 		default:
 			break;
 	}
@@ -204,7 +265,7 @@ READ8_MEMBER(pengadvb_state::pengadvb_ppi_port_b_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(pengadvb_state::pengadvb_ppi_port_c_w)
+void pengadvb_state::ppi_port_c_w(uint8_t data)
 {
 	m_kb_matrix_row = data & 0x0f;
 }
@@ -216,7 +277,8 @@ WRITE8_MEMBER(pengadvb_state::pengadvb_ppi_port_c_w)
 ***************************************************************************/
 
 void pengadvb_state::pengadvb(machine_config &config)
-{   /* basic machine hardware */
+{
+	/* basic machine hardware */
 	Z80(config, m_maincpu, XTAL(10'738'635)/3);
 	m_maincpu->set_addrmap(AS_PROGRAM, &pengadvb_state::program_mem);
 	m_maincpu->set_addrmap(AS_IO, &pengadvb_state::io_mem);
@@ -227,10 +289,10 @@ void pengadvb_state::pengadvb(machine_config &config)
 	ADDRESS_MAP_BANK(config, "page3").set_map(&pengadvb_state::bank_mem).set_options(ENDIANNESS_LITTLE, 8, 18, 0x10000);
 
 	i8255_device &ppi(I8255(config, "ppi8255"));
-	ppi.in_pa_callback().set(FUNC(pengadvb_state::pengadvb_ppi_port_a_r));
-	ppi.out_pa_callback().set(FUNC(pengadvb_state::pengadvb_ppi_port_a_w));
-	ppi.in_pb_callback().set(FUNC(pengadvb_state::pengadvb_ppi_port_b_r));
-	ppi.out_pc_callback().set(FUNC(pengadvb_state::pengadvb_ppi_port_c_w));
+	ppi.in_pa_callback().set(FUNC(pengadvb_state::ppi_port_a_r));
+	ppi.out_pa_callback().set(FUNC(pengadvb_state::ppi_port_a_w));
+	ppi.in_pb_callback().set(FUNC(pengadvb_state::ppi_port_b_r));
+	ppi.out_pc_callback().set(FUNC(pengadvb_state::ppi_port_c_w));
 
 	/* video hardware */
 	tms9128_device &vdp(TMS9128(config, "tms9128", XTAL(10'738'635)));
@@ -243,7 +305,7 @@ void pengadvb_state::pengadvb(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 	ay8910_device &aysnd(AY8910(config, "aysnd", XTAL(10'738'635)/6));
 	aysnd.port_a_read_callback().set_ioport("IN0");
-	aysnd.port_b_write_callback().set(FUNC(pengadvb_state::pengadvb_psg_port_b_w));
+	aysnd.port_b_write_callback().set(FUNC(pengadvb_state::psg_port_b_w));
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.50);
 }
 
@@ -293,6 +355,11 @@ void pengadvb_state::init_pengadvb()
 	pengadvb_decrypt("maincpu");
 	pengadvb_decrypt("game");
 
+	init_pengadvb2();
+}
+
+void pengadvb_state::init_pengadvb2()
+{
 	// init banks
 	for (int i = 0; i < 4; i++)
 		m_bank[i]->configure_entries(0, 0x10, memregion("game")->base(), 0x2000);
@@ -316,5 +383,16 @@ ROM_START( pengadvb )
 	ROM_LOAD( "rom.u10", 0x18000, 0x8000, CRC(5c48360f) SHA1(0866e20969f57b7b7c59df8f7ca203f18c7c9870) )
 ROM_END
 
+ROM_START( pengadvb2 ) // CBK1029 PCB
+	ROM_REGION( 0x8000, "maincpu", 0 )
+	ROM_LOAD( "7l",  0x00000, 0x8000, CRC(9645ab69) SHA1(7a15b501d2c357b9fda83c811b0d728df318ceb2) )
 
-GAME( 1988, pengadvb, 0, pengadvb, pengadvb, pengadvb_state, init_pengadvb, ROT0, "bootleg (Screen) / Konami", "Penguin Adventure (bootleg of MSX version)", MACHINE_SUPPORTS_SAVE )
+	ROM_REGION( 0x20000, "game", 0 )
+	ROM_LOAD( "7a",  0x00000, 0x8000, CRC(8434344c) SHA1(c3002df12fb5395506a16abcefbcb4f5cbe3eb6a) )
+	ROM_LOAD( "7c",  0x08000, 0x8000, CRC(0274f6eb) SHA1(185b3819357abf65988971e9deece3b5c67dd1d0) )
+	ROM_LOAD( "7d",  0x10000, 0x8000, CRC(8cb1f223) SHA1(ff5db3c373e6d919b4e8e06c3e4607b150f31964) )
+	ROM_LOAD( "7e",  0x18000, 0x8000, CRC(60764899) SHA1(a75e59c2ecf8cebdb99708cb18390157ad7b6993) )
+ROM_END
+
+GAME( 1988, pengadvb,  0,        pengadvb, pengadvb,  pengadvb_state, init_pengadvb,  ROT0, "bootleg (Screen)", "Penguin Adventure (bootleg of MSX version, encrypted)", MACHINE_SUPPORTS_SAVE )
+GAME( 1988, pengadvb2, pengadvb, pengadvb, pengadvb2, pengadvb_state, init_pengadvb2, ROT0, "bootleg (Comet)", "Penguin Adventure (bootleg of MSX version, not encrypted)", MACHINE_SUPPORTS_SAVE )

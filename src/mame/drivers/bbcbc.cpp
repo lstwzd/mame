@@ -46,13 +46,13 @@ public:
 		, m_buttons(*this, "BUTTONS.%u", 0)
 	{ }
 
-	DECLARE_READ8_MEMBER(input_r);
-	DECLARE_WRITE8_MEMBER(input_select_w);
-
 	void bbcbc(machine_config &config);
+
+private:
+	uint8_t input_r();
+	void input_select_w(uint8_t data);
 	void io_map(address_map &map);
 	void mem_map(address_map &map);
-private:
 	uint8_t m_input_select;
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
@@ -75,15 +75,10 @@ void bbcbc_state::mem_map(address_map &map)
 void bbcbc_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x00, 0x7f).lrw8("z80pio_rw",
-						 [this](address_space &space, offs_t offset, u8 mem_mask) {
-							 return m_z80pio->read(space, offset >> 5, mem_mask);
-						 },
-						 [this](address_space &space, offs_t offset, u8 data, u8 mem_mask) {
-							 m_z80pio->write(space, offset >> 5, data, mem_mask);
-						 });
-	map(0x80, 0x80).rw("tms9129", FUNC(tms9129_device::vram_r), FUNC(tms9129_device::vram_w));
-	map(0x81, 0x81).rw("tms9129", FUNC(tms9129_device::register_r), FUNC(tms9129_device::register_w));
+	map(0x00, 0x7f).lrw8(
+						 NAME([this](offs_t offset) { return m_z80pio->read(offset >> 5); }),
+						 NAME([this](offs_t offset, u8 data) { m_z80pio->write(offset >> 5, data); }));
+	map(0x80, 0x81).rw("tms9129", FUNC(tms9129_device::read), FUNC(tms9129_device::write));
 }
 
 // Input bits are read through the PIO four at a time, then stored individually in RAM at E030-E03B
@@ -118,7 +113,8 @@ static const z80_daisy_config bbcbc_daisy_chain[] =
 };
 
 
-MACHINE_CONFIG_START(bbcbc_state::bbcbc)
+void bbcbc_state::bbcbc(machine_config &config)
+{
 	Z80(config, m_maincpu, 10.6875_MHz_XTAL / 3);
 	m_maincpu->set_addrmap(AS_PROGRAM, &bbcbc_state::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &bbcbc_state::io_map);
@@ -136,9 +132,9 @@ MACHINE_CONFIG_START(bbcbc_state::bbcbc)
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
 
 	// Software on ROM cartridges
-	MCFG_GENERIC_CARTSLOT_ADD("cartslot", generic_plain_slot, "bbcbc_cart")
-	MCFG_SOFTWARE_LIST_ADD("cart_list","bbcbc")
-MACHINE_CONFIG_END
+	GENERIC_CARTSLOT(config, "cartslot", generic_plain_slot, "bbcbc_cart");
+	SOFTWARE_LIST(config, "cart_list").set_original("bbcbc");
+}
 
 
 void bbcbc_state::machine_start()
@@ -151,7 +147,7 @@ void bbcbc_state::machine_reset()
 	m_input_select = 0xff;
 }
 
-READ8_MEMBER(bbcbc_state::input_r)
+uint8_t bbcbc_state::input_r()
 {
 	switch (m_input_select)
 	{
@@ -166,7 +162,7 @@ READ8_MEMBER(bbcbc_state::input_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(bbcbc_state::input_select_w)
+void bbcbc_state::input_select_w(uint8_t data)
 {
 	m_input_select = data;
 }
@@ -185,4 +181,4 @@ ROM_END
 ***************************************************************************/
 
 //   YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY    FULLNAME                FLAGS
-CONS(1985, bbcbc, 0,      0,      bbcbc,   bbcbc, bbcbc_state, empty_init, "Unicard", "BBC Bridge Companion", MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE)
+CONS(1985, bbcbc, 0,      0,      bbcbc,   bbcbc, bbcbc_state, empty_init, "Unicard", "BBC Bridge Companion", MACHINE_NO_SOUND_HW | MACHINE_SUPPORTS_SAVE )

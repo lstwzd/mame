@@ -1,6 +1,6 @@
 // license:BSD-3-Clause
 // copyright-holders:Yves
-/*     vlc.c
+/*     vlc.cpp
 Multi-games from VLC Nevada 1995
 CGA monitor 15Khz 60hz
 // CPU    CLOCK use Crystal 16.000MHZ
@@ -49,7 +49,7 @@ Boot Section is locate in NVRAM. Interrupts Pointers are changed on the fly.
 seem to check hardware WDT ,Power Failure , interrupt system,etc..  before game start.
 
 INT7 seem to control POWER FAILURE ,WDT.
-INT7 initialisation is needed to boot the game.
+INT7 initialization is needed to boot the game.
 
 ******************************************************
 ******************************************************
@@ -135,7 +135,10 @@ nevada TYPE2 :  64       45      51       06       32      02        31     31  
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+#include "tilemap.h"
 
+
+namespace {
 
 #define MASTER_CLOCK    XTAL(16'000'000)
 #define MASTER_CPU      ((MASTER_CLOCK)/2)    // 8mhz
@@ -173,6 +176,7 @@ public:
 	void init_nevada();
 
 protected:
+	virtual void machine_start() override;
 	virtual void video_start() override;
 
 private:
@@ -196,21 +200,19 @@ private:
 	uint16_t  m_datA40000;
 
 	void nvram_init(nvram_device &nvram, void *data, size_t size);
-	uint32_t screen_update_nevada(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	uint32_t screen_update_nevada(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void nevada_palette(palette_device &palette) const;
 
 	template<int N> uint8_t duart_r(offs_t offset);
 	template<int N> void duart_w(offs_t offset, uint8_t data);
-	DECLARE_READ8_MEMBER(rtc_r);
-	DECLARE_WRITE8_MEMBER(rtc_w);
-	DECLARE_READ16_MEMBER(io_board_r);
-	DECLARE_WRITE16_MEMBER(io_board_w);
-	DECLARE_WRITE16_MEMBER (io_board_x);
-	DECLARE_READ16_MEMBER( nevada_sec_r );
-	DECLARE_WRITE16_MEMBER( nevada_sec_w );
-	DECLARE_WRITE16_MEMBER( vram_w );
-
-	DECLARE_MACHINE_START(nevada);
+	uint8_t rtc_r(offs_t offset);
+	void rtc_w(offs_t offset, uint8_t data);
+	uint16_t io_board_r();
+	void io_board_w(uint16_t data);
+	void io_board_x(uint16_t data);
+	uint16_t nevada_sec_r();
+	void nevada_sec_w(uint16_t data);
+	void vram_w(offs_t offset, uint16_t data);
 
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 
@@ -267,7 +269,7 @@ static const gfx_layout charlayout =
 
 /***************************************************************************/
 
-WRITE16_MEMBER( nevada_state::vram_w )
+void nevada_state::vram_w(offs_t offset, uint16_t data)
 {
 // Todo, Just for sample
 
@@ -291,7 +293,7 @@ TILE_GET_INFO_MEMBER( nevada_state::get_bg_tile_info )
 	//int bank = (attr & 0x02) >> 1;
 	//int color = (attr & 0x3c) >> 2;
 
-	SET_TILE_INFO_MEMBER(0, code, 0, 0);
+	tileinfo.set(0, code, 0, 0);
 
 }
 
@@ -299,11 +301,11 @@ TILE_GET_INFO_MEMBER( nevada_state::get_bg_tile_info )
 /***************************************************************************/
 void nevada_state::video_start()
 {
-	m_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(FUNC(nevada_state::get_bg_tile_info),this),TILEMAP_SCAN_ROWS,8,8,31,31);
+	m_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(nevada_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS, 8,8, 31,31);
 }
 
 /***************************************************************************/
-uint32_t nevada_state::screen_update_nevada(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t nevada_state::screen_update_nevada(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	m_tilemap->draw(screen, bitmap, cliprect, 0, 0);
 
@@ -360,36 +362,36 @@ void nevada_state::duart_w(offs_t offset, uint8_t data)
 /*********************    RTC SECTION       ********************************/
 /***************************************************************************/
 
-READ8_MEMBER(nevada_state::rtc_r)
+uint8_t nevada_state::rtc_r(offs_t offset)
 {
-	return m_rtc->read(space, offset >> 3);
+	return m_rtc->read(offset >> 3);
 }
 
-WRITE8_MEMBER(nevada_state::rtc_w)
+void nevada_state::rtc_w(offs_t offset, uint8_t data)
 {
-	m_rtc->write(space, offset >> 3, data);
+	m_rtc->write(offset >> 3, data);
 }
 
 
 /***************************************************************************/
-READ16_MEMBER(nevada_state::io_board_r)
+uint16_t nevada_state::io_board_r()
 {
 	// IO board Serial communication 0xA00000
 	return 1;
 }
 /***************************************************************************/
-WRITE16_MEMBER(nevada_state::io_board_w)
+void nevada_state::io_board_w(uint16_t data)
 {
 	// IO board Serial communication 0xA00000 on bit0
 }
 /***************************************************************************/
-WRITE16_MEMBER(nevada_state::io_board_x)
+void nevada_state::io_board_x(uint16_t data)
 {
 	// IO board Serial communication 0xA80000  on bit15
 }
 
 /***************************************************************************/
-READ16_MEMBER(nevada_state::nevada_sec_r )
+uint16_t nevada_state::nevada_sec_r()
 {
 //  D3..D0 = DOOR OPEN or Track STATE of PAL35
 	uint16_t res;
@@ -402,7 +404,7 @@ READ16_MEMBER(nevada_state::nevada_sec_r )
 	return res;
 }
 /***************************************************************************/
-WRITE16_MEMBER(nevada_state::nevada_sec_w )
+void nevada_state::nevada_sec_w(uint16_t data)
 {
 	// 74LS173 $bits Register used LOWER bits D3..D0 for DOOR LOGIC SWITCH
 	m_datA40000 = data | 0x00f0;     // since D7..D4 are not used and are connected to PULLUP
@@ -559,7 +561,7 @@ INPUT_PORTS_END
 *     Machine start      *
 *************************/
 
-MACHINE_START_MEMBER(nevada_state, nevada)
+void nevada_state::machine_start()
 {
 	m_nvram->set_base(m_ram62256, 0x1000);
 }
@@ -570,25 +572,23 @@ MACHINE_START_MEMBER(nevada_state, nevada)
 *     Machine Driver     *
 *************************/
 
-MACHINE_CONFIG_START(nevada_state::nevada)
+void nevada_state::nevada(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD("maincpu", M68000, MASTER_CPU)
-	MCFG_DEVICE_PROGRAM_MAP(nevada_map)
+	M68000(config, m_maincpu, MASTER_CPU);
+	m_maincpu->set_addrmap(AS_PROGRAM, &nevada_state::nevada_map);
 
 	WATCHDOG_TIMER(config, "watchdog").set_time(attotime::from_msec(150));   /* 150ms Ds1232 TD to Ground */
-
-	MCFG_MACHINE_START_OVERRIDE(nevada_state, nevada)
 
 	NVRAM(config, "nvram").set_custom_handler(FUNC(nevada_state::nvram_init));
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE((42+1)*8, (32+1)*8)                  /* From MC6845 init, registers 00 & 04 (programmed with value-1). */
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 31*8-1, 0*8, 31*8-1)    /* From MC6845 init, registers 01 & 06. */
-	MCFG_SCREEN_UPDATE_DRIVER(nevada_state, screen_update_nevada)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen.set_size((42+1)*8, (32+1)*8);                  /* From MC6845 init, registers 00 & 04 (programmed with value-1). */
+	screen.set_visarea(0*8, 31*8-1, 0*8, 31*8-1);    /* From MC6845 init, registers 01 & 06. */
+	screen.set_screen_update(FUNC(nevada_state::screen_update_nevada));
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_nevada);
 	PALETTE(config, "palette", FUNC(nevada_state::nevada_palette), 256);
@@ -603,26 +603,25 @@ MACHINE_CONFIG_START(nevada_state::nevada)
 
 	AY8912(config, "aysnd", SOUND_CLOCK).add_route(ALL_OUTPUTS, "mono", 0.75);
 
-	MCFG_DEVICE_ADD("duart18", MC68681, XTAL(3'686'400))  // UARTA = Modem 1200Baud
-	MCFG_MC68681_IRQ_CALLBACK(INPUTLINE("maincpu", M68K_IRQ_4))
-	MCFG_MC68681_INPORT_CALLBACK(IOPORT("DSW1"))
+	MC68681(config, m_duart[0],  XTAL(3'686'400));  // UARTA = Modem 1200Baud
+	m_duart[0]->irq_cb().set_inputline(m_maincpu, M68K_IRQ_4);
+	m_duart[0]->inport_cb().set_ioport("DSW1");
 
-	MCFG_DEVICE_ADD("duart39", MC68681, XTAL(3'686'400))  // UARTA = Printer
-	MCFG_MC68681_IRQ_CALLBACK(INPUTLINE("maincpu", M68K_IRQ_3))
-	MCFG_MC68681_INPORT_CALLBACK(IOPORT("DSW2"))
+	MC68681(config, m_duart[1],  XTAL(3'686'400));  // UARTA = Printer
+	m_duart[1]->irq_cb().set_inputline(m_maincpu, M68K_IRQ_3);
+	m_duart[1]->inport_cb().set_ioport("DSW2");
 
-	MCFG_DEVICE_ADD("duart40", MC68681, XTAL(3'686'400))  // UARTA = Touch , UARTB = Bill Acceptor
-	MCFG_MC68681_IRQ_CALLBACK(INPUTLINE("maincpu", M68K_IRQ_5))
-	MCFG_MC68681_A_TX_CALLBACK(WRITELINE("microtouch", microtouch_device, rx))
-	MCFG_MC68681_INPORT_CALLBACK(IOPORT("DSW3"))
+	MC68681(config, m_duart[2],  XTAL(3'686'400));  // UARTA = Touch , UARTB = Bill Acceptor
+	m_duart[2]->irq_cb().set_inputline(m_maincpu, M68K_IRQ_5);
+	m_duart[2]->a_tx_cb().set(m_microtouch, FUNC(microtouch_device::rx));
+	m_duart[2]->inport_cb().set_ioport("DSW3");
 
-	MCFG_MICROTOUCH_ADD( "microtouch", 9600, WRITELINE("duart40", mc68681_device, rx_a_w) )
+	MICROTOUCH(config, m_microtouch, 9600).stx().set(m_duart[1], FUNC(mc68681_device::rx_a_w));
 
 	/* devices */
-	MCFG_DEVICE_ADD("rtc", MSM6242, XTAL(32'768))
-	MCFG_MSM6242_OUT_INT_HANDLER(INPUTLINE("maincpu", M68K_IRQ_1))  // rtc interrupt on INT1
-
-MACHINE_CONFIG_END
+	MSM6242(config, m_rtc, XTAL(32'768));
+	m_rtc->out_int_handler().set_inputline(m_maincpu, M68K_IRQ_1);  // rtc interrupt on INT1
+}
 
 /***************************************************************************/
 ROM_START( nevada )
@@ -672,6 +671,9 @@ void nevada_state::init_nevada()
 
 }
 /***************************************************************************/
+
+} // Anonymous namespace
+
 
 /*************************
 *      Game Drivers      *

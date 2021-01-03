@@ -148,7 +148,7 @@ void pcw16_state::pcw16_map(address_map &map)
 }
 
 
-WRITE8_MEMBER(pcw16_state::pcw16_palette_w)
+void pcw16_state::pcw16_palette_w(offs_t offset, uint8_t data)
 {
 	m_colour_palette[offset & 0x0f] = data & 31;
 }
@@ -167,11 +167,11 @@ uint8_t pcw16_state::read_bank_data(uint8_t type, uint16_t offset)
 		}
 		if(type < 0x40)  // first flash
 		{
-			return m_flash0->read(machine().dummy_space(), ((type & 0x3f)*0x4000)+offset);
+			return m_flash0->read(((type & 0x3f)*0x4000)+offset);
 		}
 		else  // second flash
 		{
-			return m_flash1->read(machine().dummy_space(), ((type & 0x3f)*0x4000)+offset);
+			return m_flash1->read(((type & 0x3f)*0x4000)+offset);
 		}
 	}
 }
@@ -188,11 +188,11 @@ void pcw16_state::write_bank_data(uint8_t type, uint16_t offset, uint8_t data)
 			return;  // first four sectors are write protected
 		if(type < 0x40)  // first flash
 		{
-			m_flash0->write(machine().dummy_space(), ((type & 0x3f)*0x4000)+offset, data);
+			m_flash0->write(((type & 0x3f)*0x4000)+offset, data);
 		}
 		else  // second flash
 		{
-			m_flash1->write(machine().dummy_space(), ((type & 0x3f)*0x4000)+offset, data);
+			m_flash1->write(((type & 0x3f)*0x4000)+offset, data);
 		}
 	}
 }
@@ -232,7 +232,7 @@ void pcw16_state::pcw16_write_mem(uint8_t bank, uint16_t offset, uint8_t data)
 	}
 }
 
-READ8_MEMBER(pcw16_state::pcw16_mem_r)
+uint8_t pcw16_state::pcw16_mem_r(offs_t offset)
 {
 	if(offset < 0x4000)
 		return pcw16_read_mem(0,offset);
@@ -246,7 +246,7 @@ READ8_MEMBER(pcw16_state::pcw16_mem_r)
 	return 0xff;
 }
 
-WRITE8_MEMBER(pcw16_state::pcw16_mem_w)
+void pcw16_state::pcw16_mem_w(offs_t offset, uint8_t data)
 {
 	if(offset < 0x4000)
 		pcw16_write_mem(0,offset,data);
@@ -258,21 +258,21 @@ WRITE8_MEMBER(pcw16_state::pcw16_mem_w)
 		pcw16_write_mem(3,offset-0xc000,data);
 }
 
-READ8_MEMBER(pcw16_state::pcw16_bankhw_r)
+uint8_t pcw16_state::pcw16_bankhw_r(offs_t offset)
 {
 //  logerror("bank r: %d \n", offset);
 
 	return m_banks[offset];
 }
 
-WRITE8_MEMBER(pcw16_state::pcw16_bankhw_w)
+void pcw16_state::pcw16_bankhw_w(offs_t offset, uint8_t data)
 {
 	//logerror("bank w: %d block: %02x\n", offset, data);
 
 	m_banks[offset] = data;
 }
 
-WRITE8_MEMBER(pcw16_state::pcw16_video_control_w)
+void pcw16_state::pcw16_video_control_w(uint8_t data)
 {
 	//logerror("video control w: %02x\n", data);
 
@@ -376,7 +376,7 @@ void pcw16_state::pcw16_keyboard_reset()
 }
 
 /* interfaces to a pc-at keyboard */
-READ8_MEMBER(pcw16_state::pcw16_keyboard_data_shift_r)
+uint8_t pcw16_state::pcw16_keyboard_data_shift_r()
 {
 	//logerror("keyboard data shift r: %02x\n", m_keyboard_data_shift);
 	m_keyboard_state &= ~(PCW16_KEYBOARD_BUSY_STATUS);
@@ -433,7 +433,7 @@ void pcw16_state::pcw16_keyboard_signal_byte_received(int data)
 }
 
 
-WRITE8_MEMBER(pcw16_state::pcw16_keyboard_data_shift_w)
+void pcw16_state::pcw16_keyboard_data_shift_w(uint8_t data)
 {
 	//logerror("Keyboard Data Shift: %02x\n", data);
 	/* writing to shift register clears parity */
@@ -449,7 +449,7 @@ WRITE8_MEMBER(pcw16_state::pcw16_keyboard_data_shift_w)
 
 }
 
-READ8_MEMBER(pcw16_state::pcw16_keyboard_status_r)
+uint8_t pcw16_state::pcw16_keyboard_status_r()
 {
 	/* bit 2,3 are bits 8 and 9 of vdu pointer */
 	return (m_keyboard_state &
@@ -461,7 +461,7 @@ READ8_MEMBER(pcw16_state::pcw16_keyboard_status_r)
 			PCW16_KEYBOARD_TRANSMIT_MODE));
 }
 
-WRITE8_MEMBER(pcw16_state::pcw16_keyboard_control_w)
+void pcw16_state::pcw16_keyboard_control_w(uint8_t data)
 {
 	//logerror("Keyboard control w: %02x\n",data);
 
@@ -497,7 +497,7 @@ WRITE8_MEMBER(pcw16_state::pcw16_keyboard_control_w)
 				/* busy */
 				m_keyboard_state |= PCW16_KEYBOARD_BUSY_STATUS;
 				/* keyboard takes data */
-				m_keyboard->write(space, 0, m_keyboard_data_shift);
+				m_keyboard->write(m_keyboard_data_shift);
 				/* set clock low - no furthur transmissions */
 				pcw16_keyboard_set_clock_state(0);
 				/* set int */
@@ -532,7 +532,7 @@ WRITE_LINE_MEMBER(pcw16_state::pcw16_keyboard_callback)
 	{
 		int data;
 
-		data = m_keyboard->read(machine().dummy_space(), 0);
+		data = m_keyboard->read();
 
 		if (data)
 		{
@@ -642,74 +642,74 @@ TIMER_DEVICE_CALLBACK_MEMBER(pcw16_state::rtc_timer_callback)
 	}
 }
 
-READ8_MEMBER(pcw16_state::rtc_year_invalid_r)
+uint8_t pcw16_state::rtc_year_invalid_r()
 {
 	/* year in lower 7 bits. RTC Invalid status is m_rtc_control bit 0
 	inverted */
 	return (m_rtc_years & 0x07f) | (((m_rtc_control & 0x01)<<7)^0x080);
 }
 
-READ8_MEMBER(pcw16_state::rtc_month_r)
+uint8_t pcw16_state::rtc_month_r()
 {
 	return m_rtc_months;
 }
 
-READ8_MEMBER(pcw16_state::rtc_days_r)
+uint8_t pcw16_state::rtc_days_r()
 {
 	return m_rtc_days;
 }
 
-READ8_MEMBER(pcw16_state::rtc_hours_r)
+uint8_t pcw16_state::rtc_hours_r()
 {
 	return m_rtc_hours;
 }
 
-READ8_MEMBER(pcw16_state::rtc_minutes_r)
+uint8_t pcw16_state::rtc_minutes_r()
 {
 	return m_rtc_minutes;
 }
 
-READ8_MEMBER(pcw16_state::rtc_seconds_r)
+uint8_t pcw16_state::rtc_seconds_r()
 {
 	return m_rtc_seconds;
 }
 
-READ8_MEMBER(pcw16_state::rtc_256ths_seconds_r)
+uint8_t pcw16_state::rtc_256ths_seconds_r()
 {
 	return m_rtc_256ths_seconds;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_control_w)
+void pcw16_state::rtc_control_w(uint8_t data)
 {
 	/* write control */
 	m_rtc_control = data;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_seconds_w)
+void pcw16_state::rtc_seconds_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_seconds = data;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_minutes_w)
+void pcw16_state::rtc_minutes_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_minutes = data;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_hours_w)
+void pcw16_state::rtc_hours_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_hours = data;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_days_w)
+void pcw16_state::rtc_days_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_days = data;
 }
 
-WRITE8_MEMBER(pcw16_state::rtc_month_w)
+void pcw16_state::rtc_month_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_months = data;
@@ -718,7 +718,7 @@ WRITE8_MEMBER(pcw16_state::rtc_month_w)
 }
 
 
-WRITE8_MEMBER(pcw16_state::rtc_year_w)
+void pcw16_state::rtc_year_w(uint8_t data)
 {
 	/* TODO: Writing register could cause next to increment! */
 	m_rtc_hours = data;
@@ -771,14 +771,14 @@ void pcw16_state::trigger_fdc_int()
 	m_previous_fdc_int_state = state;
 }
 
-READ8_MEMBER(pcw16_state::pcw16_system_status_r)
+uint8_t pcw16_state::pcw16_system_status_r()
 {
 //  logerror("system status r: \n");
 
 	return m_system_status | (m_io_extra->read() & 0x04);
 }
 
-READ8_MEMBER(pcw16_state::pcw16_timer_interrupt_counter_r)
+uint8_t pcw16_state::pcw16_timer_interrupt_counter_r()
 {
 	int data;
 
@@ -794,7 +794,7 @@ READ8_MEMBER(pcw16_state::pcw16_timer_interrupt_counter_r)
 }
 
 
-WRITE8_MEMBER(pcw16_state::pcw16_system_control_w)
+void pcw16_state::pcw16_system_control_w(uint8_t data)
 {
 	//logerror("0x0f8: function: %d\n",data);
 
@@ -1001,8 +1001,6 @@ static INPUT_PORTS_START(pcw16)
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_VBLANK("screen")
 	/* power switch - default is on */
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SERVICE) PORT_NAME("Power Switch/Suspend") PORT_WRITE_LINE_DEVICE_MEMBER("ns16550_2", ins8250_uart_device, ri_w) PORT_TOGGLE
-
-	PORT_INCLUDE( at_keyboard )     /* IN4 - IN11 */
 INPUT_PORTS_END
 
 static void pcw16_com(device_slot_interface &device)
@@ -1010,12 +1008,13 @@ static void pcw16_com(device_slot_interface &device)
 	device.option_add("msystems_mouse", MSYSTEMS_HLE_SERIAL_MOUSE);
 }
 
-MACHINE_CONFIG_START(pcw16_state::pcw16)
+void pcw16_state::pcw16(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, 16000000)
-	MCFG_DEVICE_PROGRAM_MAP(pcw16_map)
-	MCFG_DEVICE_IO_MAP(pcw16_io)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	Z80(config, m_maincpu, 16000000);
+	m_maincpu->set_addrmap(AS_PROGRAM, &pcw16_state::pcw16_map);
+	m_maincpu->set_addrmap(AS_IO, &pcw16_state::pcw16_io);
+	config.set_maximum_quantum(attotime::from_hz(60));
 
 	ns16550_device &uart1(NS16550(config, "ns16550_1", XTAL(1'843'200)));     /* TODO: Verify uart model */
 	uart1.out_tx_callback().set("serport1", FUNC(rs232_port_device::write_txd));
@@ -1043,13 +1042,13 @@ MACHINE_CONFIG_START(pcw16_state::pcw16)
 	serport2.cts_handler().set(m_uart2, FUNC(ins8250_uart_device::cts_w));
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_SIZE(PCW16_SCREEN_WIDTH, PCW16_SCREEN_HEIGHT)
-	MCFG_SCREEN_VISIBLE_AREA(0, PCW16_SCREEN_WIDTH-1, 0, PCW16_SCREEN_HEIGHT-1)
-	MCFG_SCREEN_UPDATE_DRIVER(pcw16_state, screen_update_pcw16)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
+	screen.set_size(PCW16_SCREEN_WIDTH, PCW16_SCREEN_HEIGHT);
+	screen.set_visarea(0, PCW16_SCREEN_WIDTH-1, 0, PCW16_SCREEN_HEIGHT-1);
+	screen.set_screen_update(FUNC(pcw16_state::screen_update_pcw16));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", FUNC(pcw16_state::pcw16_colours), PCW16_NUM_COLOURS);
 
@@ -1063,10 +1062,10 @@ MACHINE_CONFIG_START(pcw16_state::pcw16)
 
 	PC_FDC_SUPERIO(config, m_fdc, 48_MHz_XTAL / 2);
 	m_fdc->intrq_wr_callback().set(FUNC(pcw16_state::fdc_interrupt));
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", pcw16_floppies, "35hd", pcw16_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", pcw16_floppies, "35hd", pcw16_state::floppy_formats)
+	FLOPPY_CONNECTOR(config, "fdc:0", pcw16_floppies, "35hd", pcw16_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "fdc:1", pcw16_floppies, "35hd", pcw16_state::floppy_formats);
 
-	MCFG_SOFTWARE_LIST_ADD("disk_list","pcw16")
+	SOFTWARE_LIST(config, "disk_list").set_original("pcw16");
 
 	/* internal ram */
 	RAM(config, RAM_TAG).set_default_size("2M");
@@ -1074,13 +1073,14 @@ MACHINE_CONFIG_START(pcw16_state::pcw16)
 	INTEL_E28F008SA(config, "flash0");
 	INTEL_E28F008SA(config, "flash1");
 
-	MCFG_AT_KEYB_ADD("at_keyboard", 3, WRITELINE(*this, pcw16_state, pcw16_keyboard_callback))
+	AT_KEYB(config, m_keyboard, pc_keyboard_device::KEYBOARD_TYPE::AT, 3);
+	m_keyboard->keypress().set(FUNC(pcw16_state::pcw16_keyboard_callback));
 
 	/* video ints */
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("video_timer", pcw16_state, pcw16_timer_callback, attotime::from_usec(5830))
+	TIMER(config, "video_timer").configure_periodic(FUNC(pcw16_state::pcw16_timer_callback), attotime::from_usec(5830));
 	/* rtc timer */
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("rtc_timer", pcw16_state, rtc_timer_callback, attotime::from_hz(256))
-MACHINE_CONFIG_END
+	TIMER(config, "rtc_timer").configure_periodic(FUNC(pcw16_state::rtc_timer_callback), attotime::from_hz(256));
+}
 
 /***************************************************************************
 

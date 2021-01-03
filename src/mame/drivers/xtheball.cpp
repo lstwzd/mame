@@ -15,7 +15,6 @@
 #include "machine/nvram.h"
 #include "machine/watchdog.h"
 #include "sound/dac.h"
-#include "sound/volt_reg.h"
 #include "video/tlc34076.h"
 #include "screen.h"
 #include "speaker.h"
@@ -52,8 +51,8 @@ private:
 	required_ioport m_analog_y;
 
 	DECLARE_WRITE_LINE_MEMBER(foreground_mode_w);
-	DECLARE_READ16_MEMBER(analogx_r);
-	DECLARE_READ16_MEMBER(analogy_watchdog_r);
+	uint16_t analogx_r();
+	uint16_t analogy_watchdog_r();
 
 	virtual void machine_start() override;
 
@@ -77,19 +76,18 @@ void xtheball_state::machine_start()
 
 TMS340X0_SCANLINE_RGB32_CB_MEMBER(xtheball_state::scanline_update)
 {
-	uint16_t *srcbg = &m_vram_bg[(params->rowaddr << 8) & 0xff00];
-	uint32_t *dest = &bitmap.pix32(scanline);
-	const pen_t *pens = m_tlc34076->pens();
+	uint16_t const *const srcbg = &m_vram_bg[(params->rowaddr << 8) & 0xff00];
+	uint32_t *const dest = &bitmap.pix(scanline);
+	pen_t const *const pens = m_tlc34076->pens();
 	int coladdr = params->coladdr;
-	int x;
 
 	/* bit stored at 3040130 controls which foreground mode to use */
 	if (!m_foreground_mode)
 	{
 		/* mode 0: foreground is the same as background */
-		uint16_t *srcfg = &m_vram_fg[(params->rowaddr << 8) & 0xff00];
+		uint16_t const *const srcfg = &m_vram_fg[(params->rowaddr << 8) & 0xff00];
 
-		for (x = params->heblnk; x < params->hsblnk; x += 2, coladdr++)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2, coladdr++)
 		{
 			uint16_t fgpix = srcfg[coladdr & 0xff];
 			uint16_t bgpix = srcbg[coladdr & 0xff];
@@ -102,9 +100,9 @@ TMS340X0_SCANLINE_RGB32_CB_MEMBER(xtheball_state::scanline_update)
 	{
 		/* mode 1: foreground is half background resolution in */
 		/* X and supports two pages */
-		uint16_t *srcfg = &m_vram_fg[(params->rowaddr << 7) & 0xff00];
+		uint16_t const *const srcfg = &m_vram_fg[(params->rowaddr << 7) & 0xff00];
 
-		for (x = params->heblnk; x < params->hsblnk; x += 2, coladdr++)
+		for (int x = params->heblnk; x < params->hsblnk; x += 2, coladdr++)
 		{
 			uint16_t fgpix = srcfg[(coladdr >> 1) & 0xff] >> (8 * (coladdr & 1));
 			uint16_t bgpix = srcbg[coladdr & 0xff];
@@ -166,16 +164,16 @@ WRITE_LINE_MEMBER(xtheball_state::foreground_mode_w)
  *
  *************************************/
 
-READ16_MEMBER(xtheball_state::analogx_r)
+uint16_t xtheball_state::analogx_r()
 {
 	return (m_analog_x->read() << 8) | 0x00ff;
 }
 
 
-READ16_MEMBER(xtheball_state::analogy_watchdog_r)
+uint16_t xtheball_state::analogy_watchdog_r()
 {
 	/* doubles as a watchdog address */
-	m_watchdog->reset_w(space,0,0);
+	m_watchdog->watchdog_reset();
 	return (m_analog_y->read() << 8) | 0x00ff;
 }
 
@@ -208,7 +206,6 @@ void xtheball_state::main_map(address_map &map)
 	map(0x03040180, 0x0304018f).r(FUNC(xtheball_state::analogy_watchdog_r)).nopw();
 	map(0x03060000, 0x0306000f).w("dac", FUNC(dac_byte_interface::data_w)).umask16(0xff00);
 	map(0x04000000, 0x057fffff).rom().region("user2", 0);
-	map(0xc0000000, 0xc00001ff).rw(m_maincpu, FUNC(tms34010_device::io_register_r), FUNC(tms34010_device::io_register_w));
 	map(0xfff80000, 0xffffffff).rom().region("user1", 0);
 }
 
@@ -292,8 +289,8 @@ INPUT_PORTS_END
  *
  *************************************/
 
-MACHINE_CONFIG_START(xtheball_state::xtheball)
-
+void xtheball_state::xtheball(machine_config &config)
+{
 	TMS34010(config, m_maincpu, 40000000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &xtheball_state::main_map);
 	m_maincpu->set_halt_on_reset(false);
@@ -318,24 +315,22 @@ MACHINE_CONFIG_START(xtheball_state::xtheball)
 	latch3.q_out_cb<3>().set(FUNC(xtheball_state::foreground_mode_w));
 	// Q3 = video foreground control?
 
-	MCFG_TICKET_DISPENSER_ADD("ticket", attotime::from_msec(100), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH)
+	TICKET_DISPENSER(config, m_ticket, attotime::from_msec(100), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH);
 
 	WATCHDOG_TIMER(config, m_watchdog);
 
 	/* video hardware */
-	MCFG_TLC34076_ADD("tlc34076", TLC34076_6_BIT)
+	TLC34076(config, m_tlc34076, tlc34076_device::TLC34076_6_BIT);
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_RAW_PARAMS(10000000, 640, 114, 626, 257, 24, 248)
-	MCFG_SCREEN_UPDATE_DEVICE("maincpu", tms34010_device, tms340x0_rgb32)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(10000000, 640, 114, 626, 257, 24, 248);
+	screen.set_screen_update("maincpu", FUNC(tms34010_device::tms340x0_rgb32));
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
 
-	MCFG_DEVICE_ADD("dac", ZN428E, 0) MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 0.5)
-	MCFG_DEVICE_ADD("vref", VOLTAGE_REGULATOR, 0) MCFG_VOLTAGE_REGULATOR_OUTPUT(5.0)
-	MCFG_SOUND_ROUTE(0, "dac", 1.0, DAC_VREF_POS_INPUT) MCFG_SOUND_ROUTE(0, "dac", -1.0, DAC_VREF_NEG_INPUT)
-MACHINE_CONFIG_END
+	ZN428E(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.5);
+}
 
 
 

@@ -59,7 +59,7 @@ enum
 //  read -
 //-------------------------------------------------
 
-READ8_MEMBER( bw2_state::read )
+uint8_t bw2_state::read(offs_t offset)
 {
 	int rom = 1, vram = 1, ram1 = 1, ram2 = 1, ram3 = 1, ram4 = 1, ram5 = 1, ram6 = 1;
 
@@ -108,7 +108,7 @@ READ8_MEMBER( bw2_state::read )
 		data = m_ram->pointer()[offset];
 	}
 
-	return m_exp->cd_r(space, offset, data, ram2, ram3, ram4, ram5, ram6);
+	return m_exp->cd_r(offset, data, ram2, ram3, ram4, ram5, ram6);
 }
 
 
@@ -116,7 +116,7 @@ READ8_MEMBER( bw2_state::read )
 //  write -
 //-------------------------------------------------
 
-WRITE8_MEMBER( bw2_state::write )
+void bw2_state::write(offs_t offset, uint8_t data)
 {
 	int vram = 1, ram1 = 1, ram2 = 1, ram3 = 1, ram4 = 1, ram5 = 1, ram6 = 1;
 
@@ -159,7 +159,7 @@ WRITE8_MEMBER( bw2_state::write )
 		m_ram->pointer()[offset] = data;
 	}
 
-	m_exp->cd_w(space, offset, data, ram2, ram3, ram4, ram5, ram6);
+	m_exp->cd_w(offset, data, ram2, ram3, ram4, ram5, ram6);
 }
 
 
@@ -192,7 +192,7 @@ void bw2_state::bw2_io(address_map &map)
 	map(0x20, 0x21).m(m_lcdc, FUNC(msm6255_device::map));
 	map(0x30, 0x3f).rw(m_exp, FUNC(bw2_expansion_slot_device::slot_r), FUNC(bw2_expansion_slot_device::slot_w));
 	map(0x40, 0x41).rw(m_uart, FUNC(i8251_device::read), FUNC(i8251_device::write));
-	map(0x50, 0x50).w("cent_data_out", FUNC(output_latch_device::bus_w));
+	map(0x50, 0x50).w("cent_data_out", FUNC(output_latch_device::write));
 	map(0x60, 0x63).rw(m_fdc, FUNC(wd2797_device::read), FUNC(wd2797_device::write));
 	map(0x70, 0x7f).rw(m_exp, FUNC(bw2_expansion_slot_device::modsel_r), FUNC(bw2_expansion_slot_device::modsel_w));
 }
@@ -309,14 +309,14 @@ static INPUT_PORTS_START( bw2 )
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_QUOTE) PORT_CHAR('@') PORT_CHAR('`')
 	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_P) PORT_CHAR('p') PORT_CHAR('P')
 	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_UP) PORT_CHAR(UCHAR_MAMEKEY(UP))
-	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_C) PORT_CHAR('c') PORT_CHAR('C')
+	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_C) PORT_CHAR('c') PORT_CHAR('C') PORT_CHAR(3)
 	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_D) PORT_CHAR('d') PORT_CHAR('D')
 	PORT_BIT(0x20, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_E) PORT_CHAR('e') PORT_CHAR('E')
 	PORT_BIT(0x40, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_4) PORT_CHAR('4') PORT_CHAR('$')
 	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_F3) PORT_CHAR(UCHAR_MAMEKEY(F3))
 
 	PORT_START("Y7")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_LCONTROL) PORT_CHAR(UCHAR_MAMEKEY(LCONTROL))
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_LCONTROL) PORT_CHAR(UCHAR_SHIFT_2)
 	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_MINUS) PORT_CHAR('-') PORT_CHAR('=')
 	PORT_BIT(0x04, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_BACKSLASH) PORT_CHAR('\\') PORT_CHAR('|')
 	PORT_BIT(0x08, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_CODE(KEYCODE_X) PORT_CHAR('x') PORT_CHAR('X')
@@ -370,7 +370,7 @@ WRITE_LINE_MEMBER( bw2_state::write_centronics_busy )
 //  I8255A interface
 //-------------------------------------------------
 
-WRITE8_MEMBER( bw2_state::ppi_pa_w )
+void bw2_state::ppi_pa_w(uint8_t data)
 {
 	/*
 
@@ -400,7 +400,7 @@ WRITE8_MEMBER( bw2_state::ppi_pa_w )
 	m_centronics->write_strobe(BIT(data, 7));
 }
 
-READ8_MEMBER( bw2_state::ppi_pb_r )
+uint8_t bw2_state::ppi_pb_r()
 {
 	/*
 
@@ -425,7 +425,7 @@ READ8_MEMBER( bw2_state::ppi_pb_r )
 	return data;
 }
 
-WRITE8_MEMBER( bw2_state::ppi_pc_w )
+void bw2_state::ppi_pc_w(uint8_t data)
 {
 	/*
 
@@ -439,7 +439,7 @@ WRITE8_MEMBER( bw2_state::ppi_pc_w )
 	m_bank = data & 0x07;
 }
 
-READ8_MEMBER( bw2_state::ppi_pc_r )
+uint8_t bw2_state::ppi_pc_r()
 {
 	/*
 
@@ -450,7 +450,7 @@ READ8_MEMBER( bw2_state::ppi_pc_r )
 
 	*/
 
-	uint8_t data = 0;
+	uint8_t data = m_bank;
 
 	// centronics busy
 	data |= m_centronics_busy << 4;
@@ -459,7 +459,7 @@ READ8_MEMBER( bw2_state::ppi_pc_r )
 	data |= m_mfdbk << 5;
 
 	// write protect
-	if (m_floppy) data |= m_floppy->wpt_r() << 7;
+	if (m_floppy) data |= !m_floppy->wpt_r() << 7;
 
 	return data;
 }
@@ -539,22 +539,24 @@ void bw2_state::machine_start()
 //**************************************************************************
 
 //-------------------------------------------------
-//  MACHINE_CONFIG( bw2 )
+//  machine_config( bw2 )
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(bw2_state::bw2)
+void bw2_state::bw2(machine_config &config)
+{
 	// basic machine hardware
-	MCFG_DEVICE_ADD(Z80_TAG, Z80, 16_MHz_XTAL / 4)
-	MCFG_DEVICE_PROGRAM_MAP(bw2_mem)
-	MCFG_DEVICE_IO_MAP(bw2_io)
+	Z80(config, m_maincpu, 16_MHz_XTAL / 4);
+	m_maincpu->set_addrmap(AS_PROGRAM, &bw2_state::bw2_mem);
+	m_maincpu->set_addrmap(AS_IO, &bw2_state::bw2_io);
 
 	// video hardware
-	MCFG_SCREEN_ADD(SCREEN_TAG, LCD)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE_DEVICE( MSM6255_TAG, msm6255_device, screen_update )
-	MCFG_SCREEN_SIZE(640, 200)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 200-1)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, SCREEN_TAG, SCREEN_TYPE_LCD));
+	screen.set_refresh_hz(60);
+	screen.set_screen_update(MSM6255_TAG, FUNC(msm6255_device::screen_update));
+	screen.set_size(640, 200);
+	screen.set_visarea(0, 640-1, 0, 200-1);
+	screen.set_palette("palette");
+
 	PALETTE(config, "palette", FUNC(bw2_state::bw2_palette), 2);
 
 	// devices
@@ -573,14 +575,15 @@ MACHINE_CONFIG_START(bw2_state::bw2)
 	ppi.in_pc_callback().set(FUNC(bw2_state::ppi_pc_r));
 	ppi.out_pc_callback().set(FUNC(bw2_state::ppi_pc_w));
 
-	MCFG_DEVICE_ADD(MSM6255_TAG, MSM6255, 16_MHz_XTAL)
-	MCFG_DEVICE_ADDRESS_MAP(0, lcdc_map)
-	MCFG_VIDEO_SET_SCREEN(SCREEN_TAG)
+	MSM6255(config, m_lcdc, 16_MHz_XTAL);
+	m_lcdc->set_addrmap(0, &bw2_state::lcdc_map);
+	m_lcdc->set_screen(SCREEN_TAG);
 
-	MCFG_DEVICE_ADD(m_centronics, CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_BUSY_HANDLER(WRITELINE(*this, bw2_state, write_centronics_busy))
+	CENTRONICS(config, m_centronics, centronics_devices, "printer");
+	m_centronics->busy_handler().set(FUNC(bw2_state::write_centronics_busy));
 
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", CENTRONICS_TAG)
+	output_latch_device &latch(OUTPUT_LATCH(config, "cent_data_out"));
+	m_centronics->set_output_latch(latch);
 
 	I8251(config, m_uart, 0);
 	m_uart->txd_handler().set(RS232_TAG, FUNC(rs232_port_device::write_txd));
@@ -595,16 +598,16 @@ MACHINE_CONFIG_START(bw2_state::bw2)
 	m_fdc->intrq_wr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_fdc->drq_wr_callback().set(FUNC(bw2_state::fdc_drq_w));
 
-	MCFG_FLOPPY_DRIVE_ADD(WD2797_TAG":0", bw2_floppies, "35dd", bw2_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_ADD(WD2797_TAG":1", bw2_floppies, nullptr,   bw2_state::floppy_formats)
-	MCFG_BW2_EXPANSION_SLOT_ADD(BW2_EXPANSION_SLOT_TAG, 16_MHz_XTAL, bw2_expansion_cards, nullptr)
+	FLOPPY_CONNECTOR(config, WD2797_TAG":0", bw2_floppies, "35dd", bw2_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, WD2797_TAG":1", bw2_floppies, nullptr, bw2_state::floppy_formats);
+	BW2_EXPANSION_SLOT(config, m_exp, 16_MHz_XTAL, bw2_expansion_cards, nullptr);
 
 	// software list
-	MCFG_SOFTWARE_LIST_ADD("flop_list","bw2")
+	SOFTWARE_LIST(config, "flop_list").set_original("bw2");
 
 	// internal ram
 	RAM(config, RAM_TAG).set_default_size("64K").set_extra_options("96K,128K,160K,192K,224K");
-MACHINE_CONFIG_END
+}
 
 
 

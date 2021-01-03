@@ -6,8 +6,10 @@
 
     driver by Phil Bennett
 
-    Known bugs:
-        * None
+    TODO:
+    * Coincounters add one coin at boot, caused by ay8910 writing 00 on
+      port direction change. Likely wrong I/O emulation in ay8910 device,
+      but not trivial to fix.
 
 ***************************************************************************/
 
@@ -17,6 +19,7 @@
 #include "cpu/nec/nec.h"
 #include "cpu/z80/z80.h"
 #include "machine/adc0808.h"
+#include "machine/rescap.h"
 #include "sound/2203intf.h"
 #include "sound/flt_vol.h"
 #include "speaker.h"
@@ -24,17 +27,6 @@
 
 #define V30_GND_ADDR    ((m_ctrl_reg & 0x3) << 16)
 #define V30_OBJ_ADDR    ((m_ctrl_reg & 0x18) << 13)
-
-
-/*************************************
- *
- *  Forward definitions
- *
- *************************************/
-
-
-
-
 
 /*************************************
  *
@@ -57,7 +49,7 @@
 
 *************************************/
 
-WRITE16_MEMBER(lockon_state::adrst_w)
+void lockon_state::adrst_w(uint16_t data)
 {
 	m_ctrl_reg = data & 0xff;
 
@@ -67,13 +59,13 @@ WRITE16_MEMBER(lockon_state::adrst_w)
 	m_audiocpu->set_input_line(INPUT_LINE_HALT, data & 0x40 ? CLEAR_LINE : ASSERT_LINE);
 }
 
-READ16_MEMBER(lockon_state::main_gnd_r)
+uint16_t lockon_state::main_gnd_r(offs_t offset)
 {
 	address_space &gndspace = m_ground->space(AS_PROGRAM);
 	return gndspace.read_word(V30_GND_ADDR | offset * 2);
 }
 
-WRITE16_MEMBER(lockon_state::main_gnd_w)
+void lockon_state::main_gnd_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	address_space &gndspace = m_ground->space(AS_PROGRAM);
 
@@ -83,13 +75,13 @@ WRITE16_MEMBER(lockon_state::main_gnd_w)
 		gndspace.write_byte(V30_GND_ADDR | (offset * 2 + 1), data >> 8);
 }
 
-READ16_MEMBER(lockon_state::main_obj_r)
+uint16_t lockon_state::main_obj_r(offs_t offset)
 {
 	address_space &objspace = m_object->space(AS_PROGRAM);
 	return objspace.read_word(V30_OBJ_ADDR | offset * 2);
 }
 
-WRITE16_MEMBER(lockon_state::main_obj_w)
+void lockon_state::main_obj_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	address_space &objspace =m_object->space(AS_PROGRAM);
 
@@ -99,7 +91,7 @@ WRITE16_MEMBER(lockon_state::main_obj_w)
 		objspace.write_byte(V30_OBJ_ADDR | (offset * 2 + 1), data >> 8);
 }
 
-WRITE16_MEMBER(lockon_state::tst_w)
+void lockon_state::tst_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (offset < 0x800)
 	{
@@ -118,24 +110,24 @@ WRITE16_MEMBER(lockon_state::tst_w)
 	}
 }
 
-READ16_MEMBER(lockon_state::main_z80_r)
+uint16_t lockon_state::main_z80_r(offs_t offset)
 {
 	address_space &sndspace = m_audiocpu->space(AS_PROGRAM);
 	return 0xff00 | sndspace.read_byte(offset);
 }
 
-WRITE16_MEMBER(lockon_state::main_z80_w)
+void lockon_state::main_z80_w(offs_t offset, uint16_t data)
 {
 	address_space &sndspace = m_audiocpu->space(AS_PROGRAM);
 	sndspace.write_byte(offset, data);
 }
 
-WRITE16_MEMBER(lockon_state::inten_w)
+void lockon_state::inten_w(uint16_t data)
 {
 	m_main_inten = 1;
 }
 
-WRITE16_MEMBER(lockon_state::emres_w)
+void lockon_state::emres_w(uint16_t data)
 {
 	m_watchdog->watchdog_reset();
 	m_main_inten = 0;
@@ -360,7 +352,7 @@ GFXDECODE_END
  *
  *************************************/
 
-WRITE8_MEMBER(lockon_state::sound_vol)
+void lockon_state::sound_vol(uint8_t data)
 {
 #define LO_SHUNT    250.0
 #define LO_R0       5600.0
@@ -412,11 +404,11 @@ WRITE_LINE_MEMBER(lockon_state::ym2203_irq)
 	m_audiocpu->set_input_line(0, state ? ASSERT_LINE : CLEAR_LINE );
 }
 
-WRITE8_MEMBER(lockon_state::ym2203_out_b)
+void lockon_state::ym2203_out_b(uint8_t data)
 {
-	machine().bookkeeping().coin_counter_w(0, data & 0x80);
-	machine().bookkeeping().coin_counter_w(1, data & 0x40);
-	machine().bookkeeping().coin_counter_w(2, data & 0x20);
+	machine().bookkeeping().coin_counter_w(0, ~data & 0x80);
+	machine().bookkeeping().coin_counter_w(1, ~data & 0x40);
+	machine().bookkeeping().coin_counter_w(2, ~data & 0x20);
 
 	/* 'Lock-On' lamp */
 	m_lamp = BIT(~data, 4);
@@ -470,23 +462,23 @@ void lockon_state::machine_reset()
 	m_main_inten = 0;
 }
 
-MACHINE_CONFIG_START(lockon_state::lockon)
+void lockon_state::lockon(machine_config &config)
+{
+	V30(config, m_maincpu, 16_MHz_XTAL / 2);
+	m_maincpu->set_addrmap(AS_PROGRAM, &lockon_state::main_v30);
 
-	MCFG_DEVICE_ADD("maincpu", V30, 16_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(main_v30)
+	V30(config, m_ground, 16_MHz_XTAL / 2);
+	m_ground->set_addrmap(AS_PROGRAM, &lockon_state::ground_v30);
 
-	MCFG_DEVICE_ADD("ground", V30, 16_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(ground_v30)
+	V30(config, m_object, 16_MHz_XTAL / 2);
+	m_object->set_addrmap(AS_PROGRAM, &lockon_state::object_v30);
 
-	MCFG_DEVICE_ADD("object", V30, 16_MHz_XTAL / 2)
-	MCFG_DEVICE_PROGRAM_MAP(object_v30)
-
-	MCFG_DEVICE_ADD("audiocpu", Z80, 16_MHz_XTAL / 4)
-	MCFG_DEVICE_PROGRAM_MAP(sound_prg)
-	MCFG_DEVICE_IO_MAP(sound_io)
+	Z80(config, m_audiocpu, 16_MHz_XTAL / 4);
+	m_audiocpu->set_addrmap(AS_PROGRAM, &lockon_state::sound_prg);
+	m_audiocpu->set_addrmap(AS_IO, &lockon_state::sound_io);
 
 	WATCHDOG_TIMER(config, m_watchdog).set_time(PERIOD_OF_555_ASTABLE(10000, 4700, 10000e-12) * 4096);
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	config.set_maximum_quantum(attotime::from_hz(600));
 
 	m58990_device &adc(M58990(config, "adc", 16_MHz_XTAL / 16));
 	adc.in_callback<0>().set_ioport("ADC_BANK");
@@ -494,12 +486,12 @@ MACHINE_CONFIG_START(lockon_state::lockon)
 	adc.in_callback<2>().set_ioport("ADC_MISSILE");
 	adc.in_callback<3>().set_ioport("ADC_HOVER");
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_VIDEO_ATTRIBUTES(VIDEO_UPDATE_AFTER_VBLANK)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
-	MCFG_SCREEN_UPDATE_DRIVER(lockon_state, screen_update_lockon)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, lockon_state, screen_vblank_lockon))
-	MCFG_SCREEN_PALETTE(m_palette)
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_AFTER_VBLANK);
+	m_screen->set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
+	m_screen->set_screen_update(FUNC(lockon_state::screen_update_lockon));
+	m_screen->screen_vblank().set(FUNC(lockon_state::screen_vblank_lockon));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_lockon);
 	PALETTE(config, m_palette, FUNC(lockon_state::lockon_palette), 1024 + 2048);
@@ -526,7 +518,7 @@ MACHINE_CONFIG_START(lockon_state::lockon)
 	FILTER_VOLUME(config, "f2203.2r").add_route(ALL_OUTPUTS, "rspeaker", 1.0);
 	FILTER_VOLUME(config, "f2203.3l").add_route(ALL_OUTPUTS, "lspeaker", 1.0);
 	FILTER_VOLUME(config, "f2203.3r").add_route(ALL_OUTPUTS, "rspeaker", 1.0);
-MACHINE_CONFIG_END
+}
 
 
 /*************************************

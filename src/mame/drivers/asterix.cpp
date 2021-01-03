@@ -27,13 +27,13 @@ TODO:
 
 
 #if 0
-READ16_MEMBER(asterix_state::control2_r)
+uint16_t asterix_state::control2_r()
 {
 	return m_cur_control2;
 }
 #endif
 
-WRITE16_MEMBER(asterix_state::control2_w)
+void asterix_state::control2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
@@ -73,17 +73,17 @@ void asterix_state::device_timer(emu_timer &timer, device_timer_id id, int param
 		m_audiocpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 		break;
 	default:
-		assert_always(false, "Unknown id in asterix_state::device_timer");
+		throw emu_fatalerror("Unknown id in asterix_state::device_timer");
 	}
 }
 
-WRITE8_MEMBER(asterix_state::sound_arm_nmi_w)
+void asterix_state::sound_arm_nmi_w(uint8_t data)
 {
 	m_audiocpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 	timer_set(attotime::from_usec(5), TIMER_NMI);
 }
 
-WRITE16_MEMBER(asterix_state::sound_irq_w)
+void asterix_state::sound_irq_w(uint16_t data)
 {
 	m_audiocpu->set_input_line(0, HOLD_LINE);
 }
@@ -92,7 +92,7 @@ WRITE16_MEMBER(asterix_state::sound_irq_w)
 // You're not supposed to laugh.
 // This emulation is grossly overkill but hey, I'm having fun.
 #if 0
-WRITE16_MEMBER(asterix_state::protection_w)
+void asterix_state::protection_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(m_prot + offset);
 
@@ -130,7 +130,7 @@ WRITE16_MEMBER(asterix_state::protection_w)
 }
 #endif
 
-WRITE16_MEMBER(asterix_state::protection_w)
+void asterix_state::protection_w(address_space &space, offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(m_prot + offset);
 
@@ -175,16 +175,16 @@ void asterix_state::main_map(address_map &map)
 	map(0x100000, 0x107fff).ram();
 	map(0x180000, 0x1807ff).rw(m_k053244, FUNC(k05324x_device::k053245_word_r), FUNC(k05324x_device::k053245_word_w));
 	map(0x180800, 0x180fff).ram();                             // extra RAM, or mirror for the above?
-	map(0x200000, 0x20000f).rw(m_k053244, FUNC(k05324x_device::k053244_word_r), FUNC(k05324x_device::k053244_word_w));
+	map(0x200000, 0x20000f).rw(m_k053244, FUNC(k05324x_device::k053244_r), FUNC(k05324x_device::k053244_w));
 	map(0x280000, 0x280fff).ram().w("palette", FUNC(palette_device::write16)).share("palette");
-	map(0x300000, 0x30001f).rw(m_k053244, FUNC(k05324x_device::k053244_lsb_r), FUNC(k05324x_device::k053244_lsb_w));
+	map(0x300000, 0x30001f).rw(m_k053244, FUNC(k05324x_device::k053244_r), FUNC(k05324x_device::k053244_w)).umask16(0x00ff);
 	map(0x380000, 0x380001).portr("IN0");
 	map(0x380002, 0x380003).portr("IN1");
 	map(0x380100, 0x380101).w(FUNC(asterix_state::control2_w));
 	map(0x380200, 0x380203).rw("k053260", FUNC(k053260_device::main_read), FUNC(k053260_device::main_write)).umask16(0x00ff);
 	map(0x380300, 0x380301).w(FUNC(asterix_state::sound_irq_w));
 	map(0x380400, 0x380401).w(FUNC(asterix_state::asterix_spritebank_w));
-	map(0x380500, 0x38051f).w(m_k053251, FUNC(k053251_device::lsb_w));
+	map(0x380500, 0x38051f).w(m_k053251, FUNC(k053251_device::write)).umask16(0x00ff);
 	map(0x380600, 0x380601).noprw();                             // Watchdog
 	map(0x380700, 0x380707).w(m_k056832, FUNC(k056832_device::b_word_w));
 	map(0x380800, 0x380803).w(FUNC(asterix_state::protection_w));
@@ -284,14 +284,14 @@ void asterix_state::asterix(machine_config &config)
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 2048).enable_shadows();
 
 	K056832(config, m_k056832, 0);
-	m_k056832->set_tile_callback(FUNC(asterix_state::tile_callback), this);
-	m_k056832->set_config("gfx1", K056832_BPP_4, 1, 1);
+	m_k056832->set_tile_callback(FUNC(asterix_state::tile_callback));
+	m_k056832->set_config(K056832_BPP_4, 1, 1);
 	m_k056832->set_palette("palette");
 
 	K053244(config, m_k053244, 0);
 	m_k053244->set_palette("palette");
 	m_k053244->set_offsets(-3, -1);
-	m_k053244->set_sprite_callback(FUNC(asterix_state::sprite_callback), this);
+	m_k053244->set_sprite_callback(FUNC(asterix_state::sprite_callback));
 
 	K053251(config, m_k053251, 0);
 
@@ -317,7 +317,7 @@ ROM_START( asterix )
 	ROM_REGION( 0x010000, "audiocpu", 0 )
 	ROM_LOAD( "068_a05.5f", 0x000000, 0x010000,  CRC(d3d0d77b) SHA1(bfa77a8bf651dc27f481e96a2d63242084cc214c) )
 
-	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_REGION( 0x100000, "k056832", 0 )
 	ROM_LOAD32_WORD( "068a12.16k", 0x000000, 0x080000, CRC(b9da8e9c) SHA1(a46878916833923e421da0667e37620ae0b77744) )
 	ROM_LOAD32_WORD( "068a11.12k", 0x000002, 0x080000, CRC(7eb07a81) SHA1(672c0c60834df7816d33d88643e4575b8ca9bcc1) )
 
@@ -342,7 +342,7 @@ ROM_START( asterixeac )
 	ROM_REGION( 0x010000, "audiocpu", 0 )
 	ROM_LOAD( "068_a05.5f", 0x000000, 0x010000,  CRC(d3d0d77b) SHA1(bfa77a8bf651dc27f481e96a2d63242084cc214c) )
 
-	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_REGION( 0x100000, "k056832", 0 )
 	ROM_LOAD32_WORD( "068a12.16k", 0x000000, 0x080000, CRC(b9da8e9c) SHA1(a46878916833923e421da0667e37620ae0b77744) )
 	ROM_LOAD32_WORD( "068a11.12k", 0x000002, 0x080000, CRC(7eb07a81) SHA1(672c0c60834df7816d33d88643e4575b8ca9bcc1) )
 
@@ -367,7 +367,7 @@ ROM_START( asterixeaa )
 	ROM_REGION( 0x010000, "audiocpu", 0 )
 	ROM_LOAD( "068_a05.5f", 0x000000, 0x010000,  CRC(d3d0d77b) SHA1(bfa77a8bf651dc27f481e96a2d63242084cc214c) )
 
-	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_REGION( 0x100000, "k056832", 0 )
 	ROM_LOAD32_WORD( "068a12.16k", 0x000000, 0x080000, CRC(b9da8e9c) SHA1(a46878916833923e421da0667e37620ae0b77744) )
 	ROM_LOAD32_WORD( "068a11.12k", 0x000002, 0x080000, CRC(7eb07a81) SHA1(672c0c60834df7816d33d88643e4575b8ca9bcc1) )
 
@@ -392,7 +392,7 @@ ROM_START( asterixaad )
 	ROM_REGION( 0x010000, "audiocpu", 0 )
 	ROM_LOAD( "068_a05.5f", 0x000000, 0x010000,  CRC(d3d0d77b) SHA1(bfa77a8bf651dc27f481e96a2d63242084cc214c) )
 
-	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_REGION( 0x100000, "k056832", 0 )
 	ROM_LOAD32_WORD( "068a12.16k", 0x000000, 0x080000, CRC(b9da8e9c) SHA1(a46878916833923e421da0667e37620ae0b77744) )
 	ROM_LOAD32_WORD( "068a11.12k", 0x000002, 0x080000, CRC(7eb07a81) SHA1(672c0c60834df7816d33d88643e4575b8ca9bcc1) )
 
@@ -417,7 +417,7 @@ ROM_START( asterixj )
 	ROM_REGION( 0x010000, "audiocpu", 0 )
 	ROM_LOAD( "068_a05.5f", 0x000000, 0x010000,  CRC(d3d0d77b) SHA1(bfa77a8bf651dc27f481e96a2d63242084cc214c) )
 
-	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_REGION( 0x100000, "k056832", 0 )
 	ROM_LOAD32_WORD( "068a12.16k", 0x000000, 0x080000, CRC(b9da8e9c) SHA1(a46878916833923e421da0667e37620ae0b77744) )
 	ROM_LOAD32_WORD( "068a11.12k", 0x000002, 0x080000, CRC(7eb07a81) SHA1(672c0c60834df7816d33d88643e4575b8ca9bcc1) )
 

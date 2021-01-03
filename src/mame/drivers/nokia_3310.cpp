@@ -52,22 +52,22 @@ private:
 
 	PCD8544_SCREEN_UPDATE(pcd8544_screen_update);
 
-	DECLARE_READ8_MEMBER(mad2_io_r);
-	DECLARE_WRITE8_MEMBER(mad2_io_w);
-	DECLARE_READ8_MEMBER(mad2_dspif_r);
-	DECLARE_WRITE8_MEMBER(mad2_dspif_w);
-	DECLARE_READ8_MEMBER(mad2_mcuif_r);
-	DECLARE_WRITE8_MEMBER(mad2_mcuif_w);
+	uint8_t mad2_io_r(offs_t offset);
+	void mad2_io_w(offs_t offset, uint8_t data);
+	uint8_t mad2_dspif_r(offs_t offset);
+	void mad2_dspif_w(offs_t offset, uint8_t data);
+	uint8_t mad2_mcuif_r(offs_t offset);
+	void mad2_mcuif_w(offs_t offset, uint8_t data);
 
 	TIMER_CALLBACK_MEMBER(timer0);
 	TIMER_CALLBACK_MEMBER(timer1);
 	TIMER_CALLBACK_MEMBER(timer_watchdog);
 	TIMER_CALLBACK_MEMBER(timer_fiq8);
 
-	DECLARE_READ16_MEMBER(ram_r)        { return m_ram[offset] & mem_mask; }
-	DECLARE_WRITE16_MEMBER(ram_w)       { COMBINE_DATA(&m_ram[offset]); }
-	DECLARE_READ16_MEMBER(dsp_ram_r);
-	DECLARE_WRITE16_MEMBER(dsp_ram_w);
+	uint16_t ram_r(offs_t offset, uint16_t mem_mask = ~0) { return m_ram[offset] & mem_mask; }
+	void ram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0) { COMBINE_DATA(&m_ram[offset]); }
+	uint16_t dsp_ram_r(offs_t offset);
+	void dsp_ram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	void noki3310_map(address_map &map);
 
@@ -262,7 +262,7 @@ void noki3310_state::machine_reset()
 	m_timer_fiq8->adjust(attotime::from_hz(1000), 0, attotime::from_hz(1000));
 
 	// simulate power-on input
-	if (machine().system().name && (machine().system().name[4] == '8' || machine().system().name[4] == '5'))
+	if (machine().system().name[4] == '8' || machine().system().name[4] == '5')
 		m_power_on = ~0x10;
 	else
 		m_power_on = ~0x02;
@@ -422,7 +422,7 @@ PCD8544_SCREEN_UPDATE(noki3310_state::pcd8544_screen_update)
 			for (int y = 0; y < 8; y++)
 			{
 				int p = BIT(gfx, y);
-				bitmap.pix16(r*8 + y, x) = p ^ inv;
+				bitmap.pix(r*8 + y, x) = p ^ inv;
 			}
 		}
 }
@@ -479,7 +479,7 @@ TIMER_CALLBACK_MEMBER(noki3310_state::timer_watchdog)
 	}
 }
 
-READ16_MEMBER(noki3310_state::dsp_ram_r)
+uint16_t noki3310_state::dsp_ram_r(offs_t offset)
 {
 	// HACK: avoid hangs when ARM try to communicate with the DSP
 	if (offset <= 0x004 >> 1)   return 0x01;
@@ -490,12 +490,12 @@ READ16_MEMBER(noki3310_state::dsp_ram_r)
 	return m_dsp_ram[offset & 0x7ff];
 }
 
-WRITE16_MEMBER(noki3310_state::dsp_ram_w)
+void noki3310_state::dsp_ram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_dsp_ram[offset & 0x7ff]);
 }
 
-READ8_MEMBER(noki3310_state::mad2_io_r)
+uint8_t noki3310_state::mad2_io_r(offs_t offset)
 {
 	uint8_t data = m_mad2_regs[offset];
 
@@ -559,7 +559,7 @@ READ8_MEMBER(noki3310_state::mad2_io_r)
 	return data;
 }
 
-WRITE8_MEMBER(noki3310_state::mad2_io_w)
+void noki3310_state::mad2_io_w(offs_t offset, uint8_t data)
 {
 	m_mad2_regs[offset] = data;
 
@@ -605,7 +605,7 @@ WRITE8_MEMBER(noki3310_state::mad2_io_w)
 #endif
 }
 
-READ8_MEMBER(noki3310_state::mad2_dspif_r)
+uint8_t noki3310_state::mad2_dspif_r(offs_t offset)
 {
 #if LOG_MAD2_REGISTER_ACCESS
 	logerror("MAD2 R %02x DSPIF\n", offset);
@@ -613,14 +613,14 @@ READ8_MEMBER(noki3310_state::mad2_dspif_r)
 	return 0;
 }
 
-WRITE8_MEMBER(noki3310_state::mad2_dspif_w)
+void noki3310_state::mad2_dspif_w(offs_t offset, uint8_t data)
 {
 #if LOG_MAD2_REGISTER_ACCESS
 	logerror("MAD2 W %02x = %02x DSPIF\n", offset, data);
 #endif
 }
 
-READ8_MEMBER(noki3310_state::mad2_mcuif_r)
+uint8_t noki3310_state::mad2_mcuif_r(offs_t offset)
 {
 #if LOG_MAD2_REGISTER_ACCESS
 	logerror("MAD2 R %02x MCUIF\n", offset);
@@ -628,7 +628,7 @@ READ8_MEMBER(noki3310_state::mad2_mcuif_r)
 	return 0;
 }
 
-WRITE8_MEMBER(noki3310_state::mad2_mcuif_w)
+void noki3310_state::mad2_mcuif_w(offs_t offset, uint8_t data)
 {
 #if LOG_MAD2_REGISTER_ACCESS
 	logerror("MAD2 W %02x = %02x MCUIF\n", offset, data);
@@ -700,60 +700,56 @@ static INPUT_PORTS_START( noki3310 )
 INPUT_PORTS_END
 
 
-MACHINE_CONFIG_START(noki3310_state::noki3310)
-
+void noki3310_state::noki3310(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", ARM7_BE, 26000000 / 2)  // MAD2WD1 13 MHz, clock internally supplied to ARM core can be divided by 2, in sleep mode a 32768 Hz clock is used
-	MCFG_DEVICE_PROGRAM_MAP(noki3310_map)
+	ARM7_BE(config, m_maincpu, 26000000 / 2);  // MAD2WD1 13 MHz, clock internally supplied to ARM core can be divided by 2, in sleep mode a 32768 Hz clock is used
+	m_maincpu->set_addrmap(AS_PROGRAM, &noki3310_state::noki3310_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD_MONOCHROME("screen", LCD, rgb_t::white())
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(84, 48)
-	MCFG_SCREEN_VISIBLE_AREA(0, 84-1, 0, 48-1)
-	MCFG_SCREEN_UPDATE_DEVICE("pcd8544", pcd8544_device, screen_update)
-	MCFG_SCREEN_PALETTE("palette")
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD, rgb_t::white()));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(84, 48);
+	screen.set_visarea(0, 84-1, 0, 48-1);
+	screen.set_screen_update("pcd8544", FUNC(pcd8544_device::screen_update));
+	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 
-	MCFG_PCD8544_ADD("pcd8544")
-	MCFG_PCD8544_SCREEN_UPDATE_CALLBACK(noki3310_state, pcd8544_screen_update)
+	PCD8544(config, m_pcd8544, 0);
+	m_pcd8544->set_screen_update_cb(FUNC(noki3310_state::pcd8544_screen_update));
 
 	INTEL_TE28F160(config, "flash");
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(noki3310_state::noki3330)
+void noki3310_state::noki3330(machine_config &config)
+{
 	noki3310(config);
 
 	INTEL_TE28F320(config.replace(), "flash");
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(noki3310_state::noki3410)
+void noki3310_state::noki3410(machine_config &config)
+{
 	noki3330(config);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(96, 65)    // Philips OM6206
+	subdevice<screen_device>("screen")->set_size(96, 65);    // Philips OM6206
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(noki3310_state::noki7110)
+void noki3310_state::noki7110(machine_config &config)
+{
 	noki3330(config);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(96, 65)    // Epson SED1565
+	subdevice<screen_device>("screen")->set_size(96, 65);    // Epson SED1565
+}
 
-MACHINE_CONFIG_END
-
-MACHINE_CONFIG_START(noki3310_state::noki6210)
+void noki3310_state::noki6210(machine_config &config)
+{
 	noki3330(config);
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(96, 60)
-
-MACHINE_CONFIG_END
+	subdevice<screen_device>("screen")->set_size(96, 60);
+}
 
 
 // MAD2 internal ROMS

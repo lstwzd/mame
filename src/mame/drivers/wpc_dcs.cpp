@@ -25,7 +25,7 @@ public:
 		, nvram(*this, "nvram")
 		, lamp(*this, "lamp")
 		, out(*this, "out")
-		, swarray(*this, "SW.%u", 0)
+		, swarray(*this, "SW.%u", 0U)
 	{ }
 
 	void wpc_dcs(machine_config &config);
@@ -39,18 +39,18 @@ public:
 	void init_afv();
 
 private:
-	DECLARE_WRITE8_MEMBER(bank_w);
-	DECLARE_WRITE8_MEMBER(watchdog_w);
-	DECLARE_WRITE8_MEMBER(irq_ack_w);
-	DECLARE_READ8_MEMBER(firq_src_r);
-	DECLARE_READ8_MEMBER(zc_r);
-	DECLARE_READ8_MEMBER(dcs_data_r);
-	DECLARE_WRITE8_MEMBER(dcs_data_w);
-	DECLARE_READ8_MEMBER(dcs_ctrl_r);
-	DECLARE_WRITE8_MEMBER(dcs_reset_w);
-	DECLARE_READ8_MEMBER(rtc_r);
-	DECLARE_READ8_MEMBER(switches_r);
-	DECLARE_WRITE8_MEMBER(switches_w);
+	void bank_w(uint8_t data);
+	void watchdog_w(uint8_t data);
+	void irq_ack_w(uint8_t data);
+	uint8_t firq_src_r();
+	uint8_t zc_r();
+	uint8_t dcs_data_r();
+	void dcs_data_w(uint8_t data);
+	uint8_t dcs_ctrl_r();
+	void dcs_reset_w(uint8_t data);
+	uint8_t rtc_r(offs_t offset);
+	uint8_t switches_r();
+	void switches_w(uint8_t data);
 
 	DECLARE_WRITE_LINE_MEMBER(scanline_irq);
 	TIMER_DEVICE_CALLBACK_MEMBER(zc_timer);
@@ -113,28 +113,28 @@ void wpc_dcs_state::wpc_dcs_map(address_map &map)
 	map(0x8000, 0xffff).rom().region("maincpu", 0x78000);
 }
 
-READ8_MEMBER(wpc_dcs_state::dcs_data_r)
+uint8_t wpc_dcs_state::dcs_data_r()
 {
 	return dcs->data_r();
 }
 
-WRITE8_MEMBER(wpc_dcs_state::dcs_data_w)
+void wpc_dcs_state::dcs_data_w(uint8_t data)
 {
 	dcs->data_w(data);
 }
 
-READ8_MEMBER(wpc_dcs_state::dcs_ctrl_r)
+uint8_t wpc_dcs_state::dcs_ctrl_r()
 {
 	return dcs->control_r();
 }
 
-WRITE8_MEMBER(wpc_dcs_state::dcs_reset_w)
+void wpc_dcs_state::dcs_reset_w(uint8_t data)
 {
 	dcs->reset_w(0);
 	dcs->reset_w(1);
 }
 
-READ8_MEMBER(wpc_dcs_state::switches_r)
+uint8_t wpc_dcs_state::switches_r()
 {
 	uint8_t res = 0xff;
 	for(int i=0; i<8; i++)
@@ -143,12 +143,12 @@ READ8_MEMBER(wpc_dcs_state::switches_r)
 	return res;
 }
 
-WRITE8_MEMBER(wpc_dcs_state::switches_w)
+void wpc_dcs_state::switches_w(uint8_t data)
 {
 	switch_col = data;
 }
 
-READ8_MEMBER(wpc_dcs_state::rtc_r)
+uint8_t wpc_dcs_state::rtc_r(offs_t offset)
 {
 	system_time systime;
 	machine().base_datetime(systime);
@@ -170,12 +170,12 @@ READ8_MEMBER(wpc_dcs_state::rtc_r)
 	}
 }
 
-READ8_MEMBER(wpc_dcs_state::firq_src_r)
+uint8_t wpc_dcs_state::firq_src_r()
 {
 	return firq_src;
 }
 
-READ8_MEMBER(wpc_dcs_state::zc_r)
+uint8_t wpc_dcs_state::zc_r()
 {
 	uint8_t res = zc;
 	zc &= 0x7f;
@@ -187,12 +187,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(wpc_dcs_state::zc_timer)
 	zc |= 0x80;
 }
 
-WRITE8_MEMBER(wpc_dcs_state::bank_w)
+void wpc_dcs_state::bank_w(uint8_t data)
 {
 	rombank->set_entry(data & 0x1f);
 }
 
-WRITE8_MEMBER(wpc_dcs_state::watchdog_w)
+void wpc_dcs_state::watchdog_w(uint8_t data)
 {
 	// Mhhh?  Maybe it's not 3ff3, maybe it's going down by itself...
 	maincpu->set_input_line(0, CLEAR_LINE);
@@ -204,7 +204,7 @@ WRITE_LINE_MEMBER(wpc_dcs_state::scanline_irq)
 	maincpu->set_input_line(1, state);
 }
 
-WRITE8_MEMBER(wpc_dcs_state::irq_ack_w)
+void wpc_dcs_state::irq_ack_w(uint8_t data)
 {
 	maincpu->set_input_line(0, CLEAR_LINE);
 	maincpu->set_input_line(1, CLEAR_LINE);
@@ -424,22 +424,23 @@ static INPUT_PORTS_START( wpc_dcs )
 
 INPUT_PORTS_END
 
-MACHINE_CONFIG_START(wpc_dcs_state::wpc_dcs)
+void wpc_dcs_state::wpc_dcs(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", M6809, XTAL(8'000'000)/4)
-	MCFG_DEVICE_PROGRAM_MAP(wpc_dcs_map)
+	M6809(config, maincpu, XTAL(8'000'000)/4);
+	maincpu->set_addrmap(AS_PROGRAM, &wpc_dcs_state::wpc_dcs_map);
+	maincpu->set_periodic_int(FUNC(wpc_dcs_state::irq0_line_assert), attotime::from_hz(XTAL(8'000'000)/8192.0));
 
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(wpc_dcs_state, irq0_line_assert, XTAL(8'000'000)/8192.0)
-	MCFG_TIMER_DRIVER_ADD_PERIODIC("zero_crossing", wpc_dcs_state, zc_timer, attotime::from_hz(120)) // Mains power zero crossing
+	TIMER(config, "zero_crossing").configure_periodic(FUNC(wpc_dcs_state::zc_timer), attotime::from_hz(120)); // Mains power zero crossing
 
-	MCFG_DEVICE_ADD("lamp", WPC_LAMP, 0)
-	MCFG_DEVICE_ADD("out", WPC_OUT, 0, 3)
-	MCFG_DEVICE_ADD("shift", WPC_SHIFT, 0)
+	WPC_LAMP(config, lamp, 0);
+	WPC_OUT(config, out, 0, 3);
+	WPC_SHIFT(config, "shift", 0);
 	WPC_DMD(config, "dmd", 0).scanline_callback().set(FUNC(wpc_dcs_state::scanline_irq));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 	DCS_AUDIO_8K(config, dcs, 0);
-MACHINE_CONFIG_END
+}
 
 /*-------------
 / Demolition Man #50028
@@ -859,6 +860,19 @@ ROM_START(sttng_l3)
 	ROM_LOAD16_BYTE("ng_u8_s.l1", 0xc00000, 0x080000, CRC(c9fb065e) SHA1(c148178ee0ea787acc88078db01d17073e75fdc7))
 ROM_END
 
+ROM_START(sttng_l5)
+	ROM_REGION(0x80000, "maincpu", 0)
+	ROM_LOAD("trek_lx5.rom", 0x00000, 0x80000, CRC(e004f3a7) SHA1(c724641106115e3f14bbe3998771823d0ac12d69))
+	ROM_REGION16_LE(0x1000000, "dcs",0)
+	ROM_LOAD16_BYTE("ng_u2_s.l1", 0x000000, 0x080000, CRC(c3bd7bf5) SHA1(2476ff90232a52d667a407fac81ee4db028b94e5))
+	ROM_LOAD16_BYTE("ng_u3_s.l1", 0x200000, 0x080000, CRC(9456cac7) SHA1(83e415e0f21bb5418f3677dbc13433e056c523ab))
+	ROM_LOAD16_BYTE("ng_u4_s.l1", 0x400000, 0x080000, CRC(179d22a4) SHA1(456b7189e23d4e2bd7e2a6249fa2a73bf0e12194))
+	ROM_LOAD16_BYTE("ng_u5_s.l1", 0x600000, 0x080000, CRC(231a3e72) SHA1(081b1a042e62ccb723788059d6c1e00b9b32c778))
+	ROM_LOAD16_BYTE("ng_u6_s.l1", 0x800000, 0x080000, CRC(bb21377d) SHA1(229fb42a1f8b22727a809e5d63f26f045a2adda5))
+	ROM_LOAD16_BYTE("ng_u7_s.l1", 0xa00000, 0x080000, CRC(d81b39f0) SHA1(3443e7327c755b85a5b390f7fcd0e9923890425a))
+	ROM_LOAD16_BYTE("ng_u8_s.l1", 0xc00000, 0x080000, CRC(c9fb065e) SHA1(c148178ee0ea787acc88078db01d17073e75fdc7))
+ROM_END
+
 
 /*-------------
 / Addams Family Values (Coin Dropper)
@@ -892,6 +906,7 @@ GAME(1994,  pop_lx5,    0,          wpc_dcs,    wpc_dcs, wpc_dcs_state, init_pop
 GAME(1994,  pop_la4,    pop_lx5,    wpc_dcs,    wpc_dcs, wpc_dcs_state, init_pop,   ROT0,   "Bally",     "Popeye Saves The Earth (LA-4)",                    MACHINE_MECHANICAL)
 GAME(1994,  pop_pa3,    pop_lx5,    wpc_dcs,    wpc_dcs, wpc_dcs_state, init_pop,   ROT0,   "Bally",     "Popeye Saves The Earth (PA-3)",                    MACHINE_MECHANICAL)
 GAME(1994,  sttng_l7,   0,          wpc_dcs,    wpc_dcs, wpc_dcs_state, init_sttng, ROT0,   "Williams",  "Star Trek: The Next Generation (LX-7)",            MACHINE_MECHANICAL)
+GAME(1994,  sttng_l5,   sttng_l7,   wpc_dcs,    wpc_dcs, wpc_dcs_state, init_sttng, ROT0,   "Williams",  "Star Trek: The Next Generation (LX-5)",            MACHINE_MECHANICAL)
 GAME(1994,  sttng_x7,   sttng_l7,   wpc_dcs,    wpc_dcs, wpc_dcs_state, init_sttng, ROT0,   "Williams",  "Star Trek: The Next Generation (LX-7 Special)",    MACHINE_MECHANICAL)
 GAME(1993,  sttng_p8,   sttng_l7,   wpc_dcs,    wpc_dcs, wpc_dcs_state, init_sttng, ROT0,   "Williams",  "Star Trek: The Next Generation (P-8)",             MACHINE_MECHANICAL)
 GAME(1993,  sttng_p5,   sttng_l7,   wpc_dcs,    wpc_dcs, wpc_dcs_state, init_sttng, ROT0,   "Williams",  "Star Trek: The Next Generation (P-5)",             MACHINE_MECHANICAL)

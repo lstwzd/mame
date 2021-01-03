@@ -71,7 +71,7 @@ void psx_gamebooster_device::device_reset()
 //  IMPLEMENTATION
 //**************************************************************************
 
-READ16_MEMBER(psx_gamebooster_device::exp_r)
+uint16_t psx_gamebooster_device::exp_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset < 0x20000)
 	{
@@ -80,10 +80,10 @@ READ16_MEMBER(psx_gamebooster_device::exp_r)
 	else if (offset < 0x24000)
 	{
 		offset -= 0x20000;
-		uint16_t retval = 0;;
+		uint16_t retval = 0;
 
-		if (mem_mask & 0xff00) retval |= (m_cartslot->read_rom(space, (offset*2)+1))<<8;
-		if (mem_mask & 0x00ff) retval |= m_cartslot->read_rom(space, (offset*2)+0);
+		if (mem_mask & 0xff00) retval |= (m_cartslot->read_rom((offset*2)+1))<<8;
+		if (mem_mask & 0x00ff) retval |= m_cartslot->read_rom((offset*2)+0);
 
 		return retval;
 	}
@@ -95,7 +95,7 @@ READ16_MEMBER(psx_gamebooster_device::exp_r)
 	return 0x0000;
 }
 
-WRITE16_MEMBER(psx_gamebooster_device::exp_w)
+void psx_gamebooster_device::exp_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 
 	if (offset < 0x20000)
@@ -107,8 +107,8 @@ WRITE16_MEMBER(psx_gamebooster_device::exp_w)
 		offset -= 0x20000;
 		logerror("%s: psx_gamebooster_device::exp_w %04x %04x\n", machine().describe_context(), offset*2, data);
 
-		if (mem_mask & 0xff00) m_cartslot->write_bank(space, (offset*2)+1, data>>8);
-		if (mem_mask & 0x00ff) m_cartslot->write_bank(space, (offset*2)+0, data); // send this 2nd or it erases the bank with the above
+		if (mem_mask & 0xff00) m_cartslot->write_bank((offset*2)+1, data>>8);
+		if (mem_mask & 0x00ff) m_cartslot->write_bank((offset*2)+0, data); // send this 2nd or it erases the bank with the above
 
 	}
 	else

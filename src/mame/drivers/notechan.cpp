@@ -312,10 +312,10 @@ public:
 	void notechan(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(out_f8_w);
-	DECLARE_WRITE8_MEMBER(out_f9_w);
-	DECLARE_WRITE8_MEMBER(out_fa_w);
-	DECLARE_WRITE8_MEMBER(out_ff_w);
+	void out_f8_w(uint8_t data);
+	void out_f9_w(uint8_t data);
+	void out_fa_w(uint8_t data);
+	void out_ff_w(uint8_t data);
 	void notechan_map(address_map &map);
 	void notechan_port_map(address_map &map);
 
@@ -353,7 +353,7 @@ void notechan_state::notechan_port_map(address_map &map)
 *           Output Ports / Lamps             *
 *********************************************/
 
-WRITE8_MEMBER(notechan_state::out_f8_w)
+void notechan_state::out_f8_w(uint8_t data)
 {
 	m_lamps[0] = BIT(data, 0);
 	m_lamps[1] = BIT(data, 1);
@@ -367,7 +367,7 @@ WRITE8_MEMBER(notechan_state::out_f8_w)
 	logerror("Output %02X to $F8\n", data);
 }
 
-WRITE8_MEMBER(notechan_state::out_f9_w)
+void notechan_state::out_f9_w(uint8_t data)
 {
 	m_lamps[8] = BIT(data, 0);
 	m_lamps[9] = BIT(data, 1);
@@ -381,7 +381,7 @@ WRITE8_MEMBER(notechan_state::out_f9_w)
 	logerror("Output %02X to $F9\n", data);
 }
 
-WRITE8_MEMBER(notechan_state::out_fa_w)
+void notechan_state::out_fa_w(uint8_t data)
 {
 	m_oki->set_rom_bank(BIT(data, 5));
 
@@ -397,7 +397,7 @@ WRITE8_MEMBER(notechan_state::out_fa_w)
 	logerror("Output %02X to $FA\n", data);
 }
 
-WRITE8_MEMBER(notechan_state::out_ff_w)
+void notechan_state::out_ff_w(uint8_t data)
 {
 	m_lamps[24] = BIT(data, 0);
 	m_lamps[25] = BIT(data, 1);
@@ -505,21 +505,21 @@ INPUT_PORTS_END
 *               Machine Config               *
 *********************************************/
 
-MACHINE_CONFIG_START(notechan_state::notechan)
+void notechan_state::notechan(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", Z80, CPU_CLOCK)  // unknown...
-	MCFG_DEVICE_PROGRAM_MAP(notechan_map)
-	MCFG_DEVICE_IO_MAP(notechan_port_map)
-	MCFG_DEVICE_PERIODIC_INT_DRIVER(driver_device, irq0_line_hold, 60)
+	Z80(config, m_maincpu, CPU_CLOCK);  // unknown...
+	m_maincpu->set_addrmap(AS_PROGRAM, &notechan_state::notechan_map);
+	m_maincpu->set_addrmap(AS_IO, &notechan_state::notechan_port_map);
+	m_maincpu->set_periodic_int(FUNC(driver_device::irq0_line_hold), attotime::from_hz(60));
 
 	/* NO VIDEO */
 
 	/* sound hardware */
 	SPEAKER(config, "speaker").front_center();
 
-	MCFG_DEVICE_ADD("oki", OKIM6295, SND_CLOCK, okim6295_device::PIN7_HIGH)  // match the real sounds
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "speaker", 1.0)
-MACHINE_CONFIG_END
+	OKIM6295(config, m_oki, SND_CLOCK, okim6295_device::PIN7_HIGH).add_route(ALL_OUTPUTS, "speaker", 1.0);  // match the real sounds
+}
 
 
 /*********************************************

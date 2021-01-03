@@ -34,14 +34,15 @@ public:
 	void evmbug(machine_config &config);
 
 private:
-	DECLARE_READ8_MEMBER(rs232_r);
-	DECLARE_WRITE8_MEMBER(rs232_w);
+	uint8_t rs232_r(offs_t offset);
+	void rs232_w(offs_t offset, uint8_t data);
 	void kbd_put(u8 data);
 
 	void io_map(address_map &map);
 	void mem_map(address_map &map);
 
 	virtual void machine_reset() override;
+	virtual void machine_start() override;
 	uint8_t m_term_data;
 	uint8_t m_term_out;
 	bool m_rin;
@@ -59,31 +60,32 @@ void evmbug_state::mem_map(address_map &map)
 void evmbug_state::io_map(address_map &map)
 {
 	map.unmap_value_high();
-	//AM_RANGE(0x0000, 0x0003) AM_DEVREAD("uart1", tms9902_device, cruread)
-	//AM_RANGE(0x0000, 0x001f) AM_DEVWRITE("uart1", tms9902_device, cruwrite)
-	map(0x0000, 0x0003).r(FUNC(evmbug_state::rs232_r));
-	map(0x0000, 0x001f).w(FUNC(evmbug_state::rs232_w));
+	//map(0x0000, 0x003f).rw("uart1", FUNC(tms9902_device::cruread), FUNC(tms9902_device::cruwrite));
+	map(0x0000, 0x003f).rw(FUNC(evmbug_state::rs232_r), FUNC(evmbug_state::rs232_w));
 }
 
 /* Input ports */
 static INPUT_PORTS_START( evmbug )
 INPUT_PORTS_END
 
-READ8_MEMBER( evmbug_state::rs232_r )
+uint8_t evmbug_state::rs232_r(offs_t offset)
 {
-	if (offset == 0)
-		return m_term_data;
-	else
-	if (offset == 2)
-		return (m_rbrl ? 0x20 : 0) | 0xc0;
-	else
+	if (offset < 8)
+		return BIT(m_term_data, offset);
+	else if (offset == 21)
+		return m_rbrl;
+	else if (offset == 22 || offset == 23)
+		return 1;
+	else if (offset == 15)
 	{
 		m_rin ^= 1;
-		return m_rin << 7;
+		return m_rin;
 	}
+	else
+		return 0;
 }
 
-WRITE8_MEMBER( evmbug_state::rs232_w )
+void evmbug_state::rs232_w(offs_t offset, uint8_t data)
 {
 	if (offset < 8)
 	{
@@ -93,7 +95,7 @@ WRITE8_MEMBER( evmbug_state::rs232_w )
 		m_term_out |= (data << offset);
 
 		if (offset == 7)
-			m_terminal->write(space, 0, m_term_out & 0x7f);
+			m_terminal->write(m_term_out & 0x7f);
 	}
 	else
 	if (offset == 18)
@@ -114,6 +116,14 @@ void evmbug_state::machine_reset()
 	m_maincpu->reset_line(ASSERT_LINE);
 }
 
+void evmbug_state::machine_start()
+{
+	save_item(NAME(m_term_data));
+	save_item(NAME(m_term_out));
+	save_item(NAME(m_rin));
+	save_item(NAME(m_rbrl));
+}
+
 void evmbug_state::evmbug(machine_config &config)
 {
 	// basic machine hardware
@@ -132,11 +142,11 @@ void evmbug_state::evmbug(machine_config &config)
 
 /* ROM definition */
 ROM_START( evmbug )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
+	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_LOAD( "evmbug.bin", 0x0000, 0x8000, CRC(a239ec56) SHA1(65b500d7d0f897ce0c320cf3ec32ff4042774599) )
 ROM_END
 
 /* Driver */
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY              FULLNAME    FLAGS
-COMP( 19??, evmbug, 0,      0,      evmbug,  evmbug, evmbug_state, empty_init, "Texas Instruments", "TMAM6095", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+COMP( 19??, evmbug, 0,      0,      evmbug,  evmbug, evmbug_state, empty_init, "Texas Instruments", "TMAM6095", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )

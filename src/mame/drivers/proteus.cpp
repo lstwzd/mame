@@ -84,18 +84,18 @@ private:
 
 	DECLARE_WRITE_LINE_MEMBER(ptm_o2_callback);
 	DECLARE_WRITE_LINE_MEMBER(ptm_o3_callback);
-	DECLARE_READ8_MEMBER(network_r);
-	DECLARE_WRITE8_MEMBER(network_w);
+	uint8_t network_r(offs_t offset);
+	void network_w(offs_t offset, uint8_t data);
 
-	DECLARE_READ8_MEMBER(drive_register_r);
-	DECLARE_WRITE8_MEMBER(drive_register_w);
+	uint8_t drive_register_r();
+	void drive_register_w(uint8_t data);
 	DECLARE_WRITE_LINE_MEMBER(motor_w);
-	DECLARE_READ8_MEMBER(fdc_inv_r);
-	DECLARE_WRITE8_MEMBER(fdc_inv_w);
+	uint8_t fdc_inv_r(offs_t offset);
+	void fdc_inv_w(offs_t offset, uint8_t data);
 	DECLARE_FLOPPY_FORMATS(floppy_formats);
 
-	DECLARE_WRITE8_MEMBER(enable_z80_w);
-	DECLARE_WRITE8_MEMBER(enable_6809_w);
+	void enable_z80_w(uint8_t data);
+	void enable_6809_w(uint8_t data);
 
 	void proteus_6809_mem(address_map &map);
 	void proteus_z80_mem(address_map &map);
@@ -160,18 +160,18 @@ WRITE_LINE_MEMBER(proteus_state::ptm_o3_callback)
 }
 
 
-READ8_MEMBER(proteus_state::network_r)
+uint8_t proteus_state::network_r(offs_t offset)
 {
-	return m_adlc->read(space, offset >> 1);
+	return m_adlc->read(offset >> 1);
 }
 
-WRITE8_MEMBER(proteus_state::network_w)
+void proteus_state::network_w(offs_t offset, uint8_t data)
 {
-	m_adlc->write(space, offset >> 1, data);
+	m_adlc->write(offset >> 1, data);
 }
 
 
-WRITE8_MEMBER(proteus_state::drive_register_w)
+void proteus_state::drive_register_w(uint8_t data)
 {
 	/* drive select */
 	switch (data & 0x03)
@@ -197,7 +197,7 @@ WRITE8_MEMBER(proteus_state::drive_register_w)
 	}
 }
 
-READ8_MEMBER(proteus_state::drive_register_r)
+uint8_t proteus_state::drive_register_r()
 {
 	/* disk change */
 	return (m_floppy ? m_floppy->dskchg_r() : 1) << 1;
@@ -208,18 +208,18 @@ WRITE_LINE_MEMBER(proteus_state::motor_w)
 	if (m_floppy) m_floppy->mon_w(!state);
 }
 
-READ8_MEMBER(proteus_state::fdc_inv_r)
+uint8_t proteus_state::fdc_inv_r(offs_t offset)
 {
 	return m_fdc->read(offset) ^ 0xff;
 }
 
-WRITE8_MEMBER(proteus_state::fdc_inv_w)
+void proteus_state::fdc_inv_w(offs_t offset, uint8_t data)
 {
 	m_fdc->write(offset, data ^ 0xff);
 }
 
 
-WRITE8_MEMBER(proteus_state::enable_z80_w)
+void proteus_state::enable_z80_w(uint8_t data)
 {
 	logerror("%04X enable z80\n", m_maincpu->pc());
 	// Enable Z80 (store an address at E060 and when the 6809 comes back it'll load PC with that address)
@@ -227,7 +227,7 @@ WRITE8_MEMBER(proteus_state::enable_z80_w)
 	m_z80->set_input_line(INPUT_LINE_RESET, CLEAR_LINE);
 }
 
-WRITE8_MEMBER(proteus_state::enable_6809_w)
+void proteus_state::enable_6809_w(uint8_t data)
 {
 	logerror("%04X enable 6809\n", m_z80->pc());
 	// TODO: this is untested, not aware of any software that uses it
@@ -321,14 +321,15 @@ static void proteus_floppies(device_slot_interface &device)
 }
 
 
-MACHINE_CONFIG_START(proteus_state::proteus)
+void proteus_state::proteus(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", MC6809, 4_MHz_XTAL)
-	MCFG_DEVICE_PROGRAM_MAP(proteus_6809_mem)
+	MC6809(config, m_maincpu, 4_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &proteus_state::proteus_6809_mem);
 
-	MCFG_DEVICE_ADD("z80", Z80, 4_MHz_XTAL)
-	MCFG_DEVICE_PROGRAM_MAP(proteus_z80_mem)
-	MCFG_DEVICE_IO_MAP(proteus_z80_io)
+	Z80(config, m_z80, 4_MHz_XTAL);
+	m_z80->set_addrmap(AS_PROGRAM, &proteus_state::proteus_z80_mem);
+	m_z80->set_addrmap(AS_IO, &proteus_state::proteus_z80_io);
 
 	INPUT_MERGER_ANY_HIGH(config, m_irqs);
 	m_irqs->output_handler().set_inputline(m_maincpu, M6809_IRQ_LINE);
@@ -339,10 +340,8 @@ MACHINE_CONFIG_START(proteus_state::proteus)
 	m_fdc->hld_wr_callback().set(FUNC(proteus_state::motor_w));
 	m_fdc->set_force_ready(true);
 
-	MCFG_FLOPPY_DRIVE_ADD("fdc:0", proteus_floppies, "8dssd", proteus_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
-	MCFG_FLOPPY_DRIVE_ADD("fdc:1", proteus_floppies, "8dssd", proteus_state::floppy_formats)
-	MCFG_FLOPPY_DRIVE_SOUND(true)
+	FLOPPY_CONNECTOR(config, "fdc:0", proteus_floppies, "8dssd", proteus_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:1", proteus_floppies, "8dssd", proteus_state::floppy_formats).enable_sound(true);
 
 	/* ram */
 	RAM(config, RAM_TAG).set_default_size("64K");
@@ -366,9 +365,10 @@ MACHINE_CONFIG_START(proteus_state::proteus)
 	m_pia->irqa_handler().set("irqs", FUNC(input_merger_device::in_w<2>));
 	m_pia->irqb_handler().set("irqs", FUNC(input_merger_device::in_w<3>));
 
-	MCFG_DEVICE_ADD("parallel", CENTRONICS, centronics_devices, "printer")
-	MCFG_CENTRONICS_ACK_HANDLER(WRITELINE("pia", pia6821_device, ca1_w))
-	MCFG_CENTRONICS_OUTPUT_LATCH_ADD("cent_data_out", "parallel")
+	centronics_device &parallel(CENTRONICS(config, "parallel", centronics_devices, "printer"));
+	parallel.ack_handler().set(m_pia, FUNC(pia6821_device::ca1_w));
+	output_latch_device &cent_data_out(OUTPUT_LATCH(config, "cent_data_out"));
+	parallel.set_output_latch(cent_data_out);
 
 	/* terminal port */
 	ACIA6850(config, m_acia[0], 0);
@@ -413,9 +413,8 @@ MACHINE_CONFIG_START(proteus_state::proteus)
 	acia2_clock.signal_handler().append(m_acia[2], FUNC(acia6850_device::write_rxc));
 
 	/* software lists */
-	MCFG_SOFTWARE_LIST_ADD("flop_list", "poly_flop")
-	MCFG_SOFTWARE_LIST_FILTER("flop_list", "PROTEUS")
-MACHINE_CONFIG_END
+	SOFTWARE_LIST(config, "flop_list").set_original("poly_flop").set_filter("PROTEUS");
+}
 
 
 ROM_START(proteus)

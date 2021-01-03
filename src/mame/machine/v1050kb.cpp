@@ -72,7 +72,8 @@ DISCRETE_SOUND_END
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-MACHINE_CONFIG_START(v1050_keyboard_device::device_add_mconfig)
+void v1050_keyboard_device::device_add_mconfig(machine_config &config)
+{
 	I8049(config, m_maincpu, XTAL(4'608'000));
 	m_maincpu->p1_in_cb().set(FUNC(v1050_keyboard_device::kb_p1_r));
 	m_maincpu->p1_out_cb().set(FUNC(v1050_keyboard_device::kb_p1_w));
@@ -81,9 +82,8 @@ MACHINE_CONFIG_START(v1050_keyboard_device::device_add_mconfig)
 
 	// discrete sound
 	SPEAKER(config, "mono").front_center();
-	MCFG_DEVICE_ADD(DISCRETE_TAG, DISCRETE, v1050kb_discrete)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	DISCRETE(config, m_discrete, v1050kb_discrete).add_route(ALL_OUTPUTS, "mono", 0.80);
+}
 
 
 //-------------------------------------------------
@@ -333,7 +333,7 @@ WRITE_LINE_MEMBER( v1050_keyboard_device::si_w )
 //  kb_p1_r -
 //-------------------------------------------------
 
-READ8_MEMBER( v1050_keyboard_device::kb_p1_r )
+uint8_t v1050_keyboard_device::kb_p1_r()
 {
 	uint8_t data = 0xff;
 
@@ -350,7 +350,7 @@ READ8_MEMBER( v1050_keyboard_device::kb_p1_r )
 //  kb_p1_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( v1050_keyboard_device::kb_p1_w )
+void v1050_keyboard_device::kb_p1_w(uint8_t data)
 {
 	m_keylatch = data & 0x0f;
 }
@@ -360,7 +360,7 @@ WRITE8_MEMBER( v1050_keyboard_device::kb_p1_w )
 //  kb_p2_w -
 //-------------------------------------------------
 
-WRITE8_MEMBER( v1050_keyboard_device::kb_p2_w )
+void v1050_keyboard_device::kb_p2_w(uint8_t data)
 {
 	/*
 

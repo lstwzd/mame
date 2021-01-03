@@ -145,7 +145,7 @@ DEFINE_DEVICE_TYPE_NS(SUN_TYPE5_JP_HLE_KEYBOARD, bus::sunkbd, hle_type5_jp_devic
 
 
 
-namespace bus { namespace sunkbd {
+namespace bus::sunkbd {
 
 namespace {
 
@@ -789,11 +789,11 @@ WRITE_LINE_MEMBER( hle_device_base::input_txd )
     add machine configuration
 --------------------------------------------------*/
 
-MACHINE_CONFIG_START(hle_device_base::device_add_mconfig)
+void hle_device_base::device_add_mconfig(machine_config &config)
+{
 	SPEAKER(config, "bell").front_center();
-	MCFG_DEVICE_ADD("beeper", BEEP, ATTOSECONDS_TO_HZ(480 * ATTOSECONDS_PER_MICROSECOND))
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "bell", 1.0)
-MACHINE_CONFIG_END
+	BEEP(config, m_beeper, ATTOSECONDS_TO_HZ(480 * ATTOSECONDS_PER_MICROSECOND)).add_route(ALL_OUTPUTS, "bell", 1.0);
+}
 
 
 /*--------------------------------------------------
@@ -985,6 +985,7 @@ void hle_device_base::received_byte(uint8_t byte)
 
 	default:
 		assert(m_rx_state == RX_IDLE);
+		[[fallthrough]];
 	case RX_IDLE:
 		switch (byte)
 		{
@@ -1279,4 +1280,4 @@ ioport_constructor hle_type5_jp_device::device_input_ports() const
 	return INPUT_PORTS_NAME(hle_type5_jp_device);
 }
 
-} } // namespace bus::sunkbd
+} // namespace bus::sunkbd

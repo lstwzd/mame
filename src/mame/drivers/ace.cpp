@@ -65,10 +65,10 @@ public:
 	void ace(machine_config &config);
 
 private:
-	DECLARE_WRITE8_MEMBER(ace_objpos_w);
-	DECLARE_WRITE8_MEMBER(ace_characterram_w);
-	DECLARE_WRITE8_MEMBER(ace_scoreram_w);
-	DECLARE_READ8_MEMBER(unk_r);
+	void ace_objpos_w(offs_t offset, uint8_t data);
+	void ace_characterram_w(offs_t offset, uint8_t data);
+	void ace_scoreram_w(offs_t offset, uint8_t data);
+	uint8_t unk_r();
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	virtual void video_start() override;
@@ -90,7 +90,7 @@ private:
 };
 
 
-WRITE8_MEMBER(aceal_state::ace_objpos_w)
+void aceal_state::ace_objpos_w(offs_t offset, uint8_t data)
 {
 	m_objpos[offset] = data;
 }
@@ -118,7 +118,7 @@ uint32_t aceal_state::screen_update_ace(screen_device &screen, bitmap_ind16 &bit
 }
 
 
-WRITE8_MEMBER(aceal_state::ace_characterram_w)
+void aceal_state::ace_characterram_w(offs_t offset, uint8_t data)
 {
 	if (m_characterram[offset] != data)
 	{
@@ -132,13 +132,13 @@ WRITE8_MEMBER(aceal_state::ace_characterram_w)
 	}
 }
 
-WRITE8_MEMBER(aceal_state::ace_scoreram_w)
+void aceal_state::ace_scoreram_w(offs_t offset, uint8_t data)
 {
 	m_scoreram[offset] = data;
 	m_gfxdecode->gfx(4)->mark_dirty(offset / 32);
 }
 
-READ8_MEMBER(aceal_state::unk_r)
+uint8_t aceal_state::unk_r()
 {
 	return machine().rand() & 0xff;
 }
@@ -322,27 +322,27 @@ void aceal_state::machine_reset()
 		elem = 0;
 }
 
-MACHINE_CONFIG_START(aceal_state::ace)
-
+void aceal_state::ace(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", I8080, MASTER_CLOCK/9) /* 2 MHz ? */
-	MCFG_DEVICE_PROGRAM_MAP(main_map)
+	I8080(config, m_maincpu, MASTER_CLOCK/9); /* 2 MHz ? */
+	m_maincpu->set_addrmap(AS_PROGRAM, &aceal_state::main_map);
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(4*8, 32*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(aceal_state, screen_update_ace)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	screen.set_size(32*8, 32*8);
+	screen.set_visarea(4*8, 32*8-1, 2*8, 32*8-1);
+	screen.set_screen_update(FUNC(aceal_state::screen_update_ace));
+	screen.set_palette(m_palette);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_ace)
+	GFXDECODE(config, m_gfxdecode, m_palette, gfx_ace);
 	PALETTE(config, m_palette, palette_device::MONOCHROME);
 
 	/* sound hardware */
 	/* ???? */
-MACHINE_CONFIG_END
+}
 
 /***************************************************************************
 

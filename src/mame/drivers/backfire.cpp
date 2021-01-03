@@ -49,20 +49,20 @@ public:
 	void init_backfire();
 
 private:
-	DECLARE_READ32_MEMBER(control2_r);
-	template<int Layer> DECLARE_READ32_MEMBER(pf_rowscroll_r);
-	template<int Layer> DECLARE_WRITE32_MEMBER(pf_rowscroll_w);
-	template<int Chip> DECLARE_READ32_MEMBER(spriteram_r);
-	template<int Chip> DECLARE_WRITE32_MEMBER(spriteram_w);
-	DECLARE_READ32_MEMBER(backfire_speedup_r);
-	DECLARE_WRITE8_MEMBER(eeprom_w);
-	DECLARE_READ32_MEMBER(pot_select_r);
+	uint32_t control2_r();
+	template<int Layer> uint32_t pf_rowscroll_r(offs_t offset);
+	template<int Layer> void pf_rowscroll_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	template<int Chip> uint32_t spriteram_r(offs_t offset);
+	template<int Chip> void spriteram_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint32_t backfire_speedup_r();
+	void eeprom_w(uint8_t data);
+	uint32_t pot_select_r(offs_t offset);
 	virtual void machine_start() override;
 	virtual void video_start() override;
 	uint32_t screen_update_left(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	uint32_t screen_update_right(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	DECLARE_WRITE_LINE_MEMBER(vbl_interrupt);
-	DECLARE_WRITE32_MEMBER(irq_ack_w);
+	void irq_ack_w(uint32_t data);
 	void descramble_sound();
 	DECO16IC_BANK_CB_MEMBER(bank_callback);
 	DECOSPR_PRIORITY_CB_MEMBER(pri_callback);
@@ -177,7 +177,7 @@ uint32_t backfire_state::screen_update_right(screen_device &screen, bitmap_ind16
 
 
 
-WRITE8_MEMBER(backfire_state::eeprom_w)
+void backfire_state::eeprom_w(uint8_t data)
 {
 	m_eeprom->clk_write(BIT(data, 1) ? ASSERT_LINE : CLEAR_LINE);
 	m_eeprom->di_write(BIT(data, 0));
@@ -187,25 +187,25 @@ WRITE8_MEMBER(backfire_state::eeprom_w)
 
 /* map 32-bit writes to 16-bit */
 
-template<int Layer> READ32_MEMBER(backfire_state::pf_rowscroll_r){ return m_pf_rowscroll[Layer][offset] ^ 0xffff0000; }
-template<int Layer> WRITE32_MEMBER(backfire_state::pf_rowscroll_w){ data &= 0x0000ffff; mem_mask &= 0x0000ffff; COMBINE_DATA(&m_pf_rowscroll[Layer][offset]); }
+template<int Layer> uint32_t backfire_state::pf_rowscroll_r(offs_t offset){ return m_pf_rowscroll[Layer][offset] ^ 0xffff0000; }
+template<int Layer> void backfire_state::pf_rowscroll_w(offs_t offset, uint32_t data, uint32_t mem_mask){ data &= 0x0000ffff; mem_mask &= 0x0000ffff; COMBINE_DATA(&m_pf_rowscroll[Layer][offset]); }
 
 
-READ32_MEMBER(backfire_state::pot_select_r)
+uint32_t backfire_state::pot_select_r(offs_t offset)
 {
 	if (!machine().side_effects_disabled())
-		m_adc->address_offset_start_w(space, offset, 0);
+		m_adc->address_offset_start_w(offset, 0);
 	return 0;
 }
 
 template<int Chip>
-READ32_MEMBER(backfire_state::spriteram_r)
+uint32_t backfire_state::spriteram_r(offs_t offset)
 {
 	return m_spriteram[Chip][offset] ^ 0xffff0000;
 }
 
 template<int Chip>
-WRITE32_MEMBER(backfire_state::spriteram_w)
+void backfire_state::spriteram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	data &= 0x0000ffff;
 	mem_mask &= 0x0000ffff;
@@ -331,7 +331,7 @@ WRITE_LINE_MEMBER(backfire_state::vbl_interrupt)
 		m_maincpu->set_input_line(ARM_IRQ_LINE, ASSERT_LINE);
 }
 
-WRITE32_MEMBER(backfire_state::irq_ack_w)
+void backfire_state::irq_ack_w(uint32_t data)
 {
 	m_maincpu->set_input_line(ARM_IRQ_LINE, CLEAR_LINE);
 }
@@ -362,11 +362,11 @@ void backfire_state::machine_start()
 {
 }
 
-MACHINE_CONFIG_START(backfire_state::backfire)
-
+void backfire_state::backfire(machine_config &config)
+{
 	/* basic machine hardware */
-	MCFG_DEVICE_ADD("maincpu", ARM, 28000000/4) /* Unconfirmed */
-	MCFG_DEVICE_PROGRAM_MAP(backfire_map)
+	ARM(config, m_maincpu, 28000000/4); /* Unconfirmed */
+	m_maincpu->set_addrmap(AS_PROGRAM, &backfire_state::backfire_map);
 
 	EEPROM_93C46_16BIT(config, "eeprom");
 
@@ -377,56 +377,50 @@ MACHINE_CONFIG_START(backfire_state::backfire)
 	/* video hardware */
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_555, 2048);
 
-	MCFG_DEVICE_ADD("gfxdecode", GFXDECODE, "palette", gfx_backfire)
+	GFXDECODE(config, "gfxdecode", m_palette, gfx_backfire);
 	config.set_default_layout(layout_dualhsxs);
 
-	MCFG_SCREEN_ADD("lscreen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(backfire_state, screen_update_left)
-	MCFG_SCREEN_PALETTE(m_palette)
-	MCFG_SCREEN_VBLANK_CALLBACK(WRITELINE(*this, backfire_state, vbl_interrupt))
+	SCREEN(config, m_lscreen, SCREEN_TYPE_RASTER);
+	m_lscreen->set_refresh_hz(60);
+	m_lscreen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	m_lscreen->set_size(40*8, 32*8);
+	m_lscreen->set_visarea(0*8, 40*8-1, 1*8, 31*8-1);
+	m_lscreen->set_screen_update(FUNC(backfire_state::screen_update_left));
+	m_lscreen->set_palette(m_palette);
+	m_lscreen->screen_vblank().set(FUNC(backfire_state::vbl_interrupt));
 
-	MCFG_SCREEN_ADD("rscreen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE_DRIVER(backfire_state, screen_update_right)
-	MCFG_SCREEN_PALETTE(m_palette)
+	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
+	rscreen.set_refresh_hz(60);
+	rscreen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
+	rscreen.set_size(40*8, 32*8);
+	rscreen.set_visarea(0*8, 40*8-1, 1*8, 31*8-1);
+	rscreen.set_screen_update(FUNC(backfire_state::screen_update_right));
+	rscreen.set_palette(m_palette);
 
 	DECO16IC(config, m_deco_tilegen[0], 0);
 	m_deco_tilegen[0]->set_screen(m_lscreen);
-	m_deco_tilegen[0]->set_split(0);
 	m_deco_tilegen[0]->set_pf1_size(DECO_64x32);
 	m_deco_tilegen[0]->set_pf2_size(DECO_64x32);
-	m_deco_tilegen[0]->set_pf1_trans_mask(0x0f);
-	m_deco_tilegen[0]->set_pf2_trans_mask(0x0f);
 	m_deco_tilegen[0]->set_pf1_col_bank(0x00);
 	m_deco_tilegen[0]->set_pf2_col_bank(0x40);
 	m_deco_tilegen[0]->set_pf1_col_mask(0x0f);
 	m_deco_tilegen[0]->set_pf2_col_mask(0x0f);
-	m_deco_tilegen[0]->set_bank1_callback(FUNC(backfire_state::bank_callback), this);
-	m_deco_tilegen[0]->set_bank2_callback(FUNC(backfire_state::bank_callback), this);
+	m_deco_tilegen[0]->set_bank1_callback(FUNC(backfire_state::bank_callback));
+	m_deco_tilegen[0]->set_bank2_callback(FUNC(backfire_state::bank_callback));
 	m_deco_tilegen[0]->set_pf12_8x8_bank(0);
 	m_deco_tilegen[0]->set_pf12_16x16_bank(1);
 	m_deco_tilegen[0]->set_gfxdecode_tag("gfxdecode");
 
 	DECO16IC(config, m_deco_tilegen[1], 0);
 	m_deco_tilegen[1]->set_screen(m_lscreen);
-	m_deco_tilegen[1]->set_split(0);
 	m_deco_tilegen[1]->set_pf1_size(DECO_64x32);
 	m_deco_tilegen[1]->set_pf2_size(DECO_64x32);
-	m_deco_tilegen[1]->set_pf1_trans_mask(0x0f);
-	m_deco_tilegen[1]->set_pf2_trans_mask(0x0f);
 	m_deco_tilegen[1]->set_pf1_col_bank(0x10);
 	m_deco_tilegen[1]->set_pf2_col_bank(0x50);
 	m_deco_tilegen[1]->set_pf1_col_mask(0x0f);
 	m_deco_tilegen[1]->set_pf2_col_mask(0x0f);
-	m_deco_tilegen[1]->set_bank1_callback(FUNC(backfire_state::bank_callback), this);
-	m_deco_tilegen[1]->set_bank2_callback(FUNC(backfire_state::bank_callback), this);
+	m_deco_tilegen[1]->set_bank1_callback(FUNC(backfire_state::bank_callback));
+	m_deco_tilegen[1]->set_bank2_callback(FUNC(backfire_state::bank_callback));
 	m_deco_tilegen[1]->set_pf12_8x8_bank(2);
 	m_deco_tilegen[1]->set_pf12_16x16_bank(3);
 	m_deco_tilegen[1]->set_gfxdecode_tag("gfxdecode");
@@ -434,23 +428,23 @@ MACHINE_CONFIG_START(backfire_state::backfire)
 	DECO_SPRITE(config, m_sprgen[0], 0);
 	m_sprgen[0]->set_screen(m_lscreen);
 	m_sprgen[0]->set_gfx_region(4);
-	m_sprgen[0]->set_pri_callback(FUNC(backfire_state::pri_callback), this);
+	m_sprgen[0]->set_pri_callback(FUNC(backfire_state::pri_callback));
 	m_sprgen[0]->set_gfxdecode_tag("gfxdecode");
 
 	DECO_SPRITE(config, m_sprgen[1], 0);
 	m_sprgen[1]->set_screen("rscreen");
 	m_sprgen[1]->set_gfx_region(5);
-	m_sprgen[1]->set_pri_callback(FUNC(backfire_state::pri_callback), this);
+	m_sprgen[1]->set_pri_callback(FUNC(backfire_state::pri_callback));
 	m_sprgen[1]->set_gfxdecode_tag("gfxdecode");
 
 	/* sound hardware */
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	MCFG_DEVICE_ADD("ymz", YMZ280B, 28000000 / 2)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	ymz280b_device &ymz(YMZ280B(config, "ymz", 28000000 / 2));
+	ymz.add_route(0, "lspeaker", 1.0);
+	ymz.add_route(1, "rspeaker", 1.0);
+}
 
 
 /*
@@ -599,7 +593,7 @@ void backfire_state::descramble_sound()
 	memcpy(rom, &buf1[0], length);
 }
 
-READ32_MEMBER(backfire_state::backfire_speedup_r)
+uint32_t backfire_state::backfire_speedup_r()
 {
 	//osd_printf_debug( "%08x\n",m_maincpu->pc());
 
@@ -617,7 +611,7 @@ void backfire_state::init_backfire()
 	deco156_decrypt(machine());
 	m_maincpu->set_clock_scale(4.0f); /* core timings aren't accurate */
 	descramble_sound();
-	m_maincpu->space(AS_PROGRAM).install_read_handler(0x0170018, 0x017001b, read32_delegate(FUNC(backfire_state::backfire_speedup_r), this));
+	m_maincpu->space(AS_PROGRAM).install_read_handler(0x0170018, 0x017001b, read32smo_delegate(*this, FUNC(backfire_state::backfire_speedup_r)));
 }
 
 GAME( 1995, backfire,  0,        backfire,   backfire, backfire_state, init_backfire, ROT0, "Data East Corporation", "Backfire! (Japan, set 1)", MACHINE_SUPPORTS_SAVE )
